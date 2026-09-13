@@ -177,11 +177,32 @@
       </div>
     </header>
 
-    <!-- Global Filter Ribbon -->
-    <div id="global-filter-ribbon" class="bg-white border-b border-slate-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-      <div class="flex flex-wrap items-center gap-2">
+    <!-- Mobile Compact Filter Bar (< lg) -->
+    <div class="lg:hidden bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs z-10 flex-shrink-0">
+      <button type="button" onclick="toggleMobileFilter()" class="flex items-center gap-2 text-slate-800 font-semibold focus:outline-none">
+        <span class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+          <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
+        </span>
+        <div class="text-left">
+          <p class="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+            <span>Filter Data</span>
+            <i id="mobile-filter-chevron" data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200"></i>
+          </p>
+          <p id="mobile-filter-summary" class="text-[10px] text-slate-500 font-normal truncate max-w-[200px]">Mei 2026 • Semua SPV</p>
+        </div>
+      </button>
+      <div class="flex items-center gap-1.5">
+        <button type="button" onclick="applyFilters()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-semibold text-[11px] shadow-sm transition">
+          Terapkan
+        </button>
+      </div>
+    </div>
+
+    <!-- Global Filter Ribbon (Collapsed by default on mobile, always visible on desktop) -->
+    <div id="global-filter-ribbon" class="hidden lg:flex bg-white border-b border-slate-200 px-4 lg:px-6 py-3 flex-wrap items-center justify-between gap-3 text-xs flex-shrink-0 shadow-sm lg:shadow-none transition-all duration-200">
+      <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
         <!-- Periode -->
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Periode:</span>
           <select id="filter-period" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
             <option value="2026-05" selected>Mei 2026</option>
@@ -193,7 +214,7 @@
         </div>
 
         <!-- SPV -->
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">SPV:</span>
           <select id="filter-spv" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
             <option value="">Semua SPV</option>
@@ -203,7 +224,7 @@
         </div>
 
         <!-- Salesman Group -->
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Group:</span>
           <select id="filter-sales-group" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
             <option value="">Semua Group</option>
@@ -214,7 +235,7 @@
         </div>
 
         <!-- Salesman -->
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Salesman:</span>
           <select id="filter-salesman" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
             <option value="">Semua Salesman</option>
@@ -229,7 +250,7 @@
         </div>
 
         <!-- Brand -->
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Brand:</span>
           <select id="filter-brand" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
             <option value="">Semua Brand</option>
@@ -242,7 +263,7 @@
         </div>
 
         <!-- Kecamatan -->
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Kecamatan:</span>
           <select id="filter-kecamatan" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[150px]">
             <option value="">Semua Kecamatan</option>
@@ -256,7 +277,7 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 w-full lg:w-auto justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
         <button onclick="applyFilters()" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-semibold transition flex items-center gap-1.5 shadow-sm shadow-emerald-700/20">
           <i data-lucide="filter" class="w-3.5 h-3.5"></i>
           <span>Terapkan</span>

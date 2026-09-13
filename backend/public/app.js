@@ -30,11 +30,13 @@ window.addEventListener('hashchange', () => {
 
 async function initApp() {
   await loadFilterOptions();
+  updateMobileFilterSummary();
   const hash = window.location.hash.replace('#', '');
   if (hash) {
     currentTab = hash;
   }
   navigate(currentTab);
+  lucide.createIcons();
 }
 
 // Router
@@ -132,6 +134,48 @@ async function loadFilterOptions() {
   }
 }
 
+function toggleMobileFilter(forceState) {
+  const ribbon = document.getElementById('global-filter-ribbon');
+  const chevron = document.getElementById('mobile-filter-chevron');
+  if (!ribbon) return;
+
+  const isClosed = ribbon.classList.contains('hidden');
+  const openIt = forceState !== undefined ? forceState : isClosed;
+
+  if (openIt) {
+    ribbon.classList.remove('hidden');
+    ribbon.classList.add('flex');
+    if (chevron) chevron.style.transform = 'rotate(180deg)';
+  } else {
+    ribbon.classList.add('hidden');
+    ribbon.classList.remove('flex');
+    if (chevron) chevron.style.transform = 'rotate(0deg)';
+  }
+}
+
+function updateMobileFilterSummary() {
+  const summaryEl = document.getElementById('mobile-filter-summary');
+  if (!summaryEl) return;
+
+  const pEl = document.getElementById('filter-period');
+  const spvEl = document.getElementById('filter-spv');
+  const slsEl = document.getElementById('filter-salesman');
+  const grpEl = document.getElementById('filter-sales-group');
+  const brdEl = document.getElementById('filter-brand');
+  const kecEl = document.getElementById('filter-kecamatan');
+
+  const parts = [];
+  if (pEl && pEl.selectedIndex >= 0) parts.push(pEl.options[pEl.selectedIndex].text);
+  if (spvEl && spvEl.value) parts.push(spvEl.options[spvEl.selectedIndex].text);
+  if (grpEl && grpEl.value) parts.push(grpEl.options[grpEl.selectedIndex].text);
+  if (slsEl && slsEl.value) parts.push(slsEl.options[slsEl.selectedIndex].text);
+  if (brdEl && brdEl.value) parts.push(brdEl.options[brdEl.selectedIndex].text);
+  if (kecEl && kecEl.value) parts.push(kecEl.options[kecEl.selectedIndex].text);
+
+  if (parts.length === 1) parts.push('Semua SPV');
+  summaryEl.textContent = parts.join(' • ');
+}
+
 function applyFilters() {
   const pVal = document.getElementById('filter-period').value.split('-');
   globalFilters.year = parseInt(pVal[0], 10);
@@ -142,6 +186,11 @@ function applyFilters() {
   globalFilters.salesGroup = grpEl ? grpEl.value : '';
   globalFilters.brand = document.getElementById('filter-brand') ? document.getElementById('filter-brand').value : '';
   globalFilters.kecamatanId = document.getElementById('filter-kecamatan') ? document.getElementById('filter-kecamatan').value : '';
+
+  updateMobileFilterSummary();
+  if (window.innerWidth < 1024) {
+    toggleMobileFilter(false);
+  }
 
   navigate(currentTab);
 }
@@ -155,6 +204,10 @@ function resetFilters() {
   if (document.getElementById('filter-kecamatan')) document.getElementById('filter-kecamatan').value = '';
   globalFilters.salesGroup = '';
   globalFilters.groupSku = '';
+  updateMobileFilterSummary();
+  if (window.innerWidth < 1024) {
+    toggleMobileFilter(false);
+  }
   applyFilters();
 }
 
@@ -279,19 +332,23 @@ async function renderGarutChoropleth(containerId, tooltipId, coverageList, total
   const detailStats = document.getElementById('map-detail-stats');
 
   const paths = container.querySelectorAll('.garut-kec-path');
+
   paths.forEach(p => {
-    p.addEventListener('mouseenter', (e) => {
+    const onEnter = (e) => {
       p.style.stroke = '#0f172a';
       p.style.strokeWidth = '2.2px';
-      p.style.filter = 'brightness(1.08) drop-shadow(0 2px 4px rgba(0,0,0,0.2))';
-      p.parentNode.appendChild(p);
+      p.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.35))';
+      p.style.opacity = '1';
+
+      paths.forEach(other => {
+        if (other !== p) other.style.opacity = '0.65';
+      });
 
       const name = p.getAttribute('data-name');
       const reg = parseInt(p.getAttribute('data-reg')) || 0;
       const act = parseInt(p.getAttribute('data-act')) || 0;
       const cov = parseFloat(p.getAttribute('data-cov')) || 0;
       const cartons = parseFloat(p.getAttribute('data-cartons')) || 0;
-      const sales = parseInt(p.getAttribute('data-sales')) || 0;
 
       if (detailTitle) detailTitle.textContent = 'Wilayah Dipilih';
       if (detailName) detailName.textContent = name;
@@ -316,23 +373,34 @@ async function renderGarutChoropleth(containerId, tooltipId, coverageList, total
             ${reg > 0 ? `<p class="flex justify-between gap-3"><span>Penjualan:</span> <strong>${cartons} KTN</strong></p>` : ''}
           </div>
         `;
+        updateTooltipPos(e);
       }
-    });
+    };
 
-    p.addEventListener('mousemove', (e) => {
-      if (tooltip) {
-        const rect = container.getBoundingClientRect();
-        const x = e.clientX - rect.left + 12;
-        const y = e.clientY - rect.top + 12;
-        tooltip.style.left = `${Math.min(x, rect.width - 130)}px`;
-        tooltip.style.top = `${Math.min(y, rect.height - 70)}px`;
-      }
-    });
+    const updateTooltipPos = (e) => {
+      if (!tooltip) return;
+      const targetParent = tooltip.offsetParent || container;
+      const rect = targetParent.getBoundingClientRect();
+      const clientX = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
+      if (clientX === undefined || clientY === undefined) return;
 
-    p.addEventListener('mouseleave', () => {
+      const x = clientX - rect.left + 12;
+      const y = clientY - rect.top + 12;
+      const maxX = Math.max(8, rect.width - 145);
+      const maxY = Math.max(8, rect.height - 85);
+      tooltip.style.left = `${Math.max(8, Math.min(x, maxX))}px`;
+      tooltip.style.top = `${Math.max(8, Math.min(y, maxY))}px`;
+    };
+
+    const onLeave = () => {
       p.style.stroke = '#ffffff';
       p.style.strokeWidth = '0.8px';
       p.style.filter = 'none';
+
+      paths.forEach(other => {
+        other.style.opacity = '1';
+      });
 
       if (tooltip) tooltip.classList.add('hidden');
       if (detailTitle) detailTitle.textContent = 'Sorot / Klik Wilayah';
@@ -343,7 +411,14 @@ async function renderGarutChoropleth(containerId, tooltipId, coverageList, total
           <span class="font-bold text-blue-700">${totalStats.coveragePct || 0}% Cov</span>
         `;
       }
-    });
+    };
+
+    p.addEventListener('mouseenter', onEnter);
+    p.addEventListener('mousemove', updateTooltipPos);
+    p.addEventListener('mouseleave', onLeave);
+    p.addEventListener('touchstart', (e) => {
+      onEnter(e);
+    }, { passive: true });
 
     p.addEventListener('click', () => {
       const name = p.getAttribute('data-name');
@@ -358,9 +433,12 @@ async function renderGarutChoropleth(containerId, tooltipId, coverageList, total
             }
           }
         }
+        applyFilters();
         navigate('outlet');
       } else {
-        alert(`Kecamatan ${name} belum memiliki outlet terdaftar dalam rute distribusi aktif.`);
+        if (detailStats) {
+          detailStats.innerHTML = `<span class="text-amber-600 font-semibold">Belum ada rute aktif di ${name}</span>`;
+        }
       }
     });
   });
