@@ -16,11 +16,17 @@ function getDb() {
     return {
       type: 'postgres',
       async query(sql, params = []) {
-        // Convert ? placeholders to ,  for Postgres
+        // Convert ? placeholders to $1, $2 for Postgres
         let idx = 1;
         const pgSql = sql.replace(/\?/g, () => '$' + (idx++));
         const res = await pgPool.query(pgSql, params);
         return res.rows;
+      },
+      async run(sql, params = []) {
+        // INSERT/UPDATE/DELETE — convert ? to $N, ignore return
+        let idx = 1;
+        const pgSql = sql.replace(/\?/g, () => '$' + (idx++));
+        return await pgPool.query(pgSql, params);
       },
       async exec(sql) {
         return await pgPool.query(sql);
@@ -70,8 +76,21 @@ function initSchema() {
       // Ignore if already migrated
     }
   } else {
-    // For postgres async
-    return db.exec(schemaSql);
+    // Postgres: run each statement individually (pg.query doesn't support multi-statement)
+    const statements = schemaSql
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'));
+    return (async () => {
+      for (const stmt of statements) {
+        try {
+          await pgPool.query(stmt);
+        } catch (e) {
+          // Ignore "already exists" errors (idempotent re-runs)
+          if (!e.message.includes('already exists')) throw e;
+        }
+      }
+    })();
   }
   return true;
 }

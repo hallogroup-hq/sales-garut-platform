@@ -20,9 +20,10 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Initialize DB schema & seed
-initSchema();
-seedInitialData();
+// Initialize DB schema & seed (async for Postgres, sync for SQLite)
+Promise.resolve(initSchema()).then(() => {
+  return Promise.resolve(seedInitialData());
+}).catch(err => console.error('DB init error:', err));
 
 // Register API routes
 app.use('/api', apiRoutes);

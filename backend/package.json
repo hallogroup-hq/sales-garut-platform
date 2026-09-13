@@ -1,22 +1,27 @@
 {
-  "name": "backend",
+  "name": "sales-garut-platform",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Sales Garut Intelligence Platform",
+  "main": "src/server.js",
   "directories": {
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/server.js",
+    "test": "node tests/test_suite.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "multer": "^2.3.0",
+    "pg": "^8.13.3",
     "xlsx": "^0.18.5"
   }
 }
