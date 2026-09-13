@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sales Garut Intelligence Platform</title>
+  <!-- Tailwind CSS & Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .nav-item.active {
+      background: #1e3a8a;
+      color: #ffffff;
+    }
+    .badge-success { background: #dcfce7; color: #15803d; }
+    .badge-warning { background: #fef9c3; color: #a16207; }
+    .badge-danger { background: #fee2e2; color: #b91c1c; }
+    .badge-info { background: #e0f2fe; color: #0369a1; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 flex h-screen overflow-hidden">
+
+  <!-- ============================================================== -->
+  <!-- MOBILE BACKDROP OVERLAY                                        -->
+  <!-- ============================================================== -->
+  <div id="sidebar-backdrop" onclick="toggleSidebar(false)" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-30 hidden lg:hidden transition-opacity"></div>
+
+  <!-- ============================================================== -->
+  <!-- SIDEBAR NAVIGATION (Mobile drawer + Desktop static)           -->
+  <!-- ============================================================== -->
+  <aside id="app-sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-[#0a1e3b] text-slate-300 flex flex-col justify-between flex-shrink-0 select-none transform -translate-x-full transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto">
+    <div>
+      <!-- Brand Logo Header -->
+      <div class="px-5 py-5 border-b border-slate-800/80 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-900/40">
+            <i data-lucide="trending-up" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h1 class="font-bold text-white text-base tracking-tight leading-tight">Sales Garut</h1>
+            <p class="text-[11px] text-emerald-400 font-medium tracking-wide uppercase">Intelligence Platform</p>
+          </div>
+        </div>
+        <!-- Mobile close button -->
+        <button onclick="toggleSidebar(false)" class="lg:hidden text-slate-400 hover:text-white p-1 rounded-md focus:outline-none" aria-label="Tutup menu">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Nav Menu Items -->
+      <nav class="mt-4 px-3 space-y-1 text-sm font-medium">
+        <a href="#beranda" onclick="navigate('beranda'); toggleSidebar(false);" id="nav-beranda" class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+          <span>Beranda</span>
+        </a>
+        <a href="#penjualan" onclick="navigate('penjualan'); toggleSidebar(false);" id="nav-penjualan" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+          <span>Penjualan</span>
+        </a>
+        <a href="#outlet" onclick="navigate('outlet'); toggleSidebar(false);" id="nav-outlet" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="store" class="w-4 h-4"></i>
+          <span>Outlet & Area</span>
+        </a>
+        <a href="#peta" onclick="openGarutMapModal(); toggleSidebar(false);" id="nav-peta" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="map" class="w-4 h-4 text-emerald-400"></i>
+          <span class="flex items-center gap-2">
+            <span>Peta Wilayah</span>
+            <span class="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">42 Kec</span>
+          </span>
+        </a>
+        <a href="#salesman" onclick="navigate('salesman'); toggleSidebar(false);" id="nav-salesman" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="users" class="w-4 h-4"></i>
+          <span>Tim Sales</span>
+        </a>
+        <a href="#program" onclick="navigate('program'); toggleSidebar(false);" id="nav-program" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="target" class="w-4 h-4"></i>
+          <span>Program Produk</span>
+        </a>
+        <a href="#stock" onclick="navigate('stock'); toggleSidebar(false);" id="nav-stock" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="boxes" class="w-4 h-4"></i>
+          <span>Stock & Piutang</span>
+        </a>
+        <a href="#datacenter" onclick="navigate('datacenter'); toggleSidebar(false);" id="nav-datacenter" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="database" class="w-4 h-4"></i>
+          <span>Data Center</span>
+        </a>
+        <a href="#settings" onclick="navigate('settings'); toggleSidebar(false);" id="nav-settings" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+          <span>Pengaturan</span>
+        </a>
+      </nav>
+    </div>
+
+    <!-- Sidebar Footer -->
+    <div class="p-4 border-t border-slate-800/80">
+      <div class="bg-slate-900/80 rounded-xl p-3 border border-slate-800">
+        <p class="text-xs font-semibold text-white">Garut Lebih Kuat Bersama</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Good People Great Execution</p>
+        <div class="mt-2.5 flex items-center justify-between text-[11px]">
+          <span class="flex items-center gap-1.5 text-amber-400 font-semibold"><span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> DEVELOPMENT / PRE-UAT</span>
+          <span class="text-slate-400 font-mono text-[10px]">v0.9.5</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================================================== -->
+  <!-- MAIN CONTENT WRAPPER                                           -->
+  <!-- ============================================================== -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    
+    <!-- Top Header Bar -->
+    <header class="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between flex-shrink-0 z-10">
+      <!-- Mobile hamburger + Search input -->
+      <div class="flex items-center gap-2 flex-1 max-w-xl mr-2">
+        <button id="mobile-menu-btn" onclick="toggleSidebar(true)" class="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 focus:outline-none flex-shrink-0" aria-label="Buka menu navigasi">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+
+        <div class="relative w-full max-w-[200px] sm:max-w-xs md:max-w-md">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input type="text" id="global-search" onkeydown="handleGlobalSearch(event)" placeholder="Cari outlet nama/ID... (Enter)" class="w-full bg-slate-100/80 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+        </div>
+      </div>
+
+      <!-- Right profile & date -->
+      <div class="flex items-center gap-4">
+        <!-- Date / time display -->
+        <div class="hidden md:flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+          <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span id="header-date">Selasa, 21 Mei 2026 | 14:32 WIB</span>
+        </div>
+
+        <!-- Notification Bell -->
+        <div class="relative">
+          <button onclick="toggleAlertsMenu()" class="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition relative">
+            <i data-lucide="bell" class="w-4 h-4"></i>
+            <span class="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2 ring-2 ring-white"></span>
+          </button>
+          <div id="alerts-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 text-xs">
+            <div class="font-semibold text-slate-800 pb-2 border-b border-slate-100 flex justify-between items-center">
+              <span>Pemberitahuan Sistem</span>
+              <span class="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold">3 Peringatan</span>
+            </div>
+            <div id="alerts-list" class="mt-2 space-y-2 max-h-60 overflow-y-auto scrollbar-thin">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+
+        <!-- User Profile (Aghia - Sales Manager) -->
+        <div class="flex items-center gap-3 pl-3 border-l border-slate-200">
+          <div class="w-9 h-9 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm">
+            AG
+          </div>
+          <div class="text-left leading-tight hidden sm:block">
+            <p class="text-xs font-bold text-slate-800">Aghia</p>
+            <p class="text-[10px] text-slate-500 font-medium">Sales Manager (DSM)</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Global Filter Ribbon -->
+    <div id="global-filter-ribbon" class="bg-white border-b border-slate-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Periode -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-slate-500 font-medium">Periode:</span>
+          <select id="filter-period" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
+            <option value="2026-05" selected>Mei 2026</option>
+            <option value="2026-09">September 2026</option>
+            <option value="2026-08">Agustus 2026</option>
+            <option value="2026-07">Juli 2026</option>
+            <option value="2026-06">Juni 2026</option>
+          </select>
+        </div>
+
+        <!-- SPV -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-slate-500 font-medium">SPV:</span>
+          <select id="filter-spv" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
+            <option value="">Semua SPV</option>
+            <option value="SPV_NOPAN">Nopan (Team 1)</option>
+            <option value="SPV_TRI_H">Tri H. (Team 2)</option>
+          </select>
+        </div>
+
+        <!-- Salesman Group -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-slate-500 font-medium">Group:</span>
+          <select id="filter-sales-group" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
+            <option value="">Semua Group</option>
+            <option value="SAVORIA">SAVORIA (7 Salesman Rayon)</option>
+            <option value="SMC">SMC</option>
+            <option value="SAVORIA_OTHERS">SAVORIA (OTHERS)</option>
+          </select>
+        </div>
+
+        <!-- Salesman -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-slate-500 font-medium">Salesman:</span>
+          <select id="filter-salesman" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
+            <option value="">Semua Salesman</option>
+            <option value="107075">Muhamad Fikri Hambali</option>
+            <option value="305028">Mulyana</option>
+            <option value="305030">Ibna Faizal Rahman</option>
+            <option value="305031">Risan Setiawan</option>
+            <option value="305029">Mega Nugraha</option>
+            <option value="305032">ANDI AGUNG GUMILAR</option>
+            <option value="305033">Muhammad Zulfa Akbar</option>
+          </select>
+        </div>
+
+        <!-- Brand -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-slate-500 font-medium">Brand:</span>
+          <select id="filter-brand" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
+            <option value="">Semua Brand</option>
+            <option value="KOPI TUBRUK GADJAH">Kopi Tubruk Gadjah</option>
+            <option value="5DAYS">5Days Croissant</option>
+            <option value="MILK LIFE UHT">Milk Life UHT</option>
+            <option value="CAFFINO">Caffino</option>
+            <option value="FOX">Fox Confectionery</option>
+          </select>
+        </div>
+
+        <!-- Kecamatan -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-slate-500 font-medium">Kecamatan:</span>
+          <select id="filter-kecamatan" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[150px]">
+            <option value="">Semua Kecamatan</option>
+            <option value="KEC_GARUT_KOTA">GARUT KOTA</option>
+            <option value="KEC_TAROGONG_KIDUL">TAROGONG KIDUL</option>
+            <option value="KEC_TAROGONG_KALER">TAROGONG KALER</option>
+            <option value="KEC_CIKAJANG">CIKAJANG</option>
+            <option value="KEC_WANARAJA">WANARAJA</option>
+            <option value="KEC_SAMARANG">SAMARANG</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button onclick="applyFilters()" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-semibold transition flex items-center gap-1.5 shadow-sm shadow-emerald-700/20">
+          <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+          <span>Terapkan</span>
+        </button>
+        <button onclick="resetFilters()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md font-medium transition flex items-center gap-1">
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+          <span>Reset</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Scrollable Main Content Container -->
+    <main id="main-content" class="flex-1 overflow-y-auto p-6 scrollbar-thin space-y-6">
+      <!-- Injected by app.js based on active tab -->
+    </main>
+
+  </div>
+
+  <!-- Global Modal Container for Outlet 360 & Previews -->
+  <div id="modal-container" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div id="modal-content" class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-y-auto scrollbar-thin p-6 relative">
+      <!-- Dynamic modal content -->
+    </div>
+  </div>
+
+  <!-- Main Application Script -->
+  <script src="/app.js"></script>
+</body>
+</html>
