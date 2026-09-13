@@ -10,9 +10,15 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Ensure upload directory exists
-const uploadDir = path.join(__dirname, '../../uploads_staging');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+const uploadDir = (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
+  ? '/tmp/uploads_staging'
+  : path.join(__dirname, '../../uploads_staging');
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (e) {
+  console.warn('Could not create uploadDir:', e.message);
 }
 
 // Middleware

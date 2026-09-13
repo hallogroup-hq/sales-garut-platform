@@ -36,7 +36,42 @@ function getDb() {
 
   if (!sqliteDb) {
     const { DatabaseSync } = require('node:sqlite');
-    const dbPath = process.env.SQLITE_DB_PATH || path.join(__dirname, '../../../sales_garut.db');
+    let dbPath = process.env.SQLITE_DB_PATH;
+
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      const tmpDb = '/tmp/sales_garut.db';
+      if (!fs.existsSync(tmpDb)) {
+        const candidateSources = [
+          path.join(__dirname, 'sales_garut.db'),
+          path.join(__dirname, '../sales_garut.db'),
+          path.join(__dirname, '../../sales_garut.db'),
+          path.join(__dirname, '../../../sales_garut.db'),
+          path.join(process.cwd(), 'backend/src/db/sales_garut.db'),
+          path.join(process.cwd(), 'backend/sales_garut.db'),
+          path.join(process.cwd(), 'sales_garut.db')
+        ];
+        let copied = false;
+        for (const src of candidateSources) {
+          if (src && fs.existsSync(src)) {
+            try {
+              fs.copyFileSync(src, tmpDb);
+              console.log(`[Vercel] Successfully initialized SQLite DB in /tmp from ${src}`);
+              copied = true;
+              break;
+            } catch (err) {
+              console.error(`[Vercel] Failed to copy from ${src}:`, err);
+            }
+          }
+        }
+        if (!copied) {
+          console.warn('[Vercel] Warning: No pre-existing sales_garut.db found, creating fresh at /tmp/sales_garut.db');
+        }
+      }
+      dbPath = tmpDb;
+    } else if (!dbPath) {
+      dbPath = path.join(__dirname, '../../../sales_garut.db');
+    }
+
     sqliteDb = new DatabaseSync(dbPath);
     sqliteDb.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
   }

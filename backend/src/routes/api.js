@@ -23,7 +23,17 @@ const {
 const { getAuditLogs, logAudit } = require('../middleware/audit.js');
 
 const router = express.Router();
-const upload = multer({ dest: path.join(__dirname, '../../../uploads_staging/') });
+const uploadDir = (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
+  ? '/tmp/uploads_staging/'
+  : path.join(__dirname, '../../../uploads_staging/');
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (e) {
+  // Ignore in read-only environments
+}
+const upload = multer({ dest: uploadDir });
 
 // Current logged in user profile (Aghia - Sales Manager / DSM)
 router.get('/auth/current-user', (req, res) => {
