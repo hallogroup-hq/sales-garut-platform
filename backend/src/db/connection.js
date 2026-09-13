@@ -8,7 +8,7 @@ let sqliteDb = null;
 let pgPool = null;
 
 function getDb() {
-  if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
+  if (process.env.DB_ENGINE === 'postgres' && process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) {
     if (!pgPool) {
       const { Pool } = require('pg');
       pgPool = new Pool({ connectionString: process.env.DATABASE_URL });
