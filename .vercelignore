@@ -1,0 +1,5 @@
+New Raw Data/
+*.xlsx
+backend/sales_garut.db
+uploads_staging/*
+!uploads_staging/.gitkeep
