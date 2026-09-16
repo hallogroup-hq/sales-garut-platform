@@ -24,3 +24,7 @@ Thumbs.db
 uploads_staging/*
 !uploads_staging/.gitkeep
 .vercel
+
+# Raw Data Excel sources
+New Raw Data/
+backend/sales_garut.db

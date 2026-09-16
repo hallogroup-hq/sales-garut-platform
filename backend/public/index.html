@@ -4,9 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sales Garut Intelligence Platform</title>
-  <!-- Tailwind CSS & Lucide Icons -->
+  <!-- Tailwind CSS, Chart.js & Lucide Icons -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -72,6 +73,13 @@
         <a href="#penjualan" onclick="navigate('penjualan'); toggleSidebar(false);" id="nav-penjualan" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
           <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
           <span>Penjualan</span>
+        </a>
+        <a href="#trend" onclick="navigate('trend'); toggleSidebar(false);" id="nav-trend" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="trending-up" class="w-4 h-4 text-cyan-400"></i>
+          <span class="flex items-center gap-2">
+            <span>Trend & Movement</span>
+            <span class="text-[9px] bg-cyan-500/20 text-cyan-300 font-bold px-1.5 py-0.5 rounded">Baru</span>
+          </span>
         </a>
         <a href="#outlet" onclick="navigate('outlet'); toggleSidebar(false);" id="nav-outlet" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
           <i data-lucide="store" class="w-4 h-4"></i>

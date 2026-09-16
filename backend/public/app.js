@@ -57,6 +57,7 @@ function navigate(tab) {
     });
   }
   else if (tab === 'penjualan') renderPenjualan();
+  else if (tab === 'trend') renderTrend();
   else if (tab === 'outlet') renderOutlet();
   else if (tab === 'salesman') renderSalesman();
   else if (tab === 'program') renderProgram();
@@ -1896,6 +1897,568 @@ function renderPenjualanContent() {
     </div>
   `;
   lucide.createIcons();
+}
+
+// ==============================================================
+// 4B. TREND & MOVEMENT SALES ANALYTICS
+// ==============================================================
+window.trendState = {
+  dimension: 'salesman', // 'salesman', 'principal', 'brand'
+  metric: 'qty',         // 'qty', 'value', 'oa'
+  periodRange: '2026',   // '2026', 'all', '2025'
+  chartType: 'bar',      // 'bar', 'line'
+  searchTerm: '',
+  sortCol: 'total',
+  sortDir: 'desc'
+};
+
+async function renderTrend() {
+  const main = document.getElementById('main-content');
+  try {
+    const { dimension, metric, periodRange } = window.trendState;
+    const spvId = globalFilters.spvId || '';
+    const salesGroup = globalFilters.salesGroup || '';
+
+    const query = new URLSearchParams({
+      dimension,
+      metric,
+      periodRange,
+      spvId,
+      salesGroup
+    });
+
+    const res = await fetch(`/api/analytics/movement?${query.toString()}`);
+    if (!res.ok) throw new Error('Gagal memuat data movement');
+    const data = await res.json();
+    window.movementData = data;
+
+    renderTrendView();
+  } catch (err) {
+    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat Trend & Movement: ${err.message}</div>`;
+  }
+}
+
+function switchTrendDimension(dim) {
+  window.trendState.dimension = dim;
+  renderTrend();
+}
+
+function switchTrendMetric(m) {
+  window.trendState.metric = m;
+  renderTrend();
+}
+
+function switchTrendPeriod(p) {
+  window.trendState.periodRange = p;
+  renderTrend();
+}
+
+function switchTrendChartType(type) {
+  window.trendState.chartType = type;
+  initTrendCharts();
+}
+
+function handleTrendSearch(e) {
+  window.trendState.searchTerm = (e.target.value || '').toLowerCase();
+  renderTrendMatrixBody();
+}
+
+function sortTrendMatrix(col) {
+  if (window.trendState.sortCol === col) {
+    window.trendState.sortDir = window.trendState.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    window.trendState.sortCol = col;
+    window.trendState.sortDir = 'desc';
+  }
+  renderTrendMatrixBody();
+}
+
+function exportTrendCsv() {
+  const { dimension, metric, periodRange } = window.trendState;
+  const spvId = globalFilters.spvId || '';
+  const salesGroup = globalFilters.salesGroup || '';
+  const query = new URLSearchParams({ dimension, metric, periodRange, spvId, salesGroup });
+  window.location.href = `/api/analytics/movement/export?${query.toString()}`;
+}
+
+function renderTrendView() {
+  const main = document.getElementById('main-content');
+  const data = window.movementData;
+  if (!data) return;
+
+  const { dimension, metric, periodRange, chartType } = window.trendState;
+  const summary = data.summary || {};
+
+  const metricLabel = metric === 'value' ? 'Nilai Omzet (Rp Netto)' : metric === 'oa' ? 'Outlet Aktif (OA)' : 'Volume (Karton)';
+  const dimLabel = dimension === 'principal' ? 'Principal' : dimension === 'brand' ? 'Brand' : 'Salesman';
+
+  const momBadge = summary.momGrowthPct !== null ? `
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold ${summary.momGrowthPct >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}">
+      ${summary.momGrowthPct >= 0 ? '▲ +' : '▼ '}${summary.momGrowthPct}% vs bln lalu
+    </span>
+  ` : '';
+
+  main.innerHTML = `
+    <!-- Top Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">INTELLIGENCE ANALYTICS</span>
+          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">TARGET 2026 INGESTED</span>
+        </div>
+        <h1 class="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight mt-1">Trend & Movement Sales</h1>
+        <p class="text-xs text-slate-500 mt-0.5">Analisis tren dan dinamika pergerakan penjualan bulanan periode 2025–2026</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button onclick="exportTrendCsv()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span>Unduh CSV</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 4 KPI Summary Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mt-5">
+      <!-- Card 1: Total Volume -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 mb-1">
+          <span class="text-xs font-semibold">Total Volume Sales</span>
+          <i data-lucide="package" class="w-4 h-4 text-blue-500"></i>
+        </div>
+        <div class="text-xl md:text-2xl font-extrabold text-slate-900 font-mono">
+          ${(summary.totalQty || 0).toLocaleString('id-ID')} <span class="text-xs font-normal text-slate-500 font-sans">KTN</span>
+        </div>
+        <div class="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+          <span>Periode terpilih</span>
+          ${momBadge}
+        </div>
+      </div>
+
+      <!-- Card 2: Total Nilai Netto -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 mb-1">
+          <span class="text-xs font-semibold">Total Nilai Omzet</span>
+          <i data-lucide="banknote" class="w-4 h-4 text-emerald-500"></i>
+        </div>
+        <div class="text-xl md:text-2xl font-extrabold text-slate-900 font-mono">
+          Rp ${((summary.totalValue || 0) / 1000000000).toFixed(2)} <span class="text-xs font-normal text-slate-500 font-sans">Milyar</span>
+        </div>
+        <div class="mt-2 text-[11px] text-slate-500">
+          Rp ${(summary.totalValue || 0).toLocaleString('id-ID')} Netto
+        </div>
+      </div>
+
+      <!-- Card 3: Rata-rata OA -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 mb-1">
+          <span class="text-xs font-semibold">Rata-rata Outlet Aktif (OA)</span>
+          <i data-lucide="store" class="w-4 h-4 text-amber-500"></i>
+        </div>
+        <div class="text-xl md:text-2xl font-extrabold text-slate-900 font-mono">
+          ${(summary.avgMonthlyOa || 0).toLocaleString('id-ID')} <span class="text-xs font-normal text-slate-500 font-sans">Toko/bln</span>
+        </div>
+        <div class="mt-2 text-[11px] text-slate-500">
+          Penetrasi belanja unik bulanan
+        </div>
+      </div>
+
+      <!-- Card 4: Bulan Terakhir -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 mb-1">
+          <span class="text-xs font-semibold">Realisasi Bulan Berjalan</span>
+          <i data-lucide="calendar" class="w-4 h-4 text-violet-500"></i>
+        </div>
+        <div class="text-xl md:text-2xl font-extrabold text-slate-900 font-mono">
+          ${metric === 'value' ? 'Rp ' + ((summary.currentMonthVal || 0) / 1000000).toFixed(1) + ' Jt' : (summary.currentMonthVal || 0).toLocaleString('id-ID')}
+        </div>
+        <div class="mt-2 text-[11px] text-slate-500 flex items-center justify-between">
+          <span>Bulan lalu: ${metric === 'value' ? 'Rp ' + ((summary.prevMonthVal || 0) / 1000000).toFixed(1) + ' Jt' : (summary.prevMonthVal || 0).toLocaleString('id-ID')}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control Toolbar (Dimensions, Metrics, Period) -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-5 space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <!-- Dimension Switcher -->
+        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-semibold">
+          <span class="text-slate-400 px-2 text-[11px]">Dimensi:</span>
+          <button onclick="switchTrendDimension('salesman')" class="px-3 py-1.5 rounded-md transition ${dimension === 'salesman' ? 'bg-white text-blue-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            By Salesman
+          </button>
+          <button onclick="switchTrendDimension('principal')" class="px-3 py-1.5 rounded-md transition ${dimension === 'principal' ? 'bg-white text-blue-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            By Principal
+          </button>
+          <button onclick="switchTrendDimension('brand')" class="px-3 py-1.5 rounded-md transition ${dimension === 'brand' ? 'bg-white text-blue-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            By Brand
+          </button>
+        </div>
+
+        <!-- Metric Switcher -->
+        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-semibold">
+          <span class="text-slate-400 px-2 text-[11px]">Metrik:</span>
+          <button onclick="switchTrendMetric('qty')" class="px-3 py-1.5 rounded-md transition ${metric === 'qty' ? 'bg-blue-600 text-white shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            Volume (KTN)
+          </button>
+          <button onclick="switchTrendMetric('value')" class="px-3 py-1.5 rounded-md transition ${metric === 'value' ? 'bg-blue-600 text-white shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            Nilai (Rp Netto)
+          </button>
+          <button onclick="switchTrendMetric('oa')" class="px-3 py-1.5 rounded-md transition ${metric === 'oa' ? 'bg-blue-600 text-white shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            Outlet Aktif (OA)
+          </button>
+        </div>
+
+        <!-- Period Range Switcher -->
+        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-semibold">
+          <span class="text-slate-400 px-2 text-[11px]">Periode:</span>
+          <button onclick="switchTrendPeriod('2026')" class="px-3 py-1.5 rounded-md transition ${periodRange === '2026' ? 'bg-white text-emerald-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            2026 (Jan–Sep)
+          </button>
+          <button onclick="switchTrendPeriod('all')" class="px-3 py-1.5 rounded-md transition ${periodRange === 'all' ? 'bg-white text-emerald-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            2025–2026 (Full)
+          </button>
+          <button onclick="switchTrendPeriod('2025')" class="px-3 py-1.5 rounded-md transition ${periodRange === '2025' ? 'bg-white text-emerald-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            2025 (Historis)
+          </button>
+        </div>
+
+        <!-- Chart Type Switcher -->
+        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-semibold">
+          <button onclick="switchTrendChartType('bar')" class="px-2.5 py-1 rounded ${chartType === 'bar' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}" title="Tampilan Batang">
+            <i data-lucide="bar-chart-2" class="w-4 h-4"></i>
+          </button>
+          <button onclick="switchTrendChartType('line')" class="px-2.5 py-1 rounded ${chartType === 'line' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}" title="Tampilan Garis">
+            <i data-lucide="line-chart" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Movement Chart Card -->
+    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+        <div>
+          <h2 class="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="trending-up" class="w-4 h-4 text-blue-600"></i>
+            <span>Grafik Movement Penjualan ${dimLabel} (${metricLabel})</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Pergerakan per bulan untuk Top Entitas dan Target 2026</p>
+        </div>
+      </div>
+
+      <div class="mt-4 relative" style="min-height: 320px;">
+        <canvas id="trendMovementCanvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Secondary Chart: Outlet Aktif (OA) Movement -->
+    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+        <div>
+          <h2 class="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="store" class="w-4 h-4 text-emerald-600"></i>
+            <span>Grafik Penetrasi Outlet Aktif (OA) Bulanan ${dimLabel}</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Jumlah toko/outlet unik yang bertransaksi setiap bulannya</p>
+        </div>
+      </div>
+
+      <div class="mt-4 relative" style="min-height: 250px;">
+        <canvas id="trendOaCanvas"></canvas>
+      </div>
+    </div>
+
+    <!-- Data Matrix Breakdown Table -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm mt-5 overflow-hidden">
+      <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="table" class="w-4 h-4 text-slate-600"></i>
+            <span>Matriks Realisasi & Target Movement Bulanan</span>
+          </h3>
+          <p class="text-xs text-slate-500">Rincian per ${dimLabel} across all months with Total & Pencapaian Target</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <div class="relative">
+            <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input type="text" oninput="handleTrendSearch(event)" placeholder="Cari ${dimLabel.toLowerCase()}..." class="bg-white border border-slate-300 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none w-48">
+          </div>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto scrollbar-thin">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 select-none">
+            <tr>
+              <th class="py-2.5 px-3 text-center w-10">#</th>
+              <th onclick="sortTrendMatrix('name')" class="py-2.5 px-3 cursor-pointer hover:bg-slate-200/70 transition">
+                <div class="flex items-center gap-1">${dimLabel} <span>⇅</span></div>
+              </th>
+              ${data.timeline.map(t => `
+                <th onclick="sortTrendMatrix('${t.key}')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-200/70 transition">
+                  <div class="flex items-center justify-end gap-1">${t.label} <span>⇅</span></div>
+                </th>
+              `).join('')}
+              <th onclick="sortTrendMatrix('total')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-200/70 transition font-extrabold text-blue-900 bg-blue-50/50">
+                <div class="flex items-center justify-end gap-1">TOTAL <span>⇅</span></div>
+              </th>
+              <th onclick="sortTrendMatrix('targetCartons')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-200/70 transition">
+                <div class="flex items-center justify-end gap-1">TARGET '26 <span>⇅</span></div>
+              </th>
+              <th onclick="sortTrendMatrix('achvPct')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-200/70 transition">
+                <div class="flex items-center justify-end gap-1">ACHV % <span>⇅</span></div>
+              </th>
+              <th onclick="sortTrendMatrix('momPct')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-200/70 transition">
+                <div class="flex items-center justify-end gap-1">MoM % <span>⇅</span></div>
+              </th>
+            </tr>
+          </thead>
+          <tbody id="trend-matrix-body" class="divide-y divide-slate-100 text-slate-700 font-medium">
+            <!-- Populated dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  lucide.createIcons();
+  renderTrendMatrixBody();
+  initTrendCharts();
+}
+
+function renderTrendMatrixBody() {
+  const tbody = document.getElementById('trend-matrix-body');
+  if (!tbody || !window.movementData) return;
+
+  const data = window.movementData;
+  const { metric, searchTerm, sortCol, sortDir } = window.trendState;
+  let rows = [...(data.matrix || [])];
+
+  if (searchTerm) {
+    rows = rows.filter(r => (r.name || '').toLowerCase().includes(searchTerm));
+  }
+
+  // Sort rows
+  rows.sort((a, b) => {
+    let aVal = a[sortCol];
+    let bVal = b[sortCol];
+    if (sortCol.includes('-')) {
+      aVal = (a.periods && a.periods[sortCol]) || 0;
+      bVal = (b.periods && b.periods[sortCol]) || 0;
+    }
+    if (aVal === null || aVal === undefined) aVal = -999999999;
+    if (bVal === null || bVal === undefined) bVal = -999999999;
+    if (typeof aVal === 'string') {
+      return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    }
+    return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+  });
+
+  const formatVal = (v) => {
+    if (v === null || v === undefined) return '-';
+    if (metric === 'value') {
+      if (Math.abs(v) >= 1000000) return `Rp ${(v / 1000000).toFixed(1)} Jt`;
+      return `Rp ${Math.round(v).toLocaleString('id-ID')}`;
+    }
+    return v.toLocaleString('id-ID');
+  };
+
+  tbody.innerHTML = rows.map((r, idx) => {
+    const achvColor = r.achvPct >= 90 ? 'text-emerald-600 font-bold' : r.achvPct >= 70 ? 'text-amber-600 font-bold' : r.achvPct !== null ? 'text-rose-600 font-bold' : 'text-slate-400';
+    const momColor = r.momPct > 0 ? 'text-emerald-600 font-semibold' : r.momPct < 0 ? 'text-rose-600 font-semibold' : 'text-slate-400';
+
+    return `
+      <tr class="hover:bg-slate-50/80 transition">
+        <td class="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">${idx + 1}</td>
+        <td class="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
+          ${r.name}
+        </td>
+        ${data.timeline.map(t => {
+          const val = r.periods ? r.periods[t.key] : 0;
+          return `
+            <td class="py-2.5 px-3 text-right font-mono text-[11px] text-slate-800">
+              ${val > 0 ? formatVal(val) : '<span class="text-slate-300">—</span>'}
+            </td>
+          `;
+        }).join('')}
+        <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-800 bg-blue-50/40">
+          ${formatVal(r.total)}
+        </td>
+        <td class="py-2.5 px-3 text-right font-mono text-slate-600">
+          ${r.targetCartons > 0 ? r.targetCartons.toLocaleString('id-ID') : '<span class="text-slate-400">—</span>'}
+        </td>
+        <td class="py-2.5 px-3 text-right font-mono ${achvColor}">
+          ${r.achvPct !== null ? `${r.achvPct}%` : '—'}
+        </td>
+        <td class="py-2.5 px-3 text-right font-mono text-[11px] ${momColor}">
+          ${r.momPct !== null ? `${r.momPct > 0 ? '+' : ''}${r.momPct}%` : '—'}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function initTrendCharts() {
+  const data = window.movementData;
+  if (!data || !window.Chart) return;
+
+  const { metric, chartType } = window.trendState;
+
+  // Destroy previous instances
+  if (window.trendChartInstance) {
+    window.trendChartInstance.destroy();
+    window.trendChartInstance = null;
+  }
+  if (window.trendOaChartInstance) {
+    window.trendOaChartInstance.destroy();
+    window.trendOaChartInstance = null;
+  }
+
+  // 1. Movement Chart
+  const ctxMovement = document.getElementById('trendMovementCanvas');
+  if (ctxMovement) {
+    const datasets = data.chart.series.map(s => ({
+      label: s.name,
+      data: s.data,
+      backgroundColor: s.color + (chartType === 'line' ? '20' : 'CC'),
+      borderColor: s.color,
+      borderWidth: chartType === 'line' ? 2.5 : 1,
+      fill: chartType === 'line' ? false : true,
+      tension: 0.3
+    }));
+
+    // Add target line if target exists
+    if (data.chart.monthlyTargets && data.chart.monthlyTargets.some(t => t > 0)) {
+      datasets.unshift({
+        type: 'line',
+        label: 'Target Bulanan 2026',
+        data: data.chart.monthlyTargets,
+        borderColor: '#dc2626',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        fill: false,
+        pointRadius: 3,
+        pointHoverRadius: 6
+      });
+    }
+
+    window.trendChartInstance = new Chart(ctxMovement, {
+      type: chartType,
+      data: {
+        labels: data.chart.labels,
+        datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              boxWidth: 12,
+              font: { size: 11, family: 'Plus Jakarta Sans' }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                let label = context.dataset.label || '';
+                if (label) label += ': ';
+                const val = context.parsed.y;
+                if (metric === 'value') {
+                  return label + 'Rp ' + Math.round(val).toLocaleString('id-ID');
+                } else if (metric === 'oa') {
+                  return label + val.toLocaleString('id-ID') + ' Toko';
+                }
+                return label + val.toLocaleString('id-ID') + ' KTN';
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: 11 } }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              font: { size: 11 },
+              callback: function(value) {
+                if (metric === 'value') {
+                  if (Math.abs(value) >= 1000000000) return (value / 1000000000).toFixed(1) + 'M';
+                  if (Math.abs(value) >= 1000000) return (value / 1000000).toFixed(0) + 'Jt';
+                }
+                return value.toLocaleString('id-ID');
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 2. OA Movement Chart
+  const ctxOa = document.getElementById('trendOaCanvas');
+  if (ctxOa && data.oaChart) {
+    const oaDatasets = data.oaChart.series.map(s => ({
+      label: s.name,
+      data: s.data,
+      borderColor: s.color,
+      backgroundColor: s.color + '20',
+      borderWidth: 2,
+      fill: false,
+      tension: 0.3,
+      pointRadius: 2.5
+    }));
+
+    window.trendOaChartInstance = new Chart(ctxOa, {
+      type: 'line',
+      data: {
+        labels: data.oaChart.labels,
+        datasets: oaDatasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              boxWidth: 12,
+              font: { size: 11, family: 'Plus Jakarta Sans' }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return (context.dataset.label || '') + ': ' + context.parsed.y.toLocaleString('id-ID') + ' Toko Aktif';
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function(val) { return val.toLocaleString('id-ID'); }
+            }
+          }
+        }
+      }
+    });
+  }
 }
 
 // ==============================================================

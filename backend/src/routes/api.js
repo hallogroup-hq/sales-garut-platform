@@ -20,6 +20,7 @@ const {
   commitImport,
   rollbackImport
 } = require('../services/importEngine.js');
+const { getMovementAnalytics, exportMovementCsv } = require('../services/trendEngine.js');
 const { getAuditLogs, logAudit } = require('../middleware/audit.js');
 
 const router = express.Router();
@@ -1360,6 +1361,30 @@ router.post('/programs/store-loyalty', (req, res) => {
     });
 
     res.json({ success: true, programId: pId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 10. TREND & MOVEMENT SALES ANALYTICS
+// ==========================================
+router.get('/analytics/movement', (req, res) => {
+  try {
+    const data = getMovementAnalytics(req.query);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/analytics/movement/export', (req, res) => {
+  try {
+    const csv = exportMovementCsv(req.query);
+    const filename = `sales_movement_${req.query.dimension || 'salesman'}_${Date.now()}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

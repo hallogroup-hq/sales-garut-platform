@@ -181,6 +181,32 @@ CREATE TABLE IF NOT EXISTS fact_sales_line (
     is_non_omzet BOOLEAN DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS agg_monthly_sales_movement (
+    id VARCHAR(100) PRIMARY KEY,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    period_key VARCHAR(7) NOT NULL,
+    salesman_id VARCHAR(50) NOT NULL,
+    salesman_name VARCHAR(100) NOT NULL,
+    sales_group VARCHAR(50) DEFAULT 'SAVORIA',
+    principal VARCHAR(100) NOT NULL,
+    brand VARCHAR(100) NOT NULL,
+    group_sku VARCHAR(100),
+    net_cartons NUMERIC(15, 4) NOT NULL DEFAULT 0,
+    gross_cartons NUMERIC(15, 4) NOT NULL DEFAULT 0,
+    retur_cartons NUMERIC(15, 4) NOT NULL DEFAULT 0,
+    net_value NUMERIC(18, 2) NOT NULL DEFAULT 0,
+    dpp_value NUMERIC(18, 2) NOT NULL DEFAULT 0,
+    active_outlets INTEGER NOT NULL DEFAULT 0,
+    total_invoices INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_agg_monthly_period ON agg_monthly_sales_movement(year, month);
+CREATE INDEX IF NOT EXISTS idx_agg_monthly_salesman ON agg_monthly_sales_movement(salesman_id);
+CREATE INDEX IF NOT EXISTS idx_agg_monthly_brand ON agg_monthly_sales_movement(brand);
+CREATE INDEX IF NOT EXISTS idx_agg_monthly_principal ON agg_monthly_sales_movement(principal);
+
 -- 7. Targets
 CREATE TABLE IF NOT EXISTS fact_quantity_target (
     target_id VARCHAR(50) PRIMARY KEY,
