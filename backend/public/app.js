@@ -916,7 +916,7 @@ async function renderBeranda() {
       <!-- Middle Section: Trend, Top 5 Salesmen, and Kecamatan Coverage Map -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <!-- Trend Penjualan & Achievement (5 cols) -->
-        <div class="lg:col-span-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="lg:col-span-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between overflow-hidden">
           <div class="flex items-center justify-between mb-3">
             <div>
               <h3 class="font-bold text-slate-800 text-sm">Trend Penjualan & Achievement</h3>
@@ -925,16 +925,26 @@ async function renderBeranda() {
             <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded font-medium">Bulanan</span>
           </div>
 
-          <!-- Interactive SVG Combo Chart -->
-          <div class="h-48 w-full flex items-end justify-between pt-6 pb-2 px-2 border-b border-slate-100">
-            ${data.trendMonths.map(m => `
-              <div class="flex flex-col items-center gap-1.5 flex-1">
-                <div class="text-[10px] font-bold text-blue-600">${m.ktn}</div>
-                <div class="w-7 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-sm shadow-sm" style="height: ${(m.ktn / 1000) * 110}px;"></div>
-                <span class="text-[10px] font-semibold text-slate-600 mt-1">${m.name}</span>
-                <span class="text-[9px] text-emerald-600 font-bold">${m.achv}%</span>
-              </div>
-            `).join('')}
+          <!-- Interactive Proportional Bar Chart -->
+          <div class="h-44 w-full flex items-end justify-between pt-2 pb-2 px-1 border-b border-slate-100 overflow-hidden">
+            ${(() => {
+              const maxTrendKtn = Math.max(...(data.trendMonths || []).map(m => Number(m.ktn) || 0), 100);
+              return (data.trendMonths || []).map(m => {
+                const ktnVal = Number(m.ktn) || 0;
+                const barH = Math.max(8, Math.min(84, Math.round((ktnVal / maxTrendKtn) * 80)));
+                const formattedKtn = ktnVal >= 1000 ? Math.round(ktnVal).toLocaleString('id-ID') : ktnVal.toFixed(1);
+                return `
+                  <div class="flex flex-col items-center flex-1 h-full justify-end px-1 group">
+                    <div class="text-[10px] font-bold text-blue-600 mb-1 whitespace-nowrap">${formattedKtn}</div>
+                    <div class="w-full flex items-end justify-center" style="height: 86px;">
+                      <div class="w-6 md:w-7 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-sm shadow-sm transition-all duration-300 group-hover:from-blue-500 group-hover:to-blue-300" style="height: ${barH}px;" title="${m.name}: ${ktnVal.toLocaleString('id-ID')} KTN (${m.achv}%)"></div>
+                    </div>
+                    <span class="text-[10px] font-semibold text-slate-600 mt-1.5">${m.name}</span>
+                    <span class="text-[9px] text-emerald-600 font-bold">${m.achv}%</span>
+                  </div>
+                `;
+              }).join('');
+            })()}
           </div>
           <div class="flex items-center justify-center gap-4 text-[10px] text-slate-500 pt-2">
             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 bg-blue-600 rounded-sm"></span> Actual KTN</span>

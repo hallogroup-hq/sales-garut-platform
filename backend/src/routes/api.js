@@ -208,22 +208,34 @@ router.get('/dashboard/executive', (req, res) => {
     const currentM = summary.calendar.month;
     const currentY = summary.calendar.year;
     const trendRows = db.query(`
-      SELECT month, COALESCE(SUM(net_cartons), 0) AS ktn, COALESCE(SUM(net_value), 0) AS val
-      FROM agg_monthly_sales_movement
-      WHERE year = ? AND month <= ?
-      GROUP BY month
-      ORDER BY month DESC
+      SELECT 
+        m.month, 
+        COALESCE(SUM(m.net_cartons), 0) AS ktn, 
+        COALESCE(SUM(m.net_value), 0) AS val,
+        (SELECT COALESCE(SUM(t.target_cartons), 0) FROM fact_quantity_target t WHERE t.year = ? AND t.month = m.month) AS target_ktn
+      FROM agg_monthly_sales_movement m
+      WHERE m.year = ? AND m.month <= ?
+      GROUP BY m.month
+      ORDER BY m.month DESC
       LIMIT 5
-    `, [currentY, currentM]).reverse();
+    `, [currentY, currentY, currentM]).reverse();
 
     let trendMonths = [];
     if (trendRows.length > 0) {
-      trendMonths = trendRows.map(r => ({
-        name: monthNames[r.month] || `Bln ${r.month}`,
-        ktn: Math.round(r.ktn * 10) / 10,
-        val: Math.round(r.val / 100000) / 10,
-        achv: summary.sales.achievementPct || 85.0
-      }));
+      trendMonths = trendRows.map(r => {
+        let achv = 85.0;
+        if (r.target_ktn > 0) {
+          achv = Math.round((r.ktn / r.target_ktn) * 1000) / 10;
+        } else if (r.month === currentM && summary.sales.achievementPct !== null) {
+          achv = summary.sales.achievementPct;
+        }
+        return {
+          name: monthNames[r.month] || `Bln ${r.month}`,
+          ktn: Math.round(r.ktn * 10) / 10,
+          val: Math.round(r.val / 100000) / 10,
+          achv
+        };
+      });
     } else {
       trendMonths = [
         { name: 'Jan', ktn: 420, val: 32.5, achv: 82.0 },
