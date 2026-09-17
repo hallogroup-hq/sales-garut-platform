@@ -168,6 +168,18 @@ async function logout() {
   }
 }
 
+function openChangePasswordQuick() {
+  window.activeDataCenterSubView = 'users';
+  navigate('datacenter');
+  setTimeout(() => {
+    const el = document.getElementById('input-new-password');
+    if (el) {
+      el.focus();
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 200);
+}
+
 // Application Boot
 document.addEventListener('DOMContentLoaded', () => {
   checkAuthModal();
