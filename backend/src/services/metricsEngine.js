@@ -19,8 +19,8 @@ function buildFilterConditions(filters = {}) {
   const nextYear = month === 12 ? year + 1 : year;
   const endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
 
-  whereTx.push(`h.transaction_date >= ? AND h.transaction_date < ?`);
-  paramsTx.push(startDate, endDate);
+  whereTx.push(`((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))`);
+  paramsTx.push(year, month, startDate, endDate);
 
   whereTgt.push(`t.year = ? AND t.month = ?`);
   paramsTgt.push(year, month);
@@ -133,7 +133,8 @@ function getExecutiveSummary(filters = {}) {
   const targetSql = `
     SELECT 
       COUNT(*) AS target_count,
-      SUM(t.target_cartons) AS target_cartons
+      SUM(t.target_cartons) AS target_cartons,
+      SUM(t.target_value) AS target_value
     FROM fact_quantity_target t
     ${f.whereTgtSql}
   `;
@@ -142,6 +143,7 @@ function getExecutiveSummary(filters = {}) {
   const actualKtn = Math.max(Math.round(salesRes.net_cartons * 100) / 100, 0);
   const hasTarget = Boolean(targetRes && targetRes.target_count > 0);
   const targetKtn = hasTarget && targetRes.target_cartons !== null ? Math.round(targetRes.target_cartons * 100) / 100 : null;
+  const targetVal = hasTarget && targetRes.target_value !== null ? Math.round(targetRes.target_value) : null;
 
   let achvPct = null;
   let remainingTarget = null;
@@ -191,7 +193,7 @@ function getExecutiveSummary(filters = {}) {
       SELECT
         o.outlet_id,
         MAX(h.transaction_date) AS last_order_date,
-        COUNT(CASE WHEN h.transaction_date >= ? AND h.transaction_date < ? THEN 1 END) AS orders_in_month
+        COUNT(CASE WHEN ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?)) THEN 1 END) AS orders_in_month
       FROM dim_outlet o
       LEFT JOIN fact_sales_header h ON o.outlet_id = h.outlet_id AND h.unit_type = 'Sales'
       ${f.whereOutletSql}
@@ -214,7 +216,7 @@ function getExecutiveSummary(filters = {}) {
       END) AS inactive_mtd
     FROM OutletOrders
   `;
-  const dormRes = db.query(outletDormancySql, [f.startDate, f.endDate, refDate, dormancyThreshold, refDate, dormancyThreshold])[0];
+  const dormRes = db.query(outletDormancySql, [f.year, f.month, f.startDate, f.endDate, refDate, dormancyThreshold, refDate, dormancyThreshold])[0];
 
   const gapMonthly = targetKtn !== null ? Math.max(Math.round((targetKtn - actualKtn) * 100) / 100, 0) : null;
   const gapDailyMonFri = targetKtn !== null && cal.monFriRemainingHk > 0 ? Math.round((gapMonthly / cal.monFriRemainingHk) * 100) / 100 : 0;
@@ -224,6 +226,7 @@ function getExecutiveSummary(filters = {}) {
     sales: {
       hasTarget,
       targetCartons: targetKtn,
+      targetValue: targetVal,
       actualCartons: actualKtn,
       achievementPct: achvPct,
       remainingTarget: remainingTarget,
@@ -256,7 +259,7 @@ function getTopSalesmen(filters = {}, limit = 50) {
   const cal = getCalendarPace(f.year, f.month);
 
   let groupClause = '';
-  const queryParams = [f.year, f.month, f.year, f.month, f.startDate, f.endDate];
+  const queryParams = [f.year, f.month, f.year, f.month, f.year, f.month, f.year, f.month, f.startDate, f.endDate];
 
   if (filters.salesGroup) {
     groupClause = ' AND s.sales_group = ?';
@@ -288,11 +291,16 @@ function getTopSalesmen(filters = {}, limit = 50) {
         FROM fact_quantity_target t
         WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
       ) AS target_cartons,
+      (
+        SELECT SUM(t.target_value)
+        FROM fact_quantity_target t
+        WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
+      ) AS target_value,
       COUNT(DISTINCT h.outlet_id) AS active_outlets,
       (SELECT COUNT(*) FROM dim_outlet o WHERE o.current_salesman_id = s.salesman_id AND o.is_active_cl = 1) AS registered_outlets
     FROM org_salesman s
     LEFT JOIN org_spv spv ON s.spv_id = spv.spv_id
-    LEFT JOIN fact_sales_header h ON s.salesman_id = h.current_owner_salesman_id AND h.transaction_date >= ? AND h.transaction_date < ?
+    LEFT JOIN fact_sales_header h ON s.salesman_id = h.current_owner_salesman_id AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
     LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
     WHERE s.role = 'SALESMAN' AND s.is_active = 1 ${groupClause}
     GROUP BY s.salesman_id, s.name, spv.name, s.salesman_type, s.sales_group, s.target_cl, s.visit_cycle, s.has_rayon
@@ -305,6 +313,7 @@ function getTopSalesmen(filters = {}, limit = 50) {
     const act = Math.max(Math.round(r.actual_cartons * 10) / 10, 0);
     const hasTarget = r.target_record_count > 0;
     const tgt = hasTarget && r.target_cartons !== null ? Math.round(r.target_cartons * 10) / 10 : null;
+    const tgtVal = hasTarget && r.target_value !== null ? Math.round(r.target_value) : null;
     const achv = hasTarget && tgt > 0 ? Math.round((act / tgt) * 1000) / 10 : null;
 
     // Requirement 1: Denominator is registered CL for this salesman. Cap at 100%.
@@ -339,6 +348,7 @@ function getTopSalesmen(filters = {}, limit = 50) {
       actualCartons: act,
       hasTarget,
       targetCartons: tgt,
+      targetValue: tgtVal,
       achievementPct: achv,
       gapMonthly,
       gapDaily,
@@ -412,13 +422,13 @@ function getKecamatanCoverage(filters = {}) {
       COUNT(DISTINCT h.current_owner_salesman_id) AS active_salesmen_count
     FROM dim_kecamatan k
     JOIN dim_outlet o ON k.kecamatan_id = o.kecamatan_id AND o.is_active_cl = 1
-    LEFT JOIN fact_sales_header h ON o.outlet_id = h.outlet_id AND h.transaction_date >= ? AND h.transaction_date < ?
+    LEFT JOIN fact_sales_header h ON o.outlet_id = h.outlet_id AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
     LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
     GROUP BY k.kecamatan_id, k.name
     ORDER BY registered_outlets DESC
   `;
 
-  const rows = db.query(sql, [f.startDate, f.endDate]);
+  const rows = db.query(sql, [f.year, f.month, f.startDate, f.endDate]);
   return rows.map(r => {
     const reg = r.registered_outlets || 0;
     const act = r.active_outlets || 0;
@@ -450,13 +460,13 @@ function getPerformanceByRayon(filters = {}) {
       COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS sales_value
     FROM dim_rayon r
     LEFT JOIN dim_outlet o ON r.rayon_id = o.current_rayon_id AND o.is_active_cl = 1
-    LEFT JOIN fact_sales_header h ON o.outlet_id = h.outlet_id AND h.transaction_date >= ? AND h.transaction_date < ?
+    LEFT JOIN fact_sales_header h ON o.outlet_id = h.outlet_id AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
     LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
     GROUP BY r.rayon_id, r.code
     ORDER BY r.code ASC
   `;
 
-  const rows = db.query(sql, [f.startDate, f.endDate]);
+  const rows = db.query(sql, [f.year, f.month, f.startDate, f.endDate]);
   return rows.map(r => {
     const reg = r.registered_outlets || 0;
     const act = r.active_outlets || 0;

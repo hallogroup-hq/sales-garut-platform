@@ -101,3 +101,50 @@ test('M10-4: REST API /api/analytics/movement & CSV Export', async (t) => {
     srv.close();
   }
 });
+
+test('M10-5: September 2026 Sales & Target Value Dynamic Calculation', async (t) => {
+  const port = 3991;
+  const srv = app.listen(port);
+
+  try {
+    // 1. Executive Dashboard for September 2026
+    const resDash = await fetch(`http://localhost:${port}/api/dashboard/executive?year=2026&month=9`);
+    assert.equal(resDash.status, 200);
+    const dataDash = await resDash.json();
+    assert.ok(dataDash.summary, 'Summary must exist for September 2026');
+    assert.ok(dataDash.summary.sales.actualCartons > 0, 'September 2026 must have actual cartons');
+    assert.ok(dataDash.summary.sales.targetCartons > 0, 'September 2026 must have target cartons');
+    assert.ok(dataDash.summary.sales.targetValue > 0, 'September 2026 must have target value');
+    assert.ok(dataDash.summary.sales.totalInvoices > 0, 'September 2026 must have invoices');
+    assert.ok(dataDash.summary.coverage.activeOutletsMtd > 0, 'September 2026 must have active outlets');
+    assert.ok(dataDash.topSalesmen.length > 0, 'September 2026 must have top salesmen');
+
+    // 2. Sales Performance for September 2026
+    const resSales = await fetch(`http://localhost:${port}/api/sales/performance?year=2026&month=9`);
+    assert.equal(resSales.status, 200);
+    const dataSales = await resSales.json();
+    assert.ok(dataSales.summary.totalCartons > 0, 'Sales performance must have cartons for September 2026');
+    assert.ok(dataSales.summary.totalTargetValue > 0, 'Sales performance must have target value for September 2026');
+    assert.ok(dataSales.groupSkus.length > 0, 'Group SKUs must exist');
+
+    // 3. Tim Sales for September 2026
+    const resSalesmen = await fetch(`http://localhost:${port}/api/salesmen?year=2026&month=9`);
+    assert.equal(resSalesmen.status, 200);
+    const dataSalesmen = await resSalesmen.json();
+    assert.ok(dataSalesmen.salesmen.length >= 7, 'Must return salesmen for September 2026');
+    const fikri = dataSalesmen.salesmen.find(s => s.salesmanId === '107075');
+    assert.ok(fikri, 'Salesman Fikri must exist');
+    assert.ok(fikri.targetCartons > 0, 'Fikri must have target cartons in September 2026');
+    assert.ok(fikri.targetValue > 0, 'Fikri must have target value in September 2026');
+
+    // 4. Incentive Calculator for September 2026
+    const resInc = await fetch(`http://localhost:${port}/api/salesmen/107075/incentive?year=2026&month=9`);
+    assert.equal(resInc.status, 200);
+    const dataInc = await resInc.json();
+    assert.equal(dataInc.components.length, 6);
+    const compVal = dataInc.components.find(c => c.num === 4);
+    assert.ok(compVal.target > 0, 'Component 4 target value must be dynamically derived from targets');
+  } finally {
+    srv.close();
+  }
+});

@@ -99,17 +99,30 @@ function initSchema() {
   const schemaSql = fs.readFileSync(schemaPath, 'utf8');
   
   if (db.type === 'sqlite') {
-    db.exec(schemaSql);
     try {
-      const cols = db.query('PRAGMA table_info(org_salesman)').map(c => c.name);
-      if (!cols.includes('salesman_type')) db.exec("ALTER TABLE org_salesman ADD COLUMN salesman_type VARCHAR(50) DEFAULT 'Kanvas'");
-      if (!cols.includes('target_cl')) db.exec("ALTER TABLE org_salesman ADD COLUMN target_cl INTEGER DEFAULT 375");
-      if (!cols.includes('visit_cycle')) db.exec("ALTER TABLE org_salesman ADD COLUMN visit_cycle VARCHAR(50) DEFAULT '3 Minggu'");
-      if (!cols.includes('has_rayon')) db.exec("ALTER TABLE org_salesman ADD COLUMN has_rayon BOOLEAN DEFAULT 1");
-      if (!cols.includes('max_rayon')) db.exec("ALTER TABLE org_salesman ADD COLUMN max_rayon INTEGER DEFAULT 15");
+      // Migrate columns on existing tables before executing schemaSql (which has indexes on new columns)
+      const tables = db.query("SELECT name FROM sqlite_master WHERE type='table'").map(t => t.name);
+      if (tables.includes('fact_sales_header')) {
+        const headerCols = db.query('PRAGMA table_info(fact_sales_header)').map(c => c.name);
+        if (!headerCols.includes('period_year')) db.exec("ALTER TABLE fact_sales_header ADD COLUMN period_year INTEGER");
+        if (!headerCols.includes('period_month')) db.exec("ALTER TABLE fact_sales_header ADD COLUMN period_month INTEGER");
+      }
+      if (tables.includes('fact_quantity_target')) {
+        const targetCols = db.query('PRAGMA table_info(fact_quantity_target)').map(c => c.name);
+        if (!targetCols.includes('target_value')) db.exec("ALTER TABLE fact_quantity_target ADD COLUMN target_value NUMERIC(15, 2) DEFAULT 0");
+      }
+      if (tables.includes('org_salesman')) {
+        const cols = db.query('PRAGMA table_info(org_salesman)').map(c => c.name);
+        if (!cols.includes('salesman_type')) db.exec("ALTER TABLE org_salesman ADD COLUMN salesman_type VARCHAR(50) DEFAULT 'Kanvas'");
+        if (!cols.includes('target_cl')) db.exec("ALTER TABLE org_salesman ADD COLUMN target_cl INTEGER DEFAULT 375");
+        if (!cols.includes('visit_cycle')) db.exec("ALTER TABLE org_salesman ADD COLUMN visit_cycle VARCHAR(50) DEFAULT '3 Minggu'");
+        if (!cols.includes('has_rayon')) db.exec("ALTER TABLE org_salesman ADD COLUMN has_rayon BOOLEAN DEFAULT 1");
+        if (!cols.includes('max_rayon')) db.exec("ALTER TABLE org_salesman ADD COLUMN max_rayon INTEGER DEFAULT 15");
+      }
     } catch (e) {
-      // Ignore if already migrated
+      console.warn('Pre-schema migration note:', e.message);
     }
+    db.exec(schemaSql);
   } else {
     // Postgres: run each statement individually (pg.query doesn't support multi-statement)
     const statements = schemaSql

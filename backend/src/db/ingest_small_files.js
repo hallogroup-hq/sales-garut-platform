@@ -39,15 +39,71 @@ function parseDate(val) {
   return s;
 }
 
+const CANONICAL_UNIT_PRICES = {
+  'KOPI TUBRUK GADJAH ASLI': 277910,
+  'GADJAH MANIS': 165936,
+  'GADJAH SPECIAL MIX': 154813,
+  'GADJAH RTD': 48909,
+  'CAFFINO': 238727,
+  'CAFFINO BVG': 63759,
+  'MILKLIFE UHT KIDS': 90824,
+  'MILKLIFE UHT TEENS': 90101,
+  'MILKLIFE UHT FULL CREAM': 202331,
+  'MILKLIFE YOGURT': 60371,
+  'DELI WAFER': 42617,
+  'FOX\'S CANDY': 140097,
+  'FOX CANDY': 140097,
+  'HYDROPLUS': 31525,
+  'MBG': 89612,
+  'SHOT': 157036,
+  'ROYO': 2743094
+};
+
+function getBrandUnitPrice(brand) {
+  const norm = String(brand || '').trim().toUpperCase();
+  for (const [k, v] of Object.entries(CANONICAL_UNIT_PRICES)) {
+    if (norm.includes(k) || k.includes(norm)) return v;
+  }
+  return 120000;
+}
+
+function resolveFilePath(rawDir, rootDir, candidates) {
+  for (const c of candidates) {
+    const p1 = path.join(rawDir, c);
+    if (fs.existsSync(p1)) return p1;
+    const p2 = path.join(rootDir, c);
+    if (fs.existsSync(p2)) return p2;
+  }
+  return null;
+}
+
 async function runSmallIngestion() {
   const db = getDb();
   const rawDir = path.resolve(__dirname, '../../../New Raw Data');
+  const rootDir = path.resolve(__dirname, '../../..');
 
   console.log('>>> [1/4] Ingesting TARGET SALES.xlsx (Year 2026)...');
-  const targetPath = path.join(rawDir, 'TARGET SALES.xlsx');
-  if (fs.existsSync(targetPath)) {
+  const targetPath = resolveFilePath(rawDir, rootDir, ['TARGET KUANTITI SALES.xlsx', 'TARGET SALES.xlsx']);
+  if (targetPath && fs.existsSync(targetPath)) {
     const wb = xlsx.readFile(targetPath);
-    const rows = xlsx.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+    const matrix = xlsx.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+    let headerRowIdx = 0;
+    for (let r = 0; r < Math.min(10, matrix.length); r++) {
+      const rowStr = matrix[r].map(c => String(c).trim().toLowerCase());
+      if (rowStr.includes('sales name') || rowStr.includes('nama sales')) {
+        headerRowIdx = r;
+        break;
+      }
+    }
+    const headers = matrix[headerRowIdx].map(h => String(h).trim());
+    const rows = [];
+    for (let r = headerRowIdx + 1; r < matrix.length; r++) {
+      const obj = {};
+      headers.forEach((h, i) => {
+        if (h) obj[h] = matrix[r][i];
+      });
+      rows.push(obj);
+    }
     const salesmanMap = {
       'ANDI AGUNG GUMILAR': '305032',
       'Ibna Faizal Rahman': '305030',
@@ -65,50 +121,76 @@ async function runSmallIngestion() {
       { name: 'MAR', m: 3 },
       { name: 'APR', m: 4 },
       { name: 'MAY', m: 5 },
+      { name: 'MEI', m: 5 },
       { name: 'JUN', m: 6 },
       { name: 'JUL', m: 7 },
       { name: 'AUG', m: 8 },
+      { name: 'AGU', m: 8 },
       { name: 'SEP', m: 9 }
     ];
 
     let targetCount = 0;
     for (const r of rows) {
-      const salesName = (r['Sales Name'] || '').trim();
+      const salesName = (r['Sales Name'] || r['Nama Sales'] || '').trim();
       const sId = salesmanMap[salesName];
-      const brand = (r['Brand'] || '').trim();
-      if (!sId || !brand || salesName === 'Grand Total') continue;
+      const brand = (r['Brand'] || r['Group SKU'] || '').trim();
+      if (!sId || !brand || salesName.toLowerCase() === 'grand total' || brand.toLowerCase() === 'grand total') continue;
+
+      const unitPrice = getBrandUnitPrice(brand);
 
       for (const mc of monthCols) {
-        const tgtVal = parseFloat(r[mc.name]) || 0;
+        if (r[mc.name] === undefined && r[mc.name.toLowerCase()] === undefined) continue;
+        const rawVal = r[mc.name] !== undefined ? r[mc.name] : r[mc.name.toLowerCase()];
+        const tgtVal = parseFloat(rawVal) || 0;
         const targetId = `TGT_2026_${mc.m}_${sId}_${brand.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const targetValueRp = Math.round(tgtVal * unitPrice);
+
         db.run(
           `INSERT INTO fact_quantity_target (
-            target_id, year, month, salesman_id, group_sku, target_cartons, updated_at
-          ) VALUES (?, 2026, ?, ?, ?, ?, datetime('now'))
+            target_id, year, month, salesman_id, group_sku, target_cartons, target_value, updated_at
+          ) VALUES (?, 2026, ?, ?, ?, ?, ?, datetime('now'))
           ON CONFLICT (target_id) DO UPDATE SET
             target_cartons=EXCLUDED.target_cartons,
+            target_value=EXCLUDED.target_value,
             updated_at=EXCLUDED.updated_at`,
-          [targetId, mc.m, sId, brand, tgtVal]
+          [targetId, mc.m, sId, brand, tgtVal, targetValueRp]
         );
         targetCount++;
       }
     }
     console.log(`  Inserted/updated ${targetCount} target entries for Jan-Sep 2026.`);
+
+    // Sync fact_incentive_value_target
+    db.run(`
+      INSERT OR REPLACE INTO fact_incentive_value_target (
+        id, year, month, salesman_id, target_value, updated_at
+      )
+      SELECT 
+        'INC_TGT_' || year || '_' || month || '_' || salesman_id,
+        year,
+        month,
+        salesman_id,
+        SUM(target_value),
+        CURRENT_TIMESTAMP
+      FROM fact_quantity_target
+      WHERE year = 2026
+      GROUP BY year, month, salesman_id
+    `);
   }
 
   console.log('>>> [2/4] Updating master customer mappings...');
-  const custPath = path.join(rawDir, 'master customer.xlsx');
-  if (fs.existsSync(custPath)) {
+  const custPath = resolveFilePath(rawDir, rootDir, ['master customer.xlsx', 'master data.xlsx', 'DATA CL.xlsx']);
+  if (custPath && fs.existsSync(custPath)) {
     const wb = xlsx.readFile(custPath);
     const rows = xlsx.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
     let updatedCount = 0;
     for (const r of rows) {
-      const code = String(r['Kode Outlet'] || '').trim();
+      const code = String(r['Kode Outlet'] || r['Customer Code'] || '').trim();
       if (!code) continue;
-      const addr = String(r['Alamat Outlet'] || '').trim();
-      const salesId = String(r['Kode Sales'] || '').trim();
-      const rayon = String(r['Rayon'] || '').trim();
-      const kecName = String(r['KECAMATAN\\'] || '').trim();
+      const addr = String(r['Alamat Outlet'] || r['Alamat'] || '').trim();
+      const salesId = String(r['Kode Sales'] || r['Salesman Code (Transaction)'] || '').trim();
+      const rayon = String(r['Rayon'] || r['Rayon outlet'] || '').trim();
+      const kecName = String(r['KECAMATAN\\'] || r['KECAMATAN'] || '').trim();
       const kecId = kecName ? `KEC_${kecName.toUpperCase().replace(/[^A-Z0-9]/g, '_')}` : null;
 
       // Validate FK references
@@ -141,7 +223,7 @@ async function runSmallIngestion() {
   }
 
   console.log('>>> [3/4] Ingesting stock gudang.xlsx...');
-  const stockPath = path.join(rawDir, 'stock gudang.xlsx');
+  const stockPath = resolveFilePath(rawDir, rootDir, ['stock gudang.xlsx', 'DATA STOK.xlsx']);
   if (fs.existsSync(stockPath)) {
     const wb = xlsx.readFile(stockPath);
     const rows = xlsx.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);

@@ -27,10 +27,10 @@ function calculateIncentive(salesmanId, year, month) {
     FROM fact_sales_line l
     JOIN fact_sales_header h ON l.document_number = h.document_number
     JOIN dim_product p ON l.item_code = p.item_code
-    WHERE h.current_owner_salesman_id = ? AND h.transaction_date >= ? AND h.transaction_date < ?
+    WHERE h.current_owner_salesman_id = ? AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
     GROUP BY p.incentive_group
   `;
-  const salesGroupRows = db.query(salesByGroupSql, [salesmanId, startDate, endDate]);
+  const salesGroupRows = db.query(salesByGroupSql, [salesmanId, year, month, startDate, endDate]);
 
   const actuals = {
     KOPI: 0,
@@ -69,12 +69,19 @@ function calculateIncentive(salesmanId, year, month) {
     targets[grp] = (targets[grp] || 0) + r.target_cartons;
   });
 
-  // 4. Fetch Incentive Value Target
+  // 4. Fetch Incentive Value Target (calculated dynamically from targets qty * unit price)
   const valTargetRow = db.query(
-    'SELECT target_value FROM fact_incentive_value_target WHERE salesman_id = ? AND year = ? AND month = ?',
+    'SELECT SUM(t.target_value) AS target_value FROM fact_quantity_target t WHERE t.salesman_id = ? AND t.year = ? AND t.month = ?',
     [salesmanId, year, month]
   )[0];
-  const valueTarget = valTargetRow ? valTargetRow.target_value : 50000000; // Default estimate if not uploaded
+  let valueTarget = valTargetRow && valTargetRow.target_value ? Number(valTargetRow.target_value) : 0;
+  if (!valueTarget || valueTarget === 0) {
+    const fallbackRow = db.query(
+      'SELECT target_value FROM fact_incentive_value_target WHERE salesman_id = ? AND year = ? AND month = ?',
+      [salesmanId, year, month]
+    )[0];
+    valueTarget = fallbackRow ? Number(fallbackRow.target_value) : 0;
+  }
 
   // 5. Fetch OC Must Have SKU actual & target
   const clRes = db.query(
@@ -88,9 +95,9 @@ function calculateIncentive(salesmanId, year, month) {
      FROM fact_sales_line l
      JOIN fact_sales_header h ON l.document_number = h.document_number
      JOIN dim_product p ON l.item_code = p.item_code
-     WHERE h.current_owner_salesman_id = ? AND h.transaction_date >= ? AND h.transaction_date < ?
+     WHERE h.current_owner_salesman_id = ? AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
        AND p.must_have_line != 'NONE'`,
-    [salesmanId, startDate, endDate]
+    [salesmanId, year, month, startDate, endDate]
   )[0];
   const mustHaveOc = mustHaveOcRes ? mustHaveOcRes.must_have_oc : 0;
   const mustHaveAchvPct = registeredCl > 0 ? (mustHaveOc / registeredCl) * 100 : 0;

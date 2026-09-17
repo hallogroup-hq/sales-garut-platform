@@ -16,9 +16,164 @@ let globalFilters = {
   kecamatanId: ''
 };
 
+// ==============================================================
+// Authentication & User Session Management
+// ==============================================================
+window.currentUser = null;
+try {
+  const savedUser = localStorage.getItem('sales_garut_user');
+  if (savedUser) {
+    window.currentUser = JSON.parse(savedUser);
+  }
+} catch (e) {
+  window.currentUser = null;
+}
+
+function authHeaders() {
+  const headers = {};
+  if (window.currentUser) {
+    headers['x-user-id'] = window.currentUser.userId;
+    headers['x-username'] = window.currentUser.username;
+  }
+  return headers;
+}
+
+function isSuperAdmin() {
+  return Boolean(window.currentUser && (window.currentUser.role === 'DSM' || window.currentUser.permissions?.canUploadSales));
+}
+
+function updateHeaderUserProfile() {
+  const avatarEl = document.getElementById('user-avatar');
+  const nameEl = document.getElementById('user-fullname');
+  const roleEl = document.getElementById('user-role-label');
+
+  if (window.currentUser) {
+    if (nameEl) nameEl.textContent = window.currentUser.fullName || window.currentUser.username;
+    if (avatarEl) avatarEl.textContent = window.currentUser.avatarText || 'AG';
+    if (roleEl) {
+      if (window.currentUser.role === 'DSM') {
+        roleEl.textContent = 'Super Admin (DSM)';
+        roleEl.className = 'text-[10px] text-emerald-600 font-semibold';
+      } else if (window.currentUser.role === 'SPV') {
+        roleEl.textContent = 'Supervisor (Hanya Lihat)';
+        roleEl.className = 'text-[10px] text-blue-600 font-semibold';
+      } else {
+        roleEl.textContent = 'Salesman / Viewer (Hanya Lihat)';
+        roleEl.className = 'text-[10px] text-slate-500 font-semibold';
+      }
+    }
+  }
+}
+
+function checkAuthModal() {
+  const modal = document.getElementById('login-modal');
+  if (!modal) return;
+  if (!window.currentUser) {
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+  } else {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+    updateHeaderUserProfile();
+  }
+}
+
+async function handleLoginSubmit(event) {
+  if (event) event.preventDefault();
+  const usernameInput = document.getElementById('login-username');
+  const passwordInput = document.getElementById('login-password');
+  const errorContainer = document.getElementById('login-error-container');
+  const submitBtn = document.getElementById('btn-login-submit');
+
+  const username = usernameInput ? usernameInput.value.trim() : '';
+  const password = passwordInput ? passwordInput.value.trim() : '';
+
+  if (!username || !password) {
+    if (errorContainer) {
+      errorContainer.textContent = 'Username dan password wajib diisi.';
+      errorContainer.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Memverifikasi...`;
+    lucide.createIcons();
+  }
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.success && data.user) {
+      window.currentUser = data.user;
+      localStorage.setItem('sales_garut_user', JSON.stringify(data.user));
+      checkAuthModal();
+      if (errorContainer) errorContainer.classList.add('hidden');
+      initApp();
+    } else {
+      if (errorContainer) {
+        errorContainer.textContent = data.error || 'Username atau password salah.';
+        errorContainer.classList.remove('hidden');
+      }
+    }
+  } catch (err) {
+    if (errorContainer) {
+      errorContainer.textContent = 'Gagal menghubungi server: ' + err.message;
+      errorContainer.classList.remove('hidden');
+    }
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `<span>Masuk ke Sistem</span><i data-lucide="arrow-right" class="w-4 h-4"></i>`;
+      lucide.createIcons();
+    }
+  }
+}
+
+function quickLogin(username, password) {
+  const u = document.getElementById('login-username');
+  const p = document.getElementById('login-password');
+  if (u) u.value = username;
+  if (p) p.value = password;
+  handleLoginSubmit();
+}
+
+function togglePasswordVisibility() {
+  const p = document.getElementById('login-password');
+  const icon = document.getElementById('eye-icon');
+  if (!p) return;
+  if (p.type === 'password') {
+    p.type = 'text';
+    if (icon) icon.setAttribute('data-lucide', 'eye-off');
+  } else {
+    p.type = 'password';
+    if (icon) icon.setAttribute('data-lucide', 'eye');
+  }
+  lucide.createIcons();
+}
+
+async function logout() {
+  if (confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', headers: authHeaders() });
+    } catch (e) {}
+    localStorage.removeItem('sales_garut_user');
+    window.currentUser = null;
+    checkAuthModal();
+  }
+}
+
 // Application Boot
 document.addEventListener('DOMContentLoaded', () => {
-  initApp();
+  checkAuthModal();
+  if (window.currentUser) {
+    initApp();
+  }
 });
 
 window.addEventListener('hashchange', () => {
@@ -96,10 +251,38 @@ function getFilterQuery() {
   return params.toString();
 }
 
+function updateHeaderDate(cal) {
+  const el = document.getElementById('header-date');
+  if (!el) return;
+  const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} WIB`;
+  
+  if (cal && cal.monitoringDate) {
+    const d = new Date(cal.monitoringDate);
+    const dayName = dayNames[d.getDay()] || '';
+    el.textContent = `${dayName ? dayName + ', ' : ''}${d.getDate()} ${monthNames[cal.month]} ${cal.year} | ${timeStr}`;
+  } else {
+    el.textContent = `Periode: ${monthNames[globalFilters.month]} ${globalFilters.year} | ${timeStr}`;
+  }
+}
+
 async function loadFilterOptions() {
   try {
     const res = await fetch('/api/filters/options');
     const data = await res.json();
+
+    // Populate Periods
+    const periodSelect = document.getElementById('filter-period');
+    if (periodSelect && data.periods && data.periods.length > 0) {
+      const currentVal = `${globalFilters.year}-${String(globalFilters.month).padStart(2, '0')}`;
+      periodSelect.innerHTML = data.periods.map(p => {
+        const val = `${p.year}-${String(p.month).padStart(2, '0')}`;
+        const isSelected = val === currentVal ? 'selected' : '';
+        return `<option value="${val}" ${isSelected}>${p.label || val}</option>`;
+      }).join('');
+    }
 
     // Populate SPV
     const spvSelect = document.getElementById('filter-spv');
@@ -585,6 +768,8 @@ async function renderBeranda() {
     const c = data.summary.coverage;
     const cal = data.summary.calendar;
 
+    updateHeaderDate(cal);
+
     const achvBadgeClass = s.achievementPct >= 80 ? 'text-emerald-700 bg-emerald-100' : (s.achievementPct >= 60 ? 'text-amber-700 bg-amber-100' : 'text-rose-700 bg-rose-100');
 
     let html = `
@@ -654,7 +839,7 @@ async function renderBeranda() {
             <i data-lucide="target" class="w-3.5 h-3.5 text-blue-500"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">${s.hasTarget && s.targetCartons !== null ? s.targetCartons.toLocaleString('id-ID') : '<span class="text-slate-400 text-sm">Belum tersedia</span>'}</p>
-          <p class="text-[10px] text-slate-500 font-medium flex items-center gap-0.5 mt-0.5">${s.hasTarget ? '+8% vs lalu' : 'Target belum diatur'}</p>
+          <p class="text-[10px] text-slate-500 font-medium flex items-center gap-0.5 mt-0.5" title="${s.hasTarget && s.targetValue ? 'Nilai Target: Rp ' + s.targetValue.toLocaleString('id-ID') : ''}">${s.hasTarget && s.targetValue ? 'Rp ' + (s.targetValue / 1000000).toFixed(1) + ' Jt' : (s.hasTarget ? '+8% vs lalu' : 'Target belum diatur')}</p>
         </div>
 
         <!-- 2. Actual KTN -->
@@ -694,7 +879,7 @@ async function renderBeranda() {
             <i data-lucide="coins" class="w-3.5 h-3.5 text-purple-500"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">Rp ${(s.salesNettoValue / 1000000).toFixed(1)} Jt</p>
-          <p class="text-[10px] text-emerald-600 font-medium mt-0.5">Netto MTD</p>
+          <p class="text-[10px] ${s.hasTarget && s.targetValue ? 'text-purple-700 font-semibold' : 'text-emerald-600'} font-medium mt-0.5" title="${s.hasTarget && s.targetValue ? 'Target: Rp ' + s.targetValue.toLocaleString('id-ID') : ''}">${s.hasTarget && s.targetValue ? 'Tgt: Rp ' + (s.targetValue / 1000000).toFixed(1) + ' Jt (' + (Math.round((s.salesNettoValue / s.targetValue) * 1000) / 10) + '%)' : 'Netto MTD'}</p>
         </div>
 
         <!-- 6. Registered Outlet (CL) -->
@@ -735,7 +920,7 @@ async function renderBeranda() {
           <div class="flex items-center justify-between mb-3">
             <div>
               <h3 class="font-bold text-slate-800 text-sm">Trend Penjualan & Achievement</h3>
-              <p class="text-[11px] text-slate-500">Per 5 Bulan Terakhir (Jan - Mei 2026)</p>
+              <p class="text-[11px] text-slate-500">Pergerakan Historis (${data.trendMonths && data.trendMonths.length ? data.trendMonths[0].name + ' - ' + data.trendMonths[data.trendMonths.length - 1].name + ' ' + cal.year : 'Jan - Mei 2026'})</p>
             </div>
             <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded font-medium">Bulanan</span>
           </div>
@@ -1458,106 +1643,269 @@ function closeModal() {
 // 3. DATA CENTER — IMPORT EXCEL WIZARD (media_1789300934965.jpg)
 // ==============================================================
 let stagedUpload = null;
+window.activeDataCenterCategory = window.activeDataCenterCategory || 'TRANSACTIONS';
+window.activeDataCenterSubView = window.activeDataCenterSubView || 'import'; // 'import' or 'users'
+
+const DATACENTER_CATEGORIES = {
+  TRANSACTIONS: {
+    name: 'Sales Transaction',
+    desc: 'Data Penjualan Field',
+    icon: 'file-spreadsheet',
+    masterFile: 'master data.xlsx',
+    reqCols: ['Document Number', 'Tanggal', 'Kode Outlet', 'Salesman Code', 'Item Code', 'Sales Ctn', 'Sales Netto', 'Year', 'MONTH'],
+    info: 'Mendukung pembaruan faktur dan transaksi penjualan. Kolom Year dan MONTH otomatis diselaraskan dengan periode akuntansi ERP.'
+  },
+  CUSTOMER_LIST: {
+    name: 'Customer List',
+    desc: 'Master Pelanggan & Rute',
+    icon: 'users',
+    masterFile: 'DATA CL.xlsx',
+    reqCols: ['Kode Outlet', 'Nama Outlet', 'Alamat Outlet', 'DSO', 'SUB - DSO', 'SALES TYPE', 'Kode Sales', 'Salesman Name', 'Rayon', 'pasar'],
+    info: 'Memetakan master outlet ke salesman dan rayon. Menjaga riwayat perpindahan outlet dan identitas pelanggan.'
+  },
+  TARGETS: {
+    name: 'Target Quantity',
+    desc: 'Target Bulanan Qty & Rp',
+    icon: 'target',
+    masterFile: 'TARGET KUANTITI SALES.xlsx',
+    reqCols: ['PRINCIPAL', 'Sales Name', 'Brand', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'],
+    info: 'Fokus utama pada Target Qty (KTN). Nilai target rupiah otomatis dihitung dinamis dari harga satuan produk riil.'
+  },
+  STOCK: {
+    name: 'Stock Gudang',
+    desc: 'Stok Produk & Persediaan',
+    icon: 'boxes',
+    masterFile: 'DATA STOK.xlsx',
+    reqCols: ['Kode', 'Produk', 'SKU', 'Satuan', 'Saldo Stok Administrasi', 'Bon Produk', 'Allocated Stock', 'Available Stock', 'Stok Fisik', 'Stok dalam Perjalanan'],
+    info: 'Snapshot ketersediaan stok fisik dan administrasi gudang Garut untuk mendeteksi overstock & out-of-stock.'
+  },
+  AR: {
+    name: 'Aging Piutang (AR)',
+    desc: 'Faktur Piutang & Jatuh Tempo',
+    icon: 'receipt',
+    masterFile: 'piutang aktif.xlsx',
+    reqCols: ['Kode Outlet', 'Outlet', 'Tgl Faktur', 'No Faktur', 'Tgl J. Tempo', 'Total Harga', 'Potongan', 'DPP', 'PPN', 'Faktur Netto', 'Sudah Bayar', 'Saldo Piutang'],
+    info: 'Memantau saldo piutang berjalan, umur piutang (Aging Buckets 1-30, 31-60, 61-90, >90 hari NPL), dan batas kredit.'
+  },
+  INCENTIVE_VALUE_TARGETS: {
+    name: 'Incentive Target',
+    desc: 'Target Nilai Per Salesman',
+    icon: 'award',
+    masterFile: 'Template_Incentive_Target.xlsx',
+    reqCols: ['Salesman', 'Target Value (Rupiah)', 'Target Kopi Cartons', 'Target Bvg Cartons', 'Target Non Kopi Bvg Cartons'],
+    info: 'Target nilai insentif per salesman untuk perhitungan Komponen 4 (Value All) dan komponen turunan.'
+  }
+};
+
+function selectDataCenterCategory(catKey) {
+  window.activeDataCenterCategory = catKey;
+  stagedUpload = null;
+  renderDataCenter();
+}
+
+function switchDataCenterSubView(subView) {
+  window.activeDataCenterSubView = subView;
+  renderDataCenter();
+}
+
+function downloadCurrentTemplate() {
+  const cat = window.activeDataCenterCategory || 'TRANSACTIONS';
+  window.open(`/api/datacenter/templates/${cat}`, '_blank');
+}
 
 async function renderDataCenter() {
   const main = document.getElementById('main-content');
+  const catKey = window.activeDataCenterCategory || 'TRANSACTIONS';
+  const cat = DATACENTER_CATEGORIES[catKey] || DATACENTER_CATEGORIES.TRANSACTIONS;
+  const isSuper = isSuperAdmin();
+
   main.innerHTML = `
     <!-- Data Center Header -->
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 pb-2 border-b border-slate-200">
       <div>
-        <h2 class="text-xl font-bold text-slate-800 tracking-tight">Data Center</h2>
-        <p class="text-xs text-slate-500">Kelola data master dan import data transaksi untuk perhitungan insentif dan analitik bisnis.</p>
+        <div class="flex items-center gap-2">
+          <h2 class="text-xl font-bold text-slate-800 tracking-tight">Data Center</h2>
+          ${isSuper ? `<span class="badge-success text-[10px] font-bold px-2 py-0.5 rounded">Super User: Full Akses</span>` : `<span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded">Akses: Hanya Lihat (Viewer)</span>`}
+        </div>
+        <p class="text-xs text-slate-500 mt-0.5">Kelola data master, perbarui data transaksi, stok, piutang, dan target bulanan secara terpusat.</p>
       </div>
-      <button class="px-3.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold rounded-lg flex items-center gap-1.5">
-        <i data-lucide="book-open" class="w-3.5 h-3.5"></i> Panduan Import
-      </button>
-    </div>
 
-    <!-- Category Tabs -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-      <div class="p-3 bg-white rounded-xl border border-blue-500 shadow-sm cursor-pointer flex items-center gap-2.5">
-        <i data-lucide="file-spreadsheet" class="w-4 h-4 text-blue-600"></i>
-        <div>
-          <p class="text-xs font-bold text-slate-800">Sales Transaction</p>
-          <p class="text-[10px] text-slate-400">Data penjualan field</p>
-        </div>
-      </div>
-      <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer flex items-center gap-2.5 hover:border-blue-300">
-        <i data-lucide="users" class="w-4 h-4 text-slate-600"></i>
-        <div>
-          <p class="text-xs font-bold text-slate-800">Customer List</p>
-          <p class="text-[10px] text-slate-400">Master pelanggan</p>
-        </div>
-      </div>
-      <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer flex items-center gap-2.5 hover:border-blue-300">
-        <i data-lucide="target" class="w-4 h-4 text-slate-600"></i>
-        <div>
-          <p class="text-xs font-bold text-slate-800">Target</p>
-          <p class="text-[10px] text-slate-400">Target quantity</p>
-        </div>
-      </div>
-      <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer flex items-center gap-2.5 hover:border-blue-300">
-        <i data-lucide="boxes" class="w-4 h-4 text-slate-600"></i>
-        <div>
-          <p class="text-xs font-bold text-slate-800">Stock</p>
-          <p class="text-[10px] text-slate-400">Stok produk gudang</p>
-        </div>
-      </div>
-      <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer flex items-center gap-2.5 hover:border-blue-300">
-        <i data-lucide="receipt" class="w-4 h-4 text-slate-600"></i>
-        <div>
-          <p class="text-xs font-bold text-slate-800">AR</p>
-          <p class="text-[10px] text-slate-400">Aging piutang</p>
-        </div>
-      </div>
-      <div class="p-3 bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer flex items-center gap-2.5 hover:border-blue-300">
-        <i data-lucide="award" class="w-4 h-4 text-slate-600"></i>
-        <div>
-          <p class="text-xs font-bold text-slate-800">Incentive Target</p>
-          <p class="text-[10px] text-slate-400">Target nilai insentif</p>
-        </div>
+      <!-- Sub Navigation Buttons -->
+      <div class="flex items-center gap-2">
+        <button onclick="switchDataCenterSubView('import')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${window.activeDataCenterSubView === 'import' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+          <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+          <span>Import Data Master</span>
+        </button>
+        ${isSuper ? `
+          <button onclick="switchDataCenterSubView('users')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${window.activeDataCenterSubView === 'users' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">
+            <i data-lucide="users" class="w-4 h-4"></i>
+            <span>Kelola Pengguna & Kata Sandi</span>
+          </button>
+        ` : ''}
       </div>
     </div>
 
-    <!-- Drag and Drop Dropzone -->
-    <div id="dropzone" ondragover="event.preventDefault()" ondrop="handleDrop(event)" class="border-2 border-dashed border-blue-300 bg-blue-50/40 rounded-2xl p-8 text-center transition hover:bg-blue-50/70 cursor-pointer" onclick="document.getElementById('file-input').click()">
-      <input type="file" id="file-input" class="hidden" onchange="handleFileSelect(event)" accept=".xlsx,.xls,.csv">
-      <div class="w-14 h-14 bg-white rounded-2xl shadow-sm text-blue-600 flex items-center justify-center mx-auto mb-3">
-        <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+    <!-- Viewer Restriction Notice if Viewer -->
+    ${!isSuper ? `
+      <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-start gap-3">
+        <i data-lucide="shield-alert" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+        <div>
+          <strong class="font-bold">Mode Akses Terbatas (Viewer):</strong>
+          <p class="mt-0.5 text-amber-700 leading-relaxed">Anda saat ini login sebagai <strong class="text-amber-900">${window.currentUser?.fullName || 'Viewer'}</strong> (${window.currentUser?.roleLabel || 'Staff'}). Anda dapat melihat seluruh analitik, memeriksa riwayat berkas, dan mengunduh format template master, namun hak unggah (upload), simpan (commit), dan perubahan data dibatasi hanya untuk Super User (Aghia Anggala).</p>
+        </div>
       </div>
-      <h3 class="font-bold text-slate-800 text-sm">Drag & Drop file Excel di sini</h3>
-      <p class="text-xs text-slate-500 mt-1">atau <span class="text-blue-600 font-semibold underline">klik untuk memilih file</span> dari komputer Anda</p>
-      <p class="text-[10px] text-slate-400 mt-2">Format yang didukung: .xlsx, .xls, .csv (Maksimal ukuran file: 50 MB)</p>
-      <button class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm">
-        Pilih File Excel
-      </button>
-    </div>
+    ` : ''}
 
-    <!-- Validation & Mapping Preview Container -->
-    <div id="validation-preview-container" class="space-y-4">
-      <!-- Injected after upload -->
-    </div>
+    ${window.activeDataCenterSubView === 'users' ? `
+      <!-- ========================================== -->
+      <!-- SUB-VIEW: KELOLA PENGGUNA & KATA SANDI     -->
+      <!-- ========================================== -->
+      <div class="space-y-6">
+        <!-- Ganti Kata Sandi Super User (Aghia Anggala) -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm max-w-xl">
+          <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+              <i data-lucide="key-round" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-800 text-sm">Ganti Kata Sandi Akun Anda (Aghia Anggala)</h3>
+              <p class="text-[11px] text-slate-500">Ubah kata sandi standar (12345) ke kata sandi baru pribadi Anda.</p>
+            </div>
+          </div>
 
-    <!-- Bottom Shortcuts -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-200 text-xs">
-      <div class="bg-white p-4 rounded-xl border border-slate-200">
-        <h4 class="font-bold text-slate-800 mb-1">Master Data Mapping</h4>
-        <p class="text-slate-500 text-[11px] mb-3">Kelola pemetaan data customer & produk agar sesuai dengan master.</p>
-        <button onclick="navigate('settings')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded">Kelola Master</button>
+          <form onsubmit="handlePasswordChangeSubmit(event)" class="space-y-3">
+            <div id="password-change-alert" class="hidden p-3 rounded-xl text-xs font-semibold"></div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Kata Sandi Baru</label>
+              <input type="password" id="input-new-password" required placeholder="Masukkan kata sandi baru..." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Konfirmasi Kata Sandi Baru</label>
+              <input type="password" id="input-confirm-password" required placeholder="Ulangi kata sandi baru..." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none">
+            </div>
+            <button type="submit" id="btn-change-password" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+              <i data-lucide="check" class="w-4 h-4"></i>
+              <span>Simpan Kata Sandi Baru</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Daftar Pengguna Sistem -->
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+            <div>
+              <h3 class="font-bold text-slate-800 text-sm">Daftar Akun Pengguna & Hak Akses</h3>
+              <p class="text-[11px] text-slate-500">Manajemen akses peran Super Admin, Supervisor, dan Salesman.</p>
+            </div>
+            <button onclick="openAddUserModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1">
+              <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Tambah User Baru
+            </button>
+          </div>
+
+          <div id="users-table-container" class="overflow-x-auto text-xs">
+            <div class="py-8 text-center text-slate-400"><i data-lucide="loader-2" class="w-5 h-5 animate-spin mx-auto mb-2"></i>Memuat daftar pengguna...</div>
+          </div>
+        </div>
       </div>
-      <div class="bg-white p-4 rounded-xl border border-slate-200">
-        <h4 class="font-bold text-slate-800 mb-1">Pengaturan Business Rule</h4>
-        <p class="text-slate-500 text-[11px] mb-3">Atur threshold Dormant (60D), Must Have SKU, dan parameter insentif.</p>
-        <button onclick="navigate('settings')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded">Atur Aturan</button>
+    ` : `
+      <!-- ========================================== -->
+      <!-- SUB-VIEW: IMPORT DATA MASTER               -->
+      <!-- ========================================== -->
+      <!-- Category Tabs Selector -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        ${Object.entries(DATACENTER_CATEGORIES).map(([key, item]) => {
+          const isActive = key === catKey;
+          return `
+            <div onclick="selectDataCenterCategory('${key}')" class="p-3 bg-white rounded-xl border transition cursor-pointer flex items-center gap-2.5 ${isActive ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md bg-blue-50/20' : 'border-slate-200 hover:border-blue-300 shadow-sm'}">
+              <i data-lucide="${item.icon}" class="w-4 h-4 ${isActive ? 'text-blue-600' : 'text-slate-500'}"></i>
+              <div class="min-w-0">
+                <p class="text-xs font-bold ${isActive ? 'text-blue-900' : 'text-slate-800'} truncate">${item.name}</p>
+                <p class="text-[10px] text-slate-400 truncate">${item.desc}</p>
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
-      <div class="bg-white p-4 rounded-xl border border-slate-200">
-        <h4 class="font-bold text-slate-800 mb-1">Kalender Hari Kerja</h4>
-        <p class="text-slate-500 text-[11px] mb-3">Atur HK, HKE, dan hari libur operasional Garut.</p>
-        <button onclick="navigate('settings')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded">Atur Kalender</button>
+
+      <!-- Active Category Details & Template Download Card -->
+      <div class="bg-gradient-to-r from-blue-50/80 via-slate-50 to-emerald-50/40 p-4 rounded-2xl border border-blue-200/80 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-700/20">
+            <i data-lucide="${cat.icon}" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h4 class="font-bold text-slate-800 text-sm">${cat.name} — Format Berkas Master</h4>
+              <span class="text-[10px] bg-blue-100 text-blue-800 font-mono font-bold px-2 py-0.5 rounded">${cat.masterFile}</span>
+            </div>
+            <p class="text-xs text-slate-600 mt-1">${cat.info}</p>
+            <div class="mt-2 text-[11px] text-slate-500 flex flex-wrap items-center gap-1.5">
+              <strong class="text-slate-700">Kolom Master Diharapkan:</strong>
+              ${cat.reqCols.slice(0, 6).map(c => `<span class="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-600">${c}</span>`).join('')}
+              ${cat.reqCols.length > 6 ? `<span class="text-[10px] text-slate-400">+ ${cat.reqCols.length - 6} kolom lainnya</span>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <button onclick="downloadCurrentTemplate()" class="px-4 py-2.5 bg-white hover:bg-slate-50 text-blue-700 border border-blue-300 font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-2 shrink-0 self-start md:self-center">
+          <i data-lucide="download" class="w-4 h-4 text-blue-600"></i>
+          <span>Unduh Format Master (.xlsx)</span>
+        </button>
       </div>
-    </div>
+
+      <!-- Drag and Drop Dropzone -->
+      ${isSuper ? `
+        <div id="dropzone" ondragover="event.preventDefault()" ondrop="handleDrop(event)" class="border-2 border-dashed border-blue-300 bg-blue-50/40 rounded-2xl p-8 text-center transition hover:bg-blue-50/70 cursor-pointer" onclick="document.getElementById('file-input').click()">
+          <input type="file" id="file-input" class="hidden" onchange="handleFileSelect(event)" accept=".xlsx,.xls,.csv">
+          <div class="w-14 h-14 bg-white rounded-2xl shadow-sm text-blue-600 flex items-center justify-center mx-auto mb-3">
+            <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+          </div>
+          <h3 class="font-bold text-slate-800 text-sm">Drag & Drop file <span class="text-blue-600 underline">${cat.name}</span> di sini</h3>
+          <p class="text-xs text-slate-500 mt-1">atau <span class="text-blue-600 font-semibold underline">klik untuk memilih file</span> dari komputer Anda (Format Excel .xlsx, .xls, .csv)</p>
+          <p class="text-[10px] text-slate-400 mt-2">Sistem otomatis mendeteksi baris header dan memvalidasi tipe data sebelum disimpan.</p>
+          <button class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm">
+            Pilih File ${cat.name}
+          </button>
+        </div>
+      ` : `
+        <div class="border-2 border-dashed border-slate-300 bg-slate-50/60 rounded-2xl p-8 text-center cursor-not-allowed">
+          <div class="w-14 h-14 bg-white rounded-2xl shadow-sm text-slate-400 flex items-center justify-center mx-auto mb-3">
+            <i data-lucide="lock" class="w-7 h-7"></i>
+          </div>
+          <h3 class="font-bold text-slate-600 text-sm">Upload Dinonaktifkan untuk Akun Viewer</h3>
+          <p class="text-xs text-slate-400 mt-1">Silakan login sebagai Super User (Aghia Anggala) untuk mengunggah atau memperbarui data master.</p>
+        </div>
+      `}
+
+      <!-- Validation & Mapping Preview Container -->
+      <div id="validation-preview-container" class="space-y-4">
+        <!-- Injected after upload -->
+      </div>
+
+      <!-- Recent Batches Table -->
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div>
+            <h3 class="font-bold text-slate-800 text-sm">Riwayat Batch Import Data</h3>
+            <p class="text-[11px] text-slate-500">Daftar transaksi berkas master yang telah disimpan ke database.</p>
+          </div>
+          <button onclick="loadRecentBatches()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition" title="Refresh">
+            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+          </button>
+        </div>
+        <div id="recent-batches-container" class="overflow-x-auto text-xs">
+          <div class="py-6 text-center text-slate-400"><i data-lucide="loader-2" class="w-4 h-4 animate-spin mx-auto mb-1"></i> Memuat riwayat...</div>
+        </div>
+      </div>
+    `}
   `;
   lucide.createIcons();
+
+  if (window.activeDataCenterSubView === 'users') {
+    loadUserManagement();
+  } else {
+    loadRecentBatches();
+  }
 }
 
 async function handleFileSelect(event) {
@@ -1575,15 +1923,20 @@ async function handleDrop(event) {
 
 async function uploadAndValidate(file) {
   const preview = document.getElementById('validation-preview-container');
+  if (!preview) return;
   preview.innerHTML = `<div class="p-6 text-center text-slate-500 bg-white rounded-xl border border-slate-200"><i data-lucide="loader-2" class="w-6 h-6 animate-spin mx-auto text-blue-600 mb-2"></i>Menganalisis dan memvalidasi berkas ${file.name}...</div>`;
   lucide.createIcons();
 
   const formData = new FormData();
   formData.append('file', file);
+  if (window.activeDataCenterCategory) {
+    formData.append('datasetType', window.activeDataCenterCategory);
+  }
 
   try {
     const res = await fetch('/api/datacenter/validate', {
       method: 'POST',
+      headers: authHeaders(),
       body: formData
     });
     const data = await res.json();
@@ -1592,52 +1945,46 @@ async function uploadAndValidate(file) {
     const validPct = data.totalRows > 0 ? ((data.validRows / data.totalRows) * 100).toFixed(1) : 0;
     const warnPct = data.totalRows > 0 ? ((data.warningRows / data.totalRows) * 100).toFixed(1) : 0;
     const errPct = data.totalRows > 0 ? ((data.errorRows / data.totalRows) * 100).toFixed(1) : 0;
+    const isSuper = isSuperAdmin();
 
     preview.innerHTML = `
       <!-- File Metadata Card -->
-      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
+      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div class="flex items-center gap-3">
-          <i data-lucide="check-circle" class="w-6 h-6 text-emerald-600"></i>
+          <i data-lucide="check-circle" class="w-6 h-6 text-emerald-600 shrink-0"></i>
           <div>
-            <h4 class="font-bold text-slate-800 text-sm">File terdeteksi sebagai data ${data.datasetType}</h4>
-            <p class="text-xs text-slate-600">${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB) • ${data.totalRows.toLocaleString('id-ID')} baris terdeteksi</p>
+            <h4 class="font-bold text-slate-800 text-sm">File terdeteksi sebagai format <span class="text-emerald-700 underline font-extrabold">${data.datasetType}</span></h4>
+            <p class="text-xs text-slate-600">${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB) • ${data.totalRows.toLocaleString('id-ID')} baris terbaca</p>
           </div>
         </div>
-        <button onclick="commitStagedImport()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-700/20 transition flex items-center gap-1.5">
-          <i data-lucide="save" class="w-4 h-4"></i> Simpan & Commit ke Database
-        </button>
+        ${isSuper ? `
+          <button onclick="commitStagedImport()" id="btn-commit-import" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-700/20 transition flex items-center justify-center gap-1.5 shrink-0">
+            <i data-lucide="save" class="w-4 h-4"></i> Simpan & Commit ke Database
+          </button>
+        ` : `
+          <span class="px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-xs font-bold border border-slate-200">Akses Viewer (Hanya Lihat)</span>
+        `}
       </div>
 
       <!-- Split Layout: Column Mapping & Validation Results -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 text-xs">
         <!-- Column Mapping (5 cols) -->
         <div class="lg:col-span-5 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <h4 class="font-bold text-slate-800 mb-1">Pemetaan Kolom (Column Mapping)</h4>
-          <p class="text-[11px] text-slate-500 mb-3">Kolom otomatis dipetakan sesuai format standar</p>
+          <h4 class="font-bold text-slate-800 mb-1">Pemetaan Kolom & Identitas Data</h4>
+          <p class="text-[11px] text-slate-500 mb-3">Kolom otomatis dipetakan sesuai struktur master data Garut</p>
 
-          <div class="space-y-2">
-            <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span class="font-medium text-slate-700">Tanggal Transaksi</span>
-              <span class="badge-success px-2 py-0.5 rounded text-[10px] font-bold">OK Terpetakan</span>
-            </div>
-            <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span class="font-medium text-slate-700">Kode & Nama Outlet</span>
-              <span class="badge-success px-2 py-0.5 rounded text-[10px] font-bold">OK Terpetakan</span>
-            </div>
-            <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span class="font-medium text-slate-700">Item Code / SKU</span>
-              <span class="badge-success px-2 py-0.5 rounded text-[10px] font-bold">OK Terpetakan</span>
-            </div>
-            <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span class="font-medium text-slate-700">Kuantiti (Cartons / Pcs)</span>
-              <span class="badge-success px-2 py-0.5 rounded text-[10px] font-bold">OK Terpetakan</span>
-            </div>
+          <div class="space-y-2 max-h-56 overflow-y-auto scrollbar-thin pr-1">
+            ${(DATACENTER_CATEGORIES[data.datasetType]?.reqCols || ['Kolom Data']).map(col => `
+              <div class="flex justify-between items-center py-1.5 border-b border-slate-100">
+                <span class="font-medium text-slate-700">${col}</span>
+                <span class="badge-success px-2 py-0.5 rounded text-[10px] font-bold">OK Terpetakan</span>
+              </div>
+            `).join('')}
           </div>
 
-          <!-- Scientific notation notice -->
           <div class="mt-4 p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-[11px] flex items-start gap-2">
             <i data-lucide="info" class="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5"></i>
-            <span><strong>Otomatis menangani angka dalam scientific notation:</strong> Nilai seperti 3,05E+11 otomatis dinormalisasi menjadi kode teks untuk menjaga keakuratan identitas outlet.</span>
+            <span><strong>Target Value Dinamis:</strong> Jika mengunggah target kuantiti, nilai rupiah target dihitung otomatis via perkalian harga satuan produk historis.</span>
           </div>
         </div>
 
@@ -1668,15 +2015,15 @@ async function uploadAndValidate(file) {
             </div>
           </div>
 
-          <!-- Sample Error / Warning list -->
+          <!-- Catatan Validasi Data -->
           <div class="border border-slate-200 rounded-lg overflow-hidden">
             <div class="bg-slate-50 px-3 py-1.5 font-bold text-[11px] text-slate-700 border-b border-slate-200 flex justify-between">
               <span>Catatan Validasi Data</span>
-              <span>Status: Siap Import</span>
+              <span class="${data.errors.length === 0 ? 'text-emerald-700 font-bold' : 'text-rose-600'}">${data.errors.length === 0 ? 'Status: Siap Simpan' : 'Ditemukan Kendala'}</span>
             </div>
-            <div class="max-h-48 overflow-y-auto p-2 space-y-1.5 scrollbar-thin text-[11px]">
+            <div class="max-h-48 overflow-y-auto p-2.5 space-y-1.5 scrollbar-thin text-[11px]">
               ${data.warnings.length === 0 && data.errors.length === 0 ? `
-                <p class="text-emerald-600 font-semibold p-2"><i data-lucide="check" class="w-3.5 h-3.5 inline"></i> Seluruh data lulus validasi tanpa error fatal.</p>
+                <p class="text-emerald-600 font-semibold p-2 flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4"></i> Seluruh data lulus validasi tanpa error fatal. Siap disimpan ke database.</p>
               ` : `
                 ${data.errors.map(e => `<p class="text-rose-600 font-medium">❌ ${e}</p>`).join('')}
                 ${data.warnings.map(w => `<p class="text-amber-600 font-medium">⚠️ ${w}</p>`).join('')}
@@ -1688,20 +2035,26 @@ async function uploadAndValidate(file) {
     `;
     lucide.createIcons();
   } catch (err) {
-    preview.innerHTML = `<div class="p-4 bg-rose-50 text-rose-700 rounded-xl">Gagal memvalidasi: ${err.message}</div>`;
+    preview.innerHTML = `<div class="p-4 bg-rose-50 text-rose-700 rounded-xl">Gagal memvalidasi berkas: ${err.message}</div>`;
   }
 }
 
 async function commitStagedImport() {
   if (!stagedUpload) return;
-  const btn = event.target;
-  btn.disabled = true;
-  btn.innerText = 'Menyimpan...';
+  const btn = document.getElementById('btn-commit-import');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Menyimpan ke Database...`;
+    lucide.createIcons();
+  }
 
   try {
     const res = await fetch('/api/datacenter/commit', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders()
+      },
       body: JSON.stringify({
         stagedFilePath: stagedUpload.stagedFilePath,
         datasetType: stagedUpload.datasetType
@@ -1709,16 +2062,233 @@ async function commitStagedImport() {
     });
     const result = await res.json();
     if (result.success) {
-      alert(`Berhasil mengimpor ${result.committedRows.toLocaleString('id-ID')} baris ke sistem database!`);
-      navigate('beranda');
+      alert(`Berhasil mengimpor ${result.committedRows.toLocaleString('id-ID')} baris data ke database sistem!`);
+      stagedUpload = null;
+      renderDataCenter();
     } else {
-      alert('Gagal mengimpor: ' + (result.error || 'Terjadi kesalahan'));
+      alert('Gagal mengimpor: ' + (result.error || 'Terjadi kesalahan sistem'));
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Coba Simpan Ulang`;
+        lucide.createIcons();
+      }
+    }
+  } catch (err) {
+    alert('Kesalahan jaringan saat menyimpan: ' + err.message);
+    if (btn) {
       btn.disabled = false;
+      btn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Coba Simpan Ulang`;
+      lucide.createIcons();
+    }
+  }
+}
+
+async function loadRecentBatches() {
+  const container = document.getElementById('recent-batches-container');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/datacenter/batches', { headers: authHeaders() });
+    const data = await res.json();
+    const batches = data.batches || [];
+
+    if (batches.length === 0) {
+      container.innerHTML = `<p class="py-6 text-center text-slate-400">Belum ada riwayat batch yang tercatat.</p>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <table class="w-full text-left">
+        <thead>
+          <tr class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+            <th class="py-2.5 px-3">Batch ID</th>
+            <th class="py-2.5 px-3">Tipe Data</th>
+            <th class="py-2.5 px-3">Nama Berkas</th>
+            <th class="py-2.5 px-3 text-right">Total Baris</th>
+            <th class="py-2.5 px-3">Waktu Import</th>
+            <th class="py-2.5 px-3 text-center">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          ${batches.map(b => `
+            <tr class="hover:bg-slate-50/60">
+              <td class="py-2.5 px-3 font-mono font-bold text-slate-700">${b.batch_id}</td>
+              <td class="py-2.5 px-3">
+                <span class="px-2 py-0.5 rounded font-bold text-[10px] ${b.dataset_type === 'TARGETS' ? 'bg-amber-100 text-amber-800' : (b.dataset_type === 'AR' ? 'bg-rose-100 text-rose-800' : (b.dataset_type === 'STOCK' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'))}">
+                  ${b.dataset_type}
+                </span>
+              </td>
+              <td class="py-2.5 px-3 text-slate-800 font-medium">${b.filename || 'Upload'}</td>
+              <td class="py-2.5 px-3 text-right font-bold text-slate-700">${(b.total_rows || 0).toLocaleString('id-ID')}</td>
+              <td class="py-2.5 px-3 text-slate-500">${b.created_at ? new Date(b.created_at).toLocaleString('id-ID') : '—'}</td>
+              <td class="py-2.5 px-3 text-center">
+                <span class="badge-success px-2 py-0.5 rounded text-[10px] font-bold">${b.status || 'COMMITTED'}</span>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    lucide.createIcons();
+  } catch (err) {
+    container.innerHTML = `<p class="py-4 text-center text-rose-600">Gagal memuat riwayat batch: ${err.message}</p>`;
+  }
+}
+
+async function loadUserManagement() {
+  const container = document.getElementById('users-table-container');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/users', { headers: authHeaders() });
+    const data = await res.json();
+    const users = data.users || [];
+
+    container.innerHTML = `
+      <table class="w-full text-left">
+        <thead>
+          <tr class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+            <th class="py-2.5 px-3">Username</th>
+            <th class="py-2.5 px-3">Nama Lengkap</th>
+            <th class="py-2.5 px-3">Peran (Role)</th>
+            <th class="py-2.5 px-3">Hak Akses</th>
+            <th class="py-2.5 px-3 text-center">Status</th>
+            <th class="py-2.5 px-3 text-center">Aksi</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          ${users.map(u => `
+            <tr class="hover:bg-slate-50/60">
+              <td class="py-2.5 px-3 font-bold text-slate-800">${u.username}</td>
+              <td class="py-2.5 px-3 text-slate-700">${u.full_name}</td>
+              <td class="py-2.5 px-3">
+                <span class="px-2 py-0.5 rounded font-bold text-[10px] ${u.role === 'DSM' ? 'bg-emerald-100 text-emerald-800' : (u.role === 'SPV' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700')}">
+                  ${u.role === 'DSM' ? 'Super Admin' : (u.role === 'SPV' ? 'Supervisor' : 'Salesman / Staff')}
+                </span>
+              </td>
+              <td class="py-2.5 px-3 text-slate-600">
+                ${u.can_upload_sales ? '<span class="text-emerald-700 font-bold">Full Edit & Upload</span>' : '<span class="text-slate-400">Hanya Lihat (View Only)</span>'}
+              </td>
+              <td class="py-2.5 px-3 text-center">
+                <span class="badge-success px-2 py-0.5 rounded text-[10px] font-bold">Aktif</span>
+              </td>
+              <td class="py-2.5 px-3 text-center">
+                <button onclick="promptChangeUserPassword('${u.user_id}', '${u.username}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[10px] transition">
+                  Ganti Password
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    lucide.createIcons();
+  } catch (err) {
+    container.innerHTML = `<p class="py-4 text-center text-rose-600">Gagal memuat data pengguna: ${err.message}</p>`;
+  }
+}
+
+async function handlePasswordChangeSubmit(event) {
+  event.preventDefault();
+  const p1 = document.getElementById('input-new-password')?.value;
+  const p2 = document.getElementById('input-confirm-password')?.value;
+  const alertEl = document.getElementById('password-change-alert');
+
+  if (!p1 || p1.trim().length === 0) {
+    alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+    alertEl.textContent = 'Password baru tidak boleh kosong.';
+    alertEl.classList.remove('hidden');
+    return;
+  }
+
+  if (p1 !== p2) {
+    alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+    alertEl.textContent = 'Konfirmasi password tidak cocok.';
+    alertEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const userId = window.currentUser?.userId || 'USR_AGHIA';
+    const res = await fetch(`/api/users/${userId}/password`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders()
+      },
+      body: JSON.stringify({ newPassword: p1.trim() })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200';
+      alertEl.textContent = 'Kata sandi berhasil diperbarui! Silakan gunakan kata sandi baru untuk login berikutnya.';
+      alertEl.classList.remove('hidden');
+      document.getElementById('input-new-password').value = '';
+      document.getElementById('input-confirm-password').value = '';
+    } else {
+      alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+      alertEl.textContent = data.error || 'Gagal mengubah kata sandi.';
+      alertEl.classList.remove('hidden');
+    }
+  } catch (err) {
+    alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+    alertEl.textContent = 'Kesalahan jaringan: ' + err.message;
+    alertEl.classList.remove('hidden');
+  }
+}
+
+async function promptChangeUserPassword(userId, username) {
+  const newPass = prompt(`Masukkan kata sandi baru untuk user "${username}":`);
+  if (!newPass || newPass.trim().length === 0) return;
+
+  try {
+    const res = await fetch(`/api/users/${userId}/password`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders()
+      },
+      body: JSON.stringify({ newPassword: newPass.trim() })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`Kata sandi untuk "${username}" berhasil diubah.`);
+    } else {
+      alert('Gagal mengubah password: ' + (data.error || 'Terjadi kesalahan'));
     }
   } catch (err) {
     alert('Kesalahan jaringan: ' + err.message);
-    btn.disabled = false;
   }
+}
+
+function openAddUserModal() {
+  const u = prompt('Masukkan Username baru (contoh: spv_garut_2):');
+  if (!u) return;
+  const name = prompt('Masukkan Nama Lengkap pengguna:');
+  if (!name) return;
+  const role = prompt('Pilih Peran: Ketik "SPV" (Supervisor), "SALESMAN", atau "DSM" (Super Admin):', 'SPV');
+  if (!role) return;
+  const pass = prompt('Masukkan Password awal:', '12345');
+  if (!pass) return;
+
+  fetch('/api/users', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders()
+    },
+    body: JSON.stringify({
+      username: u.trim(),
+      fullName: name.trim(),
+      role: role.trim().toUpperCase(),
+      password: pass.trim()
+    })
+  }).then(r => r.json()).then(data => {
+    if (data.success) {
+      alert('Pengguna baru berhasil ditambahkan.');
+      loadUserManagement();
+    } else {
+      alert('Gagal menambahkan pengguna: ' + (data.error || 'Terjadi kesalahan'));
+    }
+  }).catch(e => alert('Error: ' + e.message));
 }
 
 // ==============================================================
@@ -1784,13 +2354,18 @@ function renderPenjualanContent() {
         </td>
         <td class="py-2.5 px-4 font-semibold text-blue-600">${g.brand || '—'}</td>
         <td class="py-2.5 px-4 text-slate-600">${g.principal || 'SAVORIA'}</td>
-        <td class="py-2.5 px-4 text-right font-medium">${g.targetCartons > 0 ? g.targetCartons.toLocaleString('id-ID') : '<span class="text-slate-400">Belum ada</span>'}</td>
+        <td class="py-2.5 px-4 text-right font-medium">
+          <div>${g.targetCartons > 0 ? g.targetCartons.toLocaleString('id-ID') : '<span class="text-slate-400">Belum ada</span>'}</div>
+          ${g.targetValue > 0 ? `<div class="text-[10px] text-slate-400 font-normal">Rp ${(g.targetValue / 1000000).toFixed(1)} Jt</div>` : ''}
+        </td>
         <td class="py-2.5 px-4 text-right font-extrabold text-slate-900">${g.actualCartons.toLocaleString('id-ID')}</td>
         <td class="py-2.5 px-4 text-right font-bold ${g.targetCartons > 0 ? (g.achievementPct >= 80 ? 'text-emerald-600' : (g.achievementPct >= 60 ? 'text-amber-600' : 'text-rose-600')) : 'text-slate-400'}">
-          ${g.targetCartons > 0 ? g.achievementPct + '%' : 'N/A'}
+          <div>${g.targetCartons > 0 ? g.achievementPct + '%' : 'N/A'}</div>
+          ${g.targetValue > 0 ? `<div class="text-[10px] ${g.valueAchievementPct >= 80 ? 'text-emerald-600' : 'text-amber-600'} font-normal">Val: ${g.valueAchievementPct}%</div>` : ''}
         </td>
         <td class="py-2.5 px-4 text-right font-semibold ${g.targetCartons > 0 ? (g.gapCartons > 0 ? 'text-rose-600' : 'text-emerald-600') : 'text-slate-400'}">
-          ${g.targetCartons > 0 ? (g.gapCartons > 0 ? '-' + g.gapCartons.toLocaleString('id-ID') : 'Tercapai') : '—'}
+          <div>${g.targetCartons > 0 ? (g.gapCartons > 0 ? '-' + g.gapCartons.toLocaleString('id-ID') : 'Tercapai') : '—'}</div>
+          ${g.targetValue > 0 && g.gapValue > 0 ? `<div class="text-[10px] text-rose-500 font-normal">-Rp ${(g.gapValue / 1000000).toFixed(1)} Jt</div>` : ''}
         </td>
         <td class="py-2.5 px-4 text-right font-mono font-medium">Rp ${(g.salesNetto / 1000000).toFixed(1)} Jt</td>
         <td class="py-2.5 px-4 text-right font-extrabold text-blue-700">${g.contributionPct}%</td>
@@ -1804,13 +2379,18 @@ function renderPenjualanContent() {
         <td class="py-2.5 px-4 font-bold text-slate-800">${p.principal}</td>
         <td class="py-2.5 px-4 font-semibold text-blue-600">${p.brand}</td>
         <td class="py-2.5 px-4 text-slate-700 font-medium">${p.groupSku}</td>
-        <td class="py-2.5 px-4 text-right font-medium">${p.targetCartons > 0 ? p.targetCartons.toLocaleString('id-ID') : '<span class="text-slate-400">—</span>'}</td>
+        <td class="py-2.5 px-4 text-right font-medium">
+          <div>${p.targetCartons > 0 ? p.targetCartons.toLocaleString('id-ID') : '<span class="text-slate-400">—</span>'}</div>
+          ${p.targetValue > 0 ? `<div class="text-[10px] text-slate-400 font-normal">Rp ${(p.targetValue / 1000000).toFixed(1)} Jt</div>` : ''}
+        </td>
         <td class="py-2.5 px-4 text-right font-extrabold text-slate-900">${p.actualCartons.toLocaleString('id-ID')}</td>
         <td class="py-2.5 px-4 text-right font-bold ${p.targetCartons > 0 ? (p.achievementPct >= 80 ? 'text-emerald-600' : 'text-amber-600') : 'text-slate-400'}">
-          ${p.targetCartons > 0 ? p.achievementPct + '%' : 'N/A'}
+          <div>${p.targetCartons > 0 ? p.achievementPct + '%' : 'N/A'}</div>
+          ${p.targetValue > 0 ? `<div class="text-[10px] ${p.valueAchievementPct >= 80 ? 'text-emerald-600' : 'text-amber-600'} font-normal">Val: ${p.valueAchievementPct}%</div>` : ''}
         </td>
         <td class="py-2.5 px-4 text-right font-semibold ${p.targetCartons > 0 ? (p.gapCartons > 0 ? '-' + p.gapCartons.toLocaleString('id-ID') : 'Tercapai') : '—'}">
-          ${p.targetCartons > 0 ? (p.gapCartons > 0 ? '-' + p.gapCartons.toLocaleString('id-ID') : 'Tercapai') : '—'}
+          <div>${p.targetCartons > 0 ? (p.gapCartons > 0 ? '-' + p.gapCartons.toLocaleString('id-ID') : 'Tercapai') : '—'}</div>
+          ${p.targetValue > 0 && p.gapValue > 0 ? `<div class="text-[10px] text-rose-500 font-normal">-Rp ${(p.gapValue / 1000000).toFixed(1)} Jt</div>` : ''}
         </td>
         <td class="py-2.5 px-4 text-right font-mono font-medium">Rp ${(p.salesNetto / 1000000).toFixed(1)} Jt</td>
         <td class="py-2.5 px-4 text-right font-extrabold text-blue-700">${p.contributionPct}%</td>
@@ -1835,7 +2415,7 @@ function renderPenjualanContent() {
           </button>
         </div>
         <span class="text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-xl shadow-xs">
-          Total ${data.summary.totalCartons} KTN
+          Total ${data.summary.totalCartons.toLocaleString('id-ID')} KTN ${data.summary.totalSalesNetto ? '• Rp ' + (data.summary.totalSalesNetto / 1000000).toFixed(1) + ' Jt' : ''}
         </span>
       </div>
     </div>
@@ -1870,7 +2450,7 @@ function renderPenjualanContent() {
                 </th>
               `}
               <th onclick="sortPenjualanTable('targetCartons')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition">
-                <div class="flex items-center justify-end">Target KTN ${sortIcon('targetCartons')}</div>
+                <div class="flex items-center justify-end">Target KTN / Val ${sortIcon('targetCartons')}</div>
               </th>
               <th onclick="sortPenjualanTable('actualCartons')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition">
                 <div class="flex items-center justify-end">Actual KTN ${sortIcon('actualCartons')}</div>
@@ -2563,7 +3143,7 @@ function renderSalesmanContent() {
                 <div class="flex items-center justify-end">Target CL ${sortIcon('targetCl')}</div>
               </th>
               <th onclick="sortSalesmanTable('targetCartons')" class="py-3 px-3 text-right cursor-pointer hover:bg-slate-200/60 transition">
-                <div class="flex items-center justify-end">Target KTN ${sortIcon('targetCartons')}</div>
+                <div class="flex items-center justify-end">Target KTN / Val ${sortIcon('targetCartons')}</div>
               </th>
               <th onclick="sortSalesmanTable('actualCartons')" class="py-3 px-3 text-right cursor-pointer hover:bg-slate-200/60 transition">
                 <div class="flex items-center justify-end">Actual KTN ${sortIcon('actualCartons')}</div>
@@ -2602,7 +3182,8 @@ function renderSalesmanContent() {
                 <td class="py-2.5 px-3 font-semibold text-slate-600 text-[11px]">${s.salesGroup || 'SAVORIA'}</td>
                 <td class="py-2.5 px-3 text-right font-medium text-slate-700">${s.hasRayon ? s.targetCl + ' toko' : '—'}</td>
                 <td class="py-2.5 px-3 text-right font-semibold ${s.hasTarget && s.targetCartons !== null ? 'text-slate-800' : 'text-slate-400'}">
-                  ${s.hasTarget && s.targetCartons !== null ? s.targetCartons.toLocaleString('id-ID') : '—'}
+                  <div>${s.hasTarget && s.targetCartons !== null ? s.targetCartons.toLocaleString('id-ID') : '—'}</div>
+                  ${s.hasTarget && s.targetValue ? `<div class="text-[10px] text-slate-400 font-normal">Rp ${(s.targetValue / 1000000).toFixed(1)} Jt</div>` : ''}
                 </td>
                 <td class="py-2.5 px-3 text-right font-extrabold text-blue-700">${s.actualCartons.toLocaleString('id-ID')}</td>
                 <td class="py-2.5 px-3 text-right font-bold ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= 80 ? 'text-emerald-600' : (s.achievementPct >= 60 ? 'text-amber-600' : 'text-rose-600')) : 'text-slate-400'}">

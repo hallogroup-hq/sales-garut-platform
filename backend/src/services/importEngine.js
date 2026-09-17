@@ -14,25 +14,41 @@ function computeFileHash(filePath) {
 function detectDatasetType(headers) {
   const hSet = new Set(headers.map(h => String(h).trim().toLowerCase()));
 
-  if ((hSet.has('document number') || hSet.has('no dokumen') || hSet.has('salesman (transaction)')) &&
-      (hSet.has('item code') || hSet.has('kode item') || hSet.has('item') || hSet.has('sales ctn'))) {
-    return 'TRANSACTIONS';
-  }
-  if ((hSet.has('kode outlet') || hSet.has('customer code')) && (hSet.has('nama outlet') || hSet.has('customer name') || hSet.has('alamat outlet'))) {
-    return 'CUSTOMER_LIST';
-  }
-  if ((hSet.has('sales name') || hSet.has('nama sales')) && (hSet.has('brand') || hSet.has('group sku'))) {
-    return 'TARGETS';
-  }
-  if (hSet.has('available stock') || (hSet.has('saldo stok administrasi') && hSet.has('stok fisik'))) {
-    return 'STOCK';
-  }
-  if ((hSet.has('no faktur') || hSet.has('no faktur penjualan')) && (hSet.has('saldo piutang') || hSet.has('piutang'))) {
+  // 1. AR / Aging Piutang (e.g. piutang aktif.xlsx)
+  if ((hSet.has('no faktur') || hSet.has('no faktur penjualan') || hSet.has('invoice number')) &&
+      (hSet.has('saldo piutang') || hSet.has('piutang') || hSet.has('tgl j. tempo') || hSet.has('faktur netto') || hSet.has('total tagihan') || hSet.has('potongan'))) {
     return 'AR';
   }
+
+  // 2. STOCK / Gudang (e.g. DATA STOK.xlsx)
+  if (hSet.has('available stock') || hSet.has('saldo stok administrasi') || hSet.has('stok fisik') ||
+      (hSet.has('bon produk') && (hSet.has('kode') || hSet.has('produk') || hSet.has('sku')))) {
+    return 'STOCK';
+  }
+
+  // 3. TARGETS / Kuantiti (e.g. TARGET KUANTITI SALES.xlsx)
+  if ((hSet.has('sales name') || hSet.has('nama sales')) && (hSet.has('brand') || hSet.has('group sku') || hSet.has('principal'))) {
+    return 'TARGETS';
+  }
+
+  // 4. TRANSACTIONS (e.g. master data.xlsx)
+  if ((hSet.has('document number') || hSet.has('no dokumen') || hSet.has('salesman (transaction)')) &&
+      (hSet.has('item code') || hSet.has('kode item') || hSet.has('item') || hSet.has('sales ctn') || hSet.has('sales netto'))) {
+    return 'TRANSACTIONS';
+  }
+
+  // 5. CUSTOMER_LIST (e.g. DATA CL.xlsx)
+  if ((hSet.has('kode outlet') || hSet.has('customer code')) &&
+      (hSet.has('nama outlet') || hSet.has('customer name') || hSet.has('alamat outlet') || hSet.has('rayon')) &&
+      !hSet.has('no faktur') && !hSet.has('saldo piutang')) {
+    return 'CUSTOMER_LIST';
+  }
+
+  // 6. INCENTIVE_VALUE_TARGETS
   if (hSet.has('salesman') && (hSet.has('target value') || hSet.has('target rupiah'))) {
     return 'INCENTIVE_VALUE_TARGETS';
   }
+
   return 'UNKNOWN';
 }
 
@@ -91,7 +107,7 @@ function sanitizeCode(val) {
   return String(val).trim();
 }
 
-function readSheetWithSmartHeaders(workbook) {
+function readSheetWithSmartHeaders(workbook, forcedType = null) {
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
   const rawMatrix = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
@@ -104,9 +120,19 @@ function readSheetWithSmartHeaders(workbook) {
   let detectedType = 'UNKNOWN';
   let headers = [];
 
-  for (let r = 0; r < Math.min(5, rawMatrix.length); r++) {
+  for (let r = 0; r < Math.min(10, rawMatrix.length); r++) {
     const candidateHeaders = rawMatrix[r].filter(c => c !== null && c !== undefined && c !== '');
     if (candidateHeaders.length >= 2) {
+      const rowLower = candidateHeaders.map(c => String(c).trim().toLowerCase());
+      
+      // Specifically check for targets header row
+      if (forcedType === 'TARGETS' || (rowLower.includes('sales name') && (rowLower.includes('brand') || rowLower.includes('principal')))) {
+        headerRowIndex = r;
+        detectedType = 'TARGETS';
+        headers = rawMatrix[r].map(h => String(h).trim());
+        break;
+      }
+
       const type = detectDatasetType(candidateHeaders);
       if (type !== 'UNKNOWN') {
         headerRowIndex = r;
@@ -117,10 +143,10 @@ function readSheetWithSmartHeaders(workbook) {
     }
   }
 
-  if (detectedType === 'UNKNOWN') {
+  if (detectedType === 'UNKNOWN' || headers.length === 0) {
     headerRowIndex = 0;
     headers = rawMatrix[0].map(h => String(h).trim());
-    detectedType = detectDatasetType(headers);
+    detectedType = forcedType || detectDatasetType(headers);
   }
 
   const rawRows = [];
@@ -138,13 +164,13 @@ function readSheetWithSmartHeaders(workbook) {
     }
   }
 
-  return { headers, rawRows, detectedType, headerRowIndex };
+  return { headers, rawRows, detectedType: forcedType || detectedType, headerRowIndex };
 }
 
 function dryRunValidate(filePath, forcedType = null) {
   const hash = computeFileHash(filePath);
   const workbook = XLSX.readFile(filePath, { cellDates: true });
-  const { headers, rawRows, detectedType: autoType } = readSheetWithSmartHeaders(workbook);
+  const { headers, rawRows, detectedType: autoType } = readSheetWithSmartHeaders(workbook, forcedType);
 
   const detectedType = forcedType || autoType;
 
@@ -250,11 +276,39 @@ function dryRunValidate(filePath, forcedType = null) {
   };
 }
 
+const CANONICAL_UNIT_PRICES = {
+  'KOPI TUBRUK GADJAH ASLI': 277910,
+  'GADJAH MANIS': 165936,
+  'GADJAH SPECIAL MIX': 154813,
+  'GADJAH RTD': 48909,
+  'CAFFINO': 238727,
+  'CAFFINO BVG': 63759,
+  'MILKLIFE UHT KIDS': 90824,
+  'MILKLIFE UHT TEENS': 90101,
+  'MILKLIFE UHT FULL CREAM': 202331,
+  'MILKLIFE YOGURT': 60371,
+  'DELI WAFER': 42617,
+  'FOX\'S CANDY': 140097,
+  'FOX CANDY': 140097,
+  'HYDROPLUS': 31525,
+  'MBG': 89612,
+  'SHOT': 157036,
+  'ROYO': 2743094
+};
+
+function getBrandUnitPrice(brand) {
+  const norm = String(brand || '').trim().toUpperCase();
+  for (const [k, v] of Object.entries(CANONICAL_UNIT_PRICES)) {
+    if (norm.includes(k) || k.includes(norm)) return v;
+  }
+  return 120000;
+}
+
 function commitImport(filePath, datasetType, user = { userId: 'USR_ADMIN', fullName: 'Aghia', role: 'DSM' }) {
   const db = getDb();
   const hash = computeFileHash(filePath);
   const workbook = XLSX.readFile(filePath, { cellDates: true });
-  const { rawRows } = readSheetWithSmartHeaders(workbook);
+  const { rawRows } = readSheetWithSmartHeaders(workbook, datasetType);
 
   const batchId = 'BATCH_' + crypto.randomUUID();
   const filename = filePath.split('/').pop();
@@ -366,6 +420,8 @@ function commitImport(filePath, datasetType, user = { userId: 'USR_ADMIN', fullN
         const salesmanId = sMatch ? sMatch.salesman_id : (salesName.toUpperCase().includes('DSM') ? 'DSM_GARUT' : null);
         if (!salesmanId) continue;
 
+        const unitPrice = getBrandUnitPrice(brand);
+
         monthCols.forEach(m => {
           let targetVal = 0;
           for (const key of m.names) {
@@ -375,15 +431,33 @@ function commitImport(filePath, datasetType, user = { userId: 'USR_ADMIN', fullN
             }
           }
           const targetId = `TGT_${year}_${m.num}_${salesmanId}_${brand}`.replace(/[^A-Z0-9_]/gi, '_');
+          const targetValueRp = Math.round(targetVal * unitPrice);
 
           db.run(
             `INSERT OR REPLACE INTO fact_quantity_target (
-              target_id, year, month, salesman_id, group_sku, target_cartons, import_batch_id, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-            [targetId, year, m.num, salesmanId, brand, targetVal, batchId]
+              target_id, year, month, salesman_id, group_sku, target_cartons, target_value, import_batch_id, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+            [targetId, year, m.num, salesmanId, brand, targetVal, targetValueRp, batchId]
           );
         });
       }
+
+      // Automatically sync incentive value target from quantity targets * unit price
+      db.run(`
+        INSERT OR REPLACE INTO fact_incentive_value_target (
+          id, year, month, salesman_id, target_value, updated_at
+        )
+        SELECT 
+          'INC_TGT_' || year || '_' || month || '_' || salesman_id,
+          year,
+          month,
+          salesman_id,
+          SUM(target_value),
+          CURRENT_TIMESTAMP
+        FROM fact_quantity_target
+        WHERE year = ?
+        GROUP BY year, month, salesman_id
+      `, [year]);
     } else if (datasetType === 'STOCK') {
       const snapshotDate = new Date().toISOString().split('T')[0];
       for (const row of rawRows) {
@@ -431,7 +505,11 @@ function commitImport(filePath, datasetType, user = { userId: 'USR_ADMIN', fullN
         const netto = sanitizeNumber(row['Faktur Netto'] || row['Netto'], 0);
         const sudah = sanitizeNumber(row['Sudah Bayar'], 0);
         const saldo = sanitizeNumber(row['Saldo Piutang'] || row['Sisa Piutang'], netto);
-        const overdueDays = parseInt(row['OD DAYS'] || row['Overdue Days'] || 0, 10);
+        let overdueDays = parseInt(row['OD DAYS'] || row['Overdue Days'] || 0, 10);
+        if (!overdueDays && dueDate) {
+          const diffMs = new Date(asOfDate).getTime() - new Date(dueDate).getTime();
+          overdueDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+        }
 
         db.run(
           `INSERT OR REPLACE INTO fact_ar_invoice (
@@ -474,8 +552,8 @@ function commitImport(filePath, datasetType, user = { userId: 'USR_ADMIN', fullN
       const stmtHeader = db.raw.prepare(`
         INSERT OR REPLACE INTO fact_sales_header (
           document_number, transaction_date, due_date, outlet_id, invoice_salesman_id, current_owner_salesman_id,
-          unit_type, payment_term_days, credit_limit, import_batch_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          unit_type, payment_term_days, credit_limit, period_year, period_month, import_batch_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const stmtLine = db.raw.prepare(`
@@ -485,6 +563,21 @@ function commitImport(filePath, datasetType, user = { userId: 'USR_ADMIN', fullN
           return_reason, is_non_omzet
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
+
+      const monthMap = {
+        'JAN': 1, 'JANUARI': 1, 'JANUARY': 1,
+        'FEB': 2, 'FEBRUARI': 2, 'FEBRUARY': 2,
+        'MAR': 3, 'MARET': 3, 'MARCH': 3,
+        'APR': 4, 'APRIL': 4,
+        'MEI': 5, 'MAY': 5,
+        'JUN': 6, 'JUNI': 6, 'JUNE': 6,
+        'JUL': 7, 'JULI': 7, 'JULY': 7,
+        'AGU': 8, 'AGUSTUS': 8, 'AUG': 8, 'AUGUST': 8,
+        'SEP': 9, 'SEPT': 9, 'SEPTEMBER': 9,
+        'OKT': 10, 'OKTOBER': 10, 'OCT': 10, 'OCTOBER': 10,
+        'NOP': 11, 'NOV': 11, 'NOPEMBER': 11, 'NOVEMBER': 11,
+        'DES': 12, 'DEC': 12, 'DESEMBER': 12, 'DECEMBER': 12
+      };
 
       for (const row of rawRows) {
         const docNo = sanitizeCode(row['Document Number'] || row['No Dokumen']);
@@ -530,7 +623,20 @@ function commitImport(filePath, datasetType, user = { userId: 'USR_ADMIN', fullN
         const payTerm = parseInt(row['Payment Term'] || 0, 10);
         const creditLimit = sanitizeNumber(row['Credit Limit'], 0);
 
-        stmtHeader.run(docNo, txDate, dueDate, outletId, invSalesId, currentOwnerId, unitType, payTerm, creditLimit, batchId);
+        let pYear = parseInt(row['Year'] || row['Tahun'] || 0, 10);
+        let pMonth = null;
+        const monthRaw = String(row['MONTH'] || row['Month'] || row['Bulan'] || '').trim().toUpperCase();
+        if (monthMap[monthRaw]) {
+          pMonth = monthMap[monthRaw];
+        }
+        if (!pYear && txDate) {
+          pYear = parseInt(txDate.split('-')[0], 10);
+        }
+        if (!pMonth && txDate) {
+          pMonth = parseInt(txDate.split('-')[1], 10);
+        }
+
+        stmtHeader.run(docNo, txDate, dueDate, outletId, invSalesId, currentOwnerId, unitType, payTerm, creditLimit, pYear, pMonth, batchId);
 
         const lineId = 'L_' + crypto.randomUUID();
         const primaryQty = sanitizeNumber(row['Sales Primary Qty'], 0);

@@ -272,6 +272,12 @@ function seedInitialData() {
   }
 
   const users = [
+    { id: 'USR_AGHIA', username: 'Aghia Anggala', pass: '12345', name: 'Aghia Anggala', role: 'DSM', spv: null, sales: null, upload: 1, edit_c: 1, edit_t: 1, inc: 1 },
+    { id: 'USR_AGHIA_ALIAS', username: 'aghia', pass: '12345', name: 'Aghia Anggala', role: 'DSM', spv: null, sales: null, upload: 1, edit_c: 1, edit_t: 1, inc: 1 },
+    { id: 'USR_SPV_GEN', username: 'Supervisor', pass: '12345', name: 'Supervisor Garut', role: 'SPV', spv: 'SPV_NOPAN', sales: null, upload: 0, edit_c: 0, edit_t: 0, inc: 0 },
+    { id: 'USR_SPV_ALIAS', username: 'spv', pass: '12345', name: 'Supervisor Garut', role: 'SPV', spv: 'SPV_NOPAN', sales: null, upload: 0, edit_c: 0, edit_t: 0, inc: 0 },
+    { id: 'USR_SALES_GEN', username: 'Salesman', pass: '12345', name: 'Salesman / Others', role: 'SALESMAN', spv: null, sales: '107075', upload: 0, edit_c: 0, edit_t: 0, inc: 0 },
+    { id: 'USR_SALES_ALIAS', username: 'salesman', pass: '12345', name: 'Salesman / Others', role: 'SALESMAN', spv: null, sales: '107075', upload: 0, edit_c: 0, edit_t: 0, inc: 0 },
     { id: 'USR_ADMIN', username: 'admin', pass: 'admin123', name: 'District Sales Manager (DSM)', role: 'DSM', spv: null, sales: null, upload: 1, edit_c: 1, edit_t: 1, inc: 1 },
     { id: 'USR_NOPAN', username: 'spv_nopan', pass: 'spv123', name: 'Nopan (SPV Team 1)', role: 'SPV', spv: 'SPV_NOPAN', sales: null, upload: 1, edit_c: 1, edit_t: 0, inc: 0 },
     { id: 'USR_TRI', username: 'spv_tri', pass: 'spv123', name: 'Tri H. (SPV Team 2)', role: 'SPV', spv: 'SPV_TRI_H', sales: null, upload: 1, edit_c: 1, edit_t: 0, inc: 0 },
@@ -279,7 +285,7 @@ function seedInitialData() {
     { id: 'USR_ZULFA', username: 'sales_zulfa', pass: 'sales123', name: 'Muhammad Zulfa Akbar', role: 'SALESMAN', spv: 'SPV_TRI_H', sales: '305033', upload: 0, edit_c: 0, edit_t: 0, inc: 0 }
   ];
   for (const u of users) {
-    db.run("INSERT OR IGNORE INTO app_user (user_id, username, password_hash, full_name, role, scope_spv_id, scope_salesman_id, can_upload_sales, can_edit_customer, can_edit_target, can_manage_incentive) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [u.id, u.username, u.pass, u.name, u.role, u.spv, u.sales, u.upload, u.edit_c, u.edit_t, u.inc]);
+    db.run("INSERT OR REPLACE INTO app_user (user_id, username, password_hash, full_name, role, scope_spv_id, scope_salesman_id, can_upload_sales, can_edit_customer, can_edit_target, can_manage_incentive) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [u.id, u.username, u.pass, u.name, u.role, u.spv, u.sales, u.upload, u.edit_c, u.edit_t, u.inc]);
   }
 
   db.run(`INSERT OR IGNORE INTO store_loyalty_program (program_id, program_name, program_type, product_focus, start_date, end_date, is_active)

@@ -22,6 +22,8 @@ const {
 } = require('../services/importEngine.js');
 const { getMovementAnalytics, exportMovementCsv } = require('../services/trendEngine.js');
 const { getAuditLogs, logAudit } = require('../middleware/audit.js');
+const { authenticateUser, getAuthUser, requireSuperAdmin } = require('../middleware/auth.js');
+const XLSX = require('xlsx');
 
 const router = express.Router();
 const uploadDir = (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
@@ -36,24 +38,88 @@ try {
 }
 const upload = multer({ dest: uploadDir });
 
-// Current logged in user profile (Aghia - Sales Manager / DSM)
-router.get('/auth/current-user', (req, res) => {
-  res.json({
-    user: {
-      userId: 'USR_ADMIN',
-      username: 'aghia',
-      fullName: 'Aghia',
-      role: 'DSM',
-      roleLabel: 'Sales Manager / Admin DSM',
-      avatarText: 'AG',
-      permissions: {
-        canUploadSales: true,
-        canEditCustomer: true,
-        canEditTarget: true,
-        canManageIncentive: true
-      }
+// User Authentication Endpoints
+router.post('/auth/login', (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Username dan password wajib diisi.' });
     }
-  });
+    const user = authenticateUser(username, password);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Username atau password salah.' });
+    }
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/auth/logout', (req, res) => {
+  res.json({ success: true, message: 'Berhasil keluar.' });
+});
+
+// Current logged in user profile (Supports auth headers or fallback to Aghia)
+router.get('/auth/current-user', (req, res) => {
+  const user = getAuthUser(req);
+  res.json({ user });
+});
+
+// User Management (Kelola Pengguna Data Center)
+router.get('/users', (req, res) => {
+  try {
+    const db = getDb();
+    const rows = db.query(`
+      SELECT user_id, username, full_name, role, can_upload_sales, can_edit_customer, can_edit_target, can_manage_incentive, is_active, created_at
+      FROM app_user
+      ORDER BY role ASC, full_name ASC
+    `);
+    res.json({ users: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/users/:id/password', (req, res) => {
+  try {
+    const db = getDb();
+    const userId = req.params.id;
+    const { newPassword } = req.body;
+    const caller = getAuthUser(req);
+
+    if (!newPassword || String(newPassword).trim().length === 0) {
+      return res.status(400).json({ error: 'Password baru tidak boleh kosong.' });
+    }
+
+    if (caller.userId !== userId && caller.role !== 'DSM') {
+      return res.status(403).json({ error: 'Akses ditolak: Hanya pengguna bersangkutan atau Super Admin yang dapat mengganti password.' });
+    }
+
+    db.run('UPDATE app_user SET password_hash = ? WHERE user_id = ?', [String(newPassword).trim(), userId]);
+    res.json({ success: true, message: 'Password berhasil diperbarui.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/users', requireSuperAdmin, (req, res) => {
+  try {
+    const db = getDb();
+    const { username, password, fullName, role } = req.body;
+    if (!username || !password || !fullName || !role) {
+      return res.status(400).json({ error: 'Semua data pengguna wajib diisi.' });
+    }
+    const isSuper = role === 'DSM';
+    const userId = 'USR_' + crypto.randomUUID().slice(0, 8);
+    db.run(`
+      INSERT INTO app_user (
+        user_id, username, password_hash, full_name, role, can_upload_sales, can_edit_customer, can_edit_target, can_manage_incentive, is_active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `, [userId, username.trim(), password.trim(), fullName.trim(), role, isSuper ? 1 : 0, isSuper ? 1 : 0, isSuper ? 1 : 0, isSuper ? 1 : 0]);
+    res.json({ success: true, message: 'Pengguna baru berhasil ditambahkan.', userId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Global Filter Options
@@ -137,14 +203,36 @@ router.get('/dashboard/executive', (req, res) => {
        FROM fact_ar_invoice`
     )[0];
 
-    // Monthly historical trend (last 5 months)
-    const trendMonths = [
-      { name: 'Jan', ktn: 420, val: 32.5, achv: 82.0 },
-      { name: 'Feb', ktn: 510, val: 39.1, achv: 84.5 },
-      { name: 'Mar', ktn: 605, val: 46.2, achv: 79.0 },
-      { name: 'Apr', ktn: 680, val: 52.0, achv: 81.2 },
-      { name: 'Mei', ktn: summary.sales.actualCartons || 740, val: Math.round((summary.sales.salesNettoValue || 56000000) / 1000000 * 10) / 10, achv: summary.sales.achievementPct || 73.2 }
-    ];
+    // Monthly historical trend (dynamically query agg_monthly_sales_movement or fallback)
+    const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const currentM = summary.calendar.month;
+    const currentY = summary.calendar.year;
+    const trendRows = db.query(`
+      SELECT month, COALESCE(SUM(net_cartons), 0) AS ktn, COALESCE(SUM(net_value), 0) AS val
+      FROM agg_monthly_sales_movement
+      WHERE year = ? AND month <= ?
+      GROUP BY month
+      ORDER BY month DESC
+      LIMIT 5
+    `, [currentY, currentM]).reverse();
+
+    let trendMonths = [];
+    if (trendRows.length > 0) {
+      trendMonths = trendRows.map(r => ({
+        name: monthNames[r.month] || `Bln ${r.month}`,
+        ktn: Math.round(r.ktn * 10) / 10,
+        val: Math.round(r.val / 100000) / 10,
+        achv: summary.sales.achievementPct || 85.0
+      }));
+    } else {
+      trendMonths = [
+        { name: 'Jan', ktn: 420, val: 32.5, achv: 82.0 },
+        { name: 'Feb', ktn: 510, val: 39.1, achv: 84.5 },
+        { name: 'Mar', ktn: 605, val: 46.2, achv: 79.0 },
+        { name: 'Apr', ktn: 680, val: 52.0, achv: 81.2 },
+        { name: monthNames[currentM] || 'Mei', ktn: summary.sales.actualCartons || 740, val: Math.round((summary.sales.salesNettoValue || 56000000) / 1000000 * 10) / 10, achv: summary.sales.achievementPct || 73.2 }
+      ];
+    }
 
     res.json({
       summary,
@@ -185,7 +273,12 @@ router.get('/sales/performance', (req, res) => {
           SELECT COALESCE(SUM(t.target_cartons), 0)
           FROM fact_quantity_target t
           WHERE t.group_sku = p.group_sku AND t.year = ? AND t.month = ?
-        ) AS target_cartons
+        ) AS target_cartons,
+        (
+          SELECT COALESCE(SUM(t.target_value), 0)
+          FROM fact_quantity_target t
+          WHERE t.group_sku = p.group_sku AND t.year = ? AND t.month = ?
+        ) AS target_value
       FROM fact_sales_line l
       JOIN fact_sales_header h ON l.document_number = h.document_number
       JOIN dim_product p ON l.item_code = p.item_code
@@ -195,22 +288,27 @@ router.get('/sales/performance', (req, res) => {
       ORDER BY actual_cartons DESC
     `;
 
-    const rows = db.query(sql, [f.year, f.month, ...f.paramsTx]);
+    const rows = db.query(sql, [f.year, f.month, f.year, f.month, ...f.paramsTx]);
     const totalCartons = rows.reduce((s, r) => s + Math.max(r.actual_cartons, 0), 0);
 
     const items = rows.map(r => {
       const act = Math.max(Math.round(r.actual_cartons * 10) / 10, 0);
       const tgt = Math.round(r.target_cartons * 10) / 10;
+      const tgtVal = Math.round(r.target_value || 0);
       const achv = tgt > 0 ? Math.round((act / tgt) * 1000) / 10 : 0;
+      const valAchv = tgtVal > 0 ? Math.round((Math.max(r.sales_netto, 0) / tgtVal) * 1000) / 10 : 0;
       const contrib = totalCartons > 0 ? Math.round((act / totalCartons) * 1000) / 10 : 0;
       return {
         principal: r.principal,
         brand: r.brand,
         groupSku: r.group_sku,
         targetCartons: tgt,
+        targetValue: tgtVal,
         actualCartons: act,
         achievementPct: achv,
+        valueAchievementPct: valAchv,
         gapCartons: Math.max(tgt - act, 0),
+        gapValue: Math.max(tgtVal - Math.max(r.sales_netto, 0), 0),
         salesNetto: Math.round(r.sales_netto),
         returnCartons: Math.round(r.return_cartons * 10) / 10,
         contributionPct: contrib
@@ -239,12 +337,14 @@ router.get('/sales/performance', (req, res) => {
           brand: it.brand,
           principal: it.principal,
           targetCartons: 0,
+          targetValue: 0,
           actualCartons: 0,
           salesNetto: 0,
           returnCartons: 0
         };
       }
       groupMap[g].targetCartons += it.targetCartons || 0;
+      groupMap[g].targetValue += it.targetValue || 0;
       groupMap[g].actualCartons += it.actualCartons || 0;
       groupMap[g].salesNetto += it.salesNetto || 0;
       groupMap[g].returnCartons += it.returnCartons || 0;
@@ -252,15 +352,20 @@ router.get('/sales/performance', (req, res) => {
 
     const groupSkus = Object.values(groupMap).map(g => {
       const tgt = Math.round(g.targetCartons * 10) / 10;
+      const tgtVal = Math.round(g.targetValue || 0);
       const act = Math.round(g.actualCartons * 10) / 10;
       const achv = tgt > 0 ? Math.round((act / tgt) * 1000) / 10 : 0;
+      const valAchv = tgtVal > 0 ? Math.round((Math.max(g.salesNetto, 0) / tgtVal) * 1000) / 10 : 0;
       const contrib = totalCartons > 0 ? Math.round((act / totalCartons) * 1000) / 10 : 0;
       return {
         ...g,
         targetCartons: tgt,
+        targetValue: tgtVal,
         actualCartons: act,
         achievementPct: achv,
+        valueAchievementPct: valAchv,
         gapCartons: Math.max(tgt - act, 0),
+        gapValue: Math.max(tgtVal - Math.max(g.salesNetto, 0), 0),
         contributionPct: contrib
       };
     });
@@ -277,6 +382,8 @@ router.get('/sales/performance', (req, res) => {
     res.json({
       summary: {
         totalCartons: Math.round(totalCartons * 10) / 10,
+        totalSalesNetto: Math.round(rows.reduce((s, r) => s + Math.max(r.sales_netto, 0), 0)),
+        totalTargetValue: Math.round(groupSkus.reduce((s, g) => s + (g.targetValue || 0), 0)),
         totalSkus: items.length,
         totalGroups: groupSkus.length
       },
@@ -612,11 +719,11 @@ router.post('/datacenter/validate', upload.single('file'), (req, res) => {
   }
 });
 
-router.post('/datacenter/commit', (req, res) => {
+router.post('/datacenter/commit', requireSuperAdmin, (req, res) => {
   try {
     const { stagedFilePath, datasetType } = req.body;
     if (!stagedFilePath) return res.status(400).json({ error: 'Berkas staging tidak ditemukan.' });
-    const user = { userId: 'USR_ADMIN', fullName: 'Aghia', role: 'DSM' };
+    const user = req.user || getAuthUser(req);
     const result = commitImport(stagedFilePath, datasetType, user);
     res.json(result);
   } catch (err) {
@@ -624,11 +731,11 @@ router.post('/datacenter/commit', (req, res) => {
   }
 });
 
-router.post('/datacenter/rollback', (req, res) => {
+router.post('/datacenter/rollback', requireSuperAdmin, (req, res) => {
   try {
     const { batchId } = req.body;
     if (!batchId) return res.status(400).json({ error: 'Batch ID wajib disertakan.' });
-    const user = { userId: 'USR_ADMIN', fullName: 'Aghia', role: 'DSM' };
+    const user = req.user || getAuthUser(req);
     const result = rollbackImport(batchId, user);
     res.json(result);
   } catch (err) {
@@ -640,6 +747,73 @@ router.get('/datacenter/batches', (req, res) => {
   const db = getDb();
   const batches = db.query('SELECT * FROM import_batch ORDER BY created_at DESC LIMIT 50');
   res.json({ batches });
+});
+
+// Unduh Template Master File Asli
+router.get('/datacenter/templates/:type', (req, res) => {
+  try {
+    const type = String(req.params.type || '').toUpperCase();
+    let wb = XLSX.utils.book_new();
+    let filename = `Template_${type}.xlsx`;
+
+    if (type === 'AR' || type === 'PIUTANG') {
+      filename = 'Template_Master_Piutang_Aktif.xlsx';
+      const headers = [
+        ['no', 'Kode Outlet', 'Outlet', 'Tgl Posting', 'Tgl Faktur', 'No Faktur', 'Tgl J. Tempo', 'Total Harga', 'Potongan', 'DPP', 'PPN', 'Faktur Netto', 'Sudah Bayar', 'Saldo Piutang', 'TTF', 'No TTF', 'Tgl TTF', 'Tgl Rencana Bayar', 'Notes Tukar Faktur']
+      ];
+      const sample = [
+        [1, '305000020', 'Tk. Contoh Garut', '26/08/2026', '26/08/2026', 'GZYF2608260852151154024', '15/09/2026', 270270, 0, 270270, 0, 270270, 0, 270270, '', '', '', '', '']
+      ];
+      const ws = XLSX.utils.aoa_to_sheet([...headers, ...sample]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    } else if (type === 'STOCK' || type === 'STOK') {
+      filename = 'Template_Master_Stock_Gudang.xlsx';
+      const headers = [
+        ['Kode', 'Produk', 'SKU', 'Satuan', 'Saldo Stok Administrasi', 'Bon Produk', 'Allocated Stock', 'Available Stock', 'Stok Fisik', 'Stok dalam Perjalanan']
+      ];
+      const sample = [
+        [40399, '5DAYS CHOCOLATE (40 Pcs)', 40399, 'KTN', 10, 0, 0, 10, 10, 0]
+      ];
+      const ws = XLSX.utils.aoa_to_sheet([...headers, ...sample]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    } else if (type === 'TARGET' || type === 'TARGETS') {
+      filename = 'Template_Target_Kuantiti_Sales_2026.xlsx';
+      const rows = [
+        ['2026', 'PRINCIPAL', 'Sales Name', 'Brand', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'],
+        ['PRIMA TOP BOGA', 'ANDI AGUNG GUMILAR', '5DAYS', 5.7, 5.3, 4.8, 5.7, 2.2, 2.2, 2.3, 2.1, 2.1, 0, 0, 0],
+        ['SUMBER KOPI PRIMA', 'ANDI AGUNG GUMILAR', 'KOPI TUBRUK GADJAH', 20.0, 22.0, 25.0, 20.0, 15.0, 18.0, 19.0, 20.0, 22.0, 0, 0, 0]
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    } else if (type === 'CUSTOMER_LIST' || type === 'CL') {
+      filename = 'Template_Data_CL_Customer.xlsx';
+      const headers = [
+        ['Kode Outlet', 'Nama Outlet', 'Alamat Outlet', 'DSO', 'SUB - DSO', 'SALES TYPE', 'Kode Sales', 'Salesman Name', 'Rayon', 'pasar']
+      ];
+      const sample = [
+        ['30522700515', 'TK. CONTOH GARUT', 'kp pasanggrahan rt 01 rw 01', 'GARUT', 'GARUT', 'CANVAS', 305028, 'Mega Nugraha', 'R01', 'non pasar']
+      ];
+      const ws = XLSX.utils.aoa_to_sheet([...headers, ...sample]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    } else {
+      filename = 'Template_Master_Data_Transaksi.xlsx';
+      const headers = [
+        ['assm', 'DSO', 'Sub-DSO', 'Year', 'MONTH', 'Week', 'Sales Type', 'Salesman Code (Transaction)', 'Salesman (Transaction)', 'Salesman Role (Transaction)', 'Document Number', 'Tanggal', 'Item Code', 'Item', 'Sales Ctn', 'Sales Netto']
+      ];
+      const sample = [
+        ['JABAR', 'Garut All', 'GARUT', 2026, 'Sep', 'W36', 'Team 1', '107075', 'PROMOTOR_FPM - GRT 01', 'MOTORIST', 'DOC20260901001', '2026-09-01', '40399', '5DAYS CHOCOLATE (40 Pcs)', 2, 85000]
+      ];
+      const ws = XLSX.utils.aoa_to_sheet([...headers, ...sample]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet2');
+    }
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buf);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ==============================================================
@@ -862,11 +1036,11 @@ router.get('/settings', (req, res) => {
   });
 });
 
-router.post('/settings/ar-buckets', (req, res) => {
+router.post('/settings/ar-buckets', requireSuperAdmin, (req, res) => {
   try {
     const db = getDb();
     const { buckets } = req.body;
-    const user = { userId: 'USR_ADMIN', fullName: 'Aghia', role: 'DSM' };
+    const user = req.user || getAuthUser(req);
 
     if (!buckets || !Array.isArray(buckets) || buckets.length === 0) {
       return res.status(400).json({ error: 'Daftar bucket harus berupa array non-kosong.' });
@@ -882,7 +1056,7 @@ router.post('/settings/ar-buckets', (req, res) => {
       action: 'UPDATE_AR_BUCKETS',
       entityType: 'settings',
       entityId: 'ar_aging_buckets',
-      afterState: { buckets }
+      afterState: buckets
     });
 
     res.json({ success: true, buckets });
@@ -891,11 +1065,11 @@ router.post('/settings/ar-buckets', (req, res) => {
   }
 });
 
-router.put('/settings', (req, res) => {
+router.put('/settings', requireSuperAdmin, (req, res) => {
   try {
     const db = getDb();
     const { settings, calendar, mustHave } = req.body;
-    const user = { userId: 'USR_ADMIN', fullName: 'Aghia', role: 'DSM' };
+    const user = req.user || getAuthUser(req);
 
     if (settings && Array.isArray(settings)) {
       settings.forEach(s => {
@@ -929,11 +1103,11 @@ router.put('/settings', (req, res) => {
   }
 });
 
-router.post('/settings/target', (req, res) => {
+router.post('/settings/target', requireSuperAdmin, (req, res) => {
   try {
     const db = getDb();
     const { salesmanId, groupSku, year, month, targetCartons } = req.body;
-    const user = { userId: 'USR_ADMIN', fullName: 'Aghia', role: 'DSM' };
+    const user = req.user || getAuthUser(req);
 
     if (!salesmanId || !groupSku || !year || !month) {
       return res.status(400).json({ error: 'Field wajib: salesmanId, groupSku, year, month, targetCartons' });
@@ -963,11 +1137,11 @@ router.post('/settings/target', (req, res) => {
   }
 });
 
-router.post('/settings/incentive-target', (req, res) => {
+router.post('/settings/incentive-target', requireSuperAdmin, (req, res) => {
   try {
     const db = getDb();
     const { salesmanId, year, month, targetValueRupiah, targetKopiCartons, targetBvgCartons, targetNonKopiBvgCartons } = req.body;
-    const user = { userId: 'USR_ADMIN', fullName: 'Aghia', role: 'DSM' };
+    const user = req.user || getAuthUser(req);
 
     if (!salesmanId || !year || !month) {
       return res.status(400).json({ error: 'Field wajib: salesmanId, year, month' });
@@ -1004,10 +1178,10 @@ router.post('/settings/incentive-target', (req, res) => {
   }
 });
 
-router.post('/settings/calendar', (req, res) => {
+router.post('/settings/calendar', requireSuperAdmin, (req, res) => {
   try {
     const { year, month, totalHk, asOfHke, monitoringDate } = req.body;
-    const user = { userId: 'USR_ADMIN', fullName: 'Aghia', role: 'DSM' };
+    const user = req.user || getAuthUser(req);
 
     updateCalendar(year, month, totalHk, asOfHke, monitoringDate);
 
@@ -1027,11 +1201,11 @@ router.post('/settings/calendar', (req, res) => {
   }
 });
 
-router.post('/settings/npl', (req, res) => {
+router.post('/settings/npl', requireSuperAdmin, (req, res) => {
   try {
     const db = getDb();
     const { campaignId, campaignName, startDate, endDate, targetRo1, targetRo2, skus } = req.body;
-    const user = { userId: 'USR_ADMIN', fullName: 'Aghia', role: 'DSM' };
+    const user = req.user || getAuthUser(req);
 
     const cId = campaignId || 'NPL_' + Date.now();
     const m1Pct = parseFloat(targetRo1 || 70.0);
@@ -1071,11 +1245,11 @@ router.post('/settings/npl', (req, res) => {
   }
 });
 
-router.post('/settings/outlet-assignment', (req, res) => {
+router.post('/settings/outlet-assignment', requireSuperAdmin, (req, res) => {
   try {
     const db = getDb();
     const { outletId, salesmanId, rayonId, note } = req.body;
-    const user = { userId: 'USR_ADMIN', fullName: 'Aghia', role: 'DSM' };
+    const user = req.user || getAuthUser(req);
 
     if (!outletId || !salesmanId) {
       return res.status(400).json({ error: 'outletId dan salesmanId wajib diisi.' });
@@ -1245,10 +1419,10 @@ router.get('/programs/store-loyalty/:programId', (req, res) => {
           OR h.outlet_id IN (SELECT outlet_id FROM outlet_alias WHERE source_customer_code = ?)
           OR h.outlet_id = (SELECT outlet_id FROM dim_outlet WHERE canonical_name = ?)
         )
-        AND h.transaction_date >= ? AND h.transaction_date < ?
+        AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
         AND (p.brand LIKE '%GADJAH%' OR p.item_name LIKE '%GADJAH%' OR p.group_sku LIKE '%GADJAH%')
       `;
-      const actRes = db.query(actualSql, [o.customer_code, o.customer_code, o.customer_name, startDate, endDate])[0];
+      const actRes = db.query(actualSql, [o.customer_code, o.customer_code, o.customer_name, year, month, startDate, endDate])[0];
       const actCartons = actRes ? Math.max(Math.round(actRes.actual_cartons * 10) / 10, 0) : 0;
       const tgtCartons = Math.max(Math.round(o.target_cartons * 10) / 10, 0);
       const achvPct = tgtCartons > 0 ? Math.round((actCartons / tgtCartons) * 1000) / 10 : 0;

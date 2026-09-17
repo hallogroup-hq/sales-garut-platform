@@ -172,15 +172,18 @@
           </div>
         </div>
 
-        <!-- User Profile (Aghia - Sales Manager) -->
+        <!-- User Profile -->
         <div class="flex items-center gap-3 pl-3 border-l border-slate-200">
-          <div class="w-9 h-9 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm">
+          <div id="user-avatar" class="w-9 h-9 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm">
             AG
           </div>
           <div class="text-left leading-tight hidden sm:block">
-            <p class="text-xs font-bold text-slate-800">Aghia</p>
-            <p class="text-[10px] text-slate-500 font-medium">Sales Manager (DSM)</p>
+            <p id="user-fullname" class="text-xs font-bold text-slate-800">Aghia Anggala</p>
+            <p id="user-role-label" class="text-[10px] text-emerald-600 font-semibold">Super Admin (DSM)</p>
           </div>
+          <button onclick="logout()" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 transition ml-1" title="Keluar / Ganti Akun">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+          </button>
         </div>
       </div>
     </header>
@@ -213,11 +216,15 @@
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Periode:</span>
           <select id="filter-period" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
-            <option value="2026-05" selected>Mei 2026</option>
             <option value="2026-09">September 2026</option>
             <option value="2026-08">Agustus 2026</option>
             <option value="2026-07">Juli 2026</option>
             <option value="2026-06">Juni 2026</option>
+            <option value="2026-05" selected>Mei 2026</option>
+            <option value="2026-04">April 2026</option>
+            <option value="2026-03">Maret 2026</option>
+            <option value="2026-02">Februari 2026</option>
+            <option value="2026-01">Januari 2026</option>
           </select>
         </div>
 
@@ -308,6 +315,92 @@
   <div id="modal-container" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div id="modal-content" class="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[92vh] overflow-y-auto scrollbar-thin p-6 relative">
       <!-- Dynamic modal content -->
+    </div>
+  </div>
+
+  <!-- Login Modal Screen (Tampilan Log In di Awal) -->
+  <div id="login-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 relative border border-slate-100 overflow-hidden">
+      <!-- Decorative top ribbon -->
+      <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600"></div>
+
+      <!-- Header & Branding -->
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white mx-auto shadow-lg shadow-emerald-600/30 mb-3">
+          <i data-lucide="trending-up" class="w-9 h-9"></i>
+        </div>
+        <h2 class="text-xl font-extrabold text-slate-900 tracking-tight">Sales Garut</h2>
+        <p class="text-xs text-emerald-600 font-semibold uppercase tracking-wider">Intelligence Platform</p>
+        <p class="text-xs text-slate-500 mt-1">Silakan masuk menggunakan kredensial Anda</p>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" onsubmit="handleLoginSubmit(event)" class="space-y-4">
+        <div id="login-error-container" class="hidden p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium"></div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5" for="login-username">Nama Pengguna / Username</label>
+          <div class="relative">
+            <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+            <input type="text" id="login-username" required placeholder="Contoh: Aghia Anggala" class="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1.5" for="login-password">Kata Sandi (Password)</label>
+          <div class="relative">
+            <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+            <input type="password" id="login-password" required placeholder="•••••" class="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition">
+            <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+              <i id="eye-icon" data-lucide="eye" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="btn-login-submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-700/25 transition duration-200 flex items-center justify-center gap-2">
+          <span>Masuk ke Sistem</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </form>
+
+      <!-- Quick Role Selector Buttons for Easy Testing -->
+      <div class="mt-6 pt-5 border-t border-slate-100">
+        <p class="text-[11px] font-bold text-slate-500 mb-2.5 text-center">Atau pilih cepat akun akses:</p>
+        <div class="grid grid-cols-1 gap-2">
+          <button type="button" onclick="quickLogin('Aghia Anggala', '12345')" class="p-2.5 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 rounded-xl text-left flex items-center justify-between transition group">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-[11px]">AG</div>
+              <div>
+                <p class="text-xs font-bold text-emerald-950 leading-none">Aghia Anggala</p>
+                <p class="text-[10px] text-emerald-700 mt-0.5">Super User (Akses Penuh Edit & Upload)</p>
+              </div>
+            </div>
+            <span class="text-[10px] bg-emerald-200/80 text-emerald-800 font-bold px-2 py-0.5 rounded group-hover:bg-emerald-300">Pilih</span>
+          </button>
+
+          <button type="button" onclick="quickLogin('Supervisor', '12345')" class="p-2.5 bg-blue-50 hover:bg-blue-100/80 border border-blue-200 rounded-xl text-left flex items-center justify-between transition group">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-[11px]">SP</div>
+              <div>
+                <p class="text-xs font-bold text-blue-950 leading-none">Supervisor</p>
+                <p class="text-[10px] text-blue-700 mt-0.5">Viewer (Lihat Semua & Filter, Tanpa Edit)</p>
+              </div>
+            </div>
+            <span class="text-[10px] bg-blue-200/80 text-blue-800 font-bold px-2 py-0.5 rounded group-hover:bg-blue-300">Pilih</span>
+          </button>
+
+          <button type="button" onclick="quickLogin('Salesman', '12345')" class="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left flex items-center justify-between transition group">
+            <div class="flex items-center gap-2.5">
+              <div class="w-7 h-7 rounded-lg bg-slate-600 text-white flex items-center justify-center font-bold text-[11px]">SL</div>
+              <div>
+                <p class="text-xs font-bold text-slate-950 leading-none">Salesman / Others</p>
+                <p class="text-[10px] text-slate-600 mt-0.5">Viewer (Lihat Semua & Filter, Tanpa Edit)</p>
+              </div>
+            </div>
+            <span class="text-[10px] bg-slate-200 text-slate-800 font-bold px-2 py-0.5 rounded group-hover:bg-slate-300">Pilih</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 

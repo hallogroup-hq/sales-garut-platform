@@ -154,6 +154,8 @@ CREATE TABLE IF NOT EXISTS fact_sales_header (
     document_number VARCHAR(100) PRIMARY KEY,
     transaction_date DATE NOT NULL,
     due_date DATE,
+    period_year INTEGER,
+    period_month INTEGER,
     outlet_id VARCHAR(50) NOT NULL REFERENCES dim_outlet(outlet_id),
     invoice_salesman_id VARCHAR(50) NOT NULL REFERENCES org_salesman(salesman_id),
     current_owner_salesman_id VARCHAR(50) REFERENCES org_salesman(salesman_id),
@@ -215,6 +217,7 @@ CREATE TABLE IF NOT EXISTS fact_quantity_target (
     salesman_id VARCHAR(50) NOT NULL REFERENCES org_salesman(salesman_id),
     group_sku VARCHAR(100) NOT NULL,
     target_cartons NUMERIC(12, 4) NOT NULL,
+    target_value NUMERIC(15, 2) DEFAULT 0,
     import_batch_id VARCHAR(50) REFERENCES import_batch(batch_id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -361,6 +364,7 @@ CREATE TABLE IF NOT EXISTS store_loyalty_program_outlet (
 
 -- Indexes for high-performance aggregations
 CREATE INDEX IF NOT EXISTS idx_sales_header_date ON fact_sales_header(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_sales_header_period ON fact_sales_header(period_year, period_month);
 CREATE INDEX IF NOT EXISTS idx_sales_header_outlet ON fact_sales_header(outlet_id);
 CREATE INDEX IF NOT EXISTS idx_sales_header_salesman ON fact_sales_header(invoice_salesman_id);
 CREATE INDEX IF NOT EXISTS idx_sales_header_owner ON fact_sales_header(current_owner_salesman_id);
