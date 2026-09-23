@@ -112,22 +112,71 @@ function getExecutiveSummary(filters = {}) {
   const cal = getCalendarPace(f.year, f.month);
 
   // 1. Actual Sales Aggregation
-  const salesSql = `
-    SELECT
-      COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS net_cartons,
-      COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE 0 END), 0) AS gross_cartons,
-      COALESCE(SUM(CASE WHEN h.unit_type = 'Return' THEN l.carton_quantity ELSE 0 END), 0) AS return_cartons,
-      COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS net_value,
-      COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.dpp_amount ELSE -l.dpp_amount END), 0) AS net_dpp,
-      COUNT(DISTINCT h.document_number) AS total_invoices,
-      COUNT(DISTINCT h.outlet_id) AS active_outlets_mtd
-    FROM fact_sales_line l
-    JOIN fact_sales_header h ON l.document_number = h.document_number
-    JOIN dim_product p ON l.item_code = p.item_code
-    JOIN dim_outlet o ON h.outlet_id = o.outlet_id
-    ${f.whereTxSql}
-  `;
-  const salesRes = db.query(salesSql, f.paramsTx)[0];
+  const aggCheck = db.query(
+    'SELECT COUNT(*) as c FROM agg_monthly_sales_movement WHERE year = ? AND month = ?',
+    [f.year, f.month]
+  )[0];
+  const useAgg = Boolean(aggCheck && aggCheck.c > 0 && !filters.kecamatanId && !filters.rayonId);
+
+  let salesRes;
+  if (useAgg) {
+    const whereAgg = ['a.year = ? AND a.month = ?'];
+    const paramsAgg = [f.year, f.month];
+    if (filters.salesmanId) {
+      whereAgg.push('a.salesman_id = ?');
+      paramsAgg.push(filters.salesmanId);
+    } else if (filters.spvId) {
+      whereAgg.push('a.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE spv_id = ?)');
+      paramsAgg.push(filters.spvId);
+    }
+    if (filters.salesGroup) {
+      whereAgg.push('a.sales_group = ?');
+      paramsAgg.push(filters.salesGroup);
+    }
+    if (filters.principal) {
+      whereAgg.push('a.principal = ?');
+      paramsAgg.push(filters.principal);
+    }
+    if (filters.brand) {
+      whereAgg.push('a.brand = ?');
+      paramsAgg.push(filters.brand);
+    }
+    if (filters.groupSku) {
+      whereAgg.push('a.group_sku = ?');
+      paramsAgg.push(filters.groupSku);
+    }
+    const whereAggSql = 'WHERE ' + whereAgg.join(' AND ');
+
+    salesRes = db.query(`
+      SELECT
+        COALESCE(SUM(a.net_cartons), 0) AS net_cartons,
+        COALESCE(SUM(a.gross_cartons), 0) AS gross_cartons,
+        COALESCE(SUM(a.retur_cartons), 0) AS return_cartons,
+        COALESCE(SUM(a.net_value), 0) AS net_value,
+        COALESCE(SUM(a.dpp_value), 0) AS net_dpp,
+        COALESCE(SUM(a.total_invoices), 0) AS total_invoices,
+        COALESCE(SUM(a.active_outlets), 0) AS active_outlets_mtd
+      FROM agg_monthly_sales_movement a
+      ${whereAggSql}
+    `, paramsAgg)[0];
+  } else {
+    const salesSql = `
+      SELECT
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS net_cartons,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE 0 END), 0) AS gross_cartons,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Return' THEN l.carton_quantity ELSE 0 END), 0) AS return_cartons,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS net_value,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.dpp_amount ELSE -l.dpp_amount END), 0) AS net_dpp,
+        COUNT(DISTINCT h.document_number) AS total_invoices,
+        COUNT(DISTINCT h.outlet_id) AS active_outlets_mtd
+      FROM fact_sales_line l
+      JOIN fact_sales_header h ON l.document_number = h.document_number
+      JOIN dim_product p ON l.item_code = p.item_code
+      JOIN dim_outlet o ON h.outlet_id = o.outlet_id
+      ${f.whereTxSql}
+    `;
+    salesRes = db.query(salesSql, f.paramsTx)[0];
+  }
 
   // 2. Target Aggregation (Requirement 2: Missing Target vs Zero Target)
   const targetSql = `
@@ -279,57 +328,121 @@ function getTopSalesmen(filters = {}, limit = 50) {
   const f = buildFilterConditions(filters);
   const cal = getCalendarPace(f.year, f.month);
 
-  let groupClause = '';
-  const queryParams = [f.year, f.month, f.year, f.month, f.year, f.month, f.year, f.month, f.startDate, f.endDate];
+  const aggCheck = db.query(
+    'SELECT COUNT(*) as c FROM agg_monthly_sales_movement WHERE year = ? AND month = ?',
+    [f.year, f.month]
+  )[0];
+  const useAgg = Boolean(aggCheck && aggCheck.c > 0);
 
-  if (filters.salesGroup) {
-    groupClause = ' AND s.sales_group = ?';
-    queryParams.push(filters.salesGroup);
-  } else if (!filters.includeAllGroups) {
-    // Focus on salesmen with assigned rayons (Kanvas, GT, CB)
-    groupClause = ' AND s.has_rayon = 1';
+  let rows;
+  if (useAgg) {
+    let aggGroupClause = '';
+    const aggParams = [f.year, f.month, f.year, f.month, f.year, f.month, f.year, f.month, f.startDate, f.endDate, f.year, f.month];
+    if (filters.salesGroup) {
+      aggGroupClause = ' AND s.sales_group = ?';
+      aggParams.push(filters.salesGroup);
+    } else if (!filters.includeAllGroups && limit <= 20) {
+      aggGroupClause = ' AND s.has_rayon = 1';
+    }
+    aggParams.push(limit);
+
+    const aggSql = `
+      SELECT
+        s.salesman_id,
+        s.name AS salesman_name,
+        spv.name AS spv_name,
+        s.salesman_type,
+        s.sales_group,
+        s.target_cl,
+        s.visit_cycle,
+        s.has_rayon,
+        COALESCE(SUM(a.net_cartons), 0) AS actual_cartons,
+        (
+          SELECT COUNT(*)
+          FROM fact_quantity_target t
+          WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
+        ) AS target_record_count,
+        (
+          SELECT SUM(t.target_cartons)
+          FROM fact_quantity_target t
+          WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
+        ) AS target_cartons,
+        (
+          SELECT SUM(t.target_value)
+          FROM fact_quantity_target t
+          WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
+        ) AS target_value,
+        COALESCE((
+          SELECT COUNT(DISTINCT h.outlet_id)
+          FROM fact_sales_header h
+          WHERE h.current_owner_salesman_id = s.salesman_id
+            AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
+        ), 0) AS active_outlets,
+        (SELECT COUNT(*) FROM dim_outlet o WHERE o.current_salesman_id = s.salesman_id AND o.is_active_cl = 1) AS registered_outlets
+      FROM org_salesman s
+      LEFT JOIN org_spv spv ON s.spv_id = spv.spv_id
+      LEFT JOIN agg_monthly_sales_movement a ON (
+        a.salesman_id = s.salesman_id
+        OR (s.salesman_id = 'SAVORIA_OTH' AND a.sales_group LIKE '%Others%' AND a.salesman_id NOT IN (SELECT salesman_id FROM org_salesman WHERE salesman_id != 'SAVORIA_OTH'))
+        OR (s.salesman_id = 'SMC_GARUT' AND a.sales_group IN ('SCM', 'SMC'))
+      ) AND a.year = ? AND a.month = ?
+      WHERE (s.role = 'SALESMAN' OR s.salesman_id = 'DSM_GARUT') AND s.is_active = 1 ${aggGroupClause}
+      GROUP BY s.salesman_id, s.name, spv.name, s.salesman_type, s.sales_group, s.target_cl, s.visit_cycle, s.has_rayon
+      ORDER BY actual_cartons DESC
+      LIMIT ?
+    `;
+    rows = db.query(aggSql, aggParams);
+  } else {
+    let groupClause = '';
+    const queryParams = [f.year, f.month, f.year, f.month, f.year, f.month, f.year, f.month, f.startDate, f.endDate];
+
+    if (filters.salesGroup) {
+      groupClause = ' AND s.sales_group = ?';
+      queryParams.push(filters.salesGroup);
+    } else if (!filters.includeAllGroups) {
+      groupClause = ' AND s.has_rayon = 1';
+    }
+    queryParams.push(limit);
+
+    const sql = `
+      SELECT
+        s.salesman_id,
+        s.name AS salesman_name,
+        spv.name AS spv_name,
+        s.salesman_type,
+        s.sales_group,
+        s.target_cl,
+        s.visit_cycle,
+        s.has_rayon,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS actual_cartons,
+        (
+          SELECT COUNT(*)
+          FROM fact_quantity_target t
+          WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
+        ) AS target_record_count,
+        (
+          SELECT SUM(t.target_cartons)
+          FROM fact_quantity_target t
+          WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
+        ) AS target_cartons,
+        (
+          SELECT SUM(t.target_value)
+          FROM fact_quantity_target t
+          WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
+        ) AS target_value,
+        COUNT(DISTINCT h.outlet_id) AS active_outlets,
+        (SELECT COUNT(*) FROM dim_outlet o WHERE o.current_salesman_id = s.salesman_id AND o.is_active_cl = 1) AS registered_outlets
+      FROM org_salesman s
+      LEFT JOIN org_spv spv ON s.spv_id = spv.spv_id
+      LEFT JOIN fact_sales_header h ON s.salesman_id = h.current_owner_salesman_id AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
+      LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
+      WHERE s.role = 'SALESMAN' AND s.is_active = 1 ${groupClause}
+      GROUP BY s.salesman_id, s.name, spv.name, s.salesman_type, s.sales_group, s.target_cl, s.visit_cycle, s.has_rayon
+      ORDER BY actual_cartons DESC
+      LIMIT ?
+    `;
+    rows = db.query(sql, queryParams);
   }
-  queryParams.push(limit);
-
-  const sql = `
-    SELECT
-      s.salesman_id,
-      s.name AS salesman_name,
-      spv.name AS spv_name,
-      s.salesman_type,
-      s.sales_group,
-      s.target_cl,
-      s.visit_cycle,
-      s.has_rayon,
-      COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS actual_cartons,
-      (
-        SELECT COUNT(*)
-        FROM fact_quantity_target t
-        WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
-      ) AS target_record_count,
-      (
-        SELECT SUM(t.target_cartons)
-        FROM fact_quantity_target t
-        WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
-      ) AS target_cartons,
-      (
-        SELECT SUM(t.target_value)
-        FROM fact_quantity_target t
-        WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
-      ) AS target_value,
-      COUNT(DISTINCT h.outlet_id) AS active_outlets,
-      (SELECT COUNT(*) FROM dim_outlet o WHERE o.current_salesman_id = s.salesman_id AND o.is_active_cl = 1) AS registered_outlets
-    FROM org_salesman s
-    LEFT JOIN org_spv spv ON s.spv_id = spv.spv_id
-    LEFT JOIN fact_sales_header h ON s.salesman_id = h.current_owner_salesman_id AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
-    LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
-    WHERE s.role = 'SALESMAN' AND s.is_active = 1 ${groupClause}
-    GROUP BY s.salesman_id, s.name, spv.name, s.salesman_type, s.sales_group, s.target_cl, s.visit_cycle, s.has_rayon
-    ORDER BY actual_cartons DESC
-    LIMIT ?
-  `;
-
-  const rows = db.query(sql, queryParams);
   return rows.map((r, idx) => {
     const act = Math.max(Math.round(r.actual_cartons * 10) / 10, 0);
     const hasTarget = r.target_record_count > 0;

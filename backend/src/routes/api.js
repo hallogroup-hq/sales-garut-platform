@@ -272,6 +272,310 @@ router.get('/sales/performance', (req, res) => {
     const db = getDb();
     const f = buildFilterConditions(req.query);
 
+    const aggCheck = db.query(
+      'SELECT COUNT(*) as c FROM agg_monthly_sales_movement WHERE year = ? AND month = ?',
+      [f.year, f.month]
+    )[0];
+    const useAgg = Boolean(aggCheck && aggCheck.c > 0 && !req.query.kecamatanId && !req.query.rayonId);
+
+    if (useAgg) {
+      const whereAgg = ['a.year = ? AND a.month = ?'];
+      const paramsAgg = [f.year, f.month];
+      const whereAggYtd = ['a.year = ? AND a.month <= ?'];
+      const paramsAggYtd = [f.year, f.month];
+
+      const whereTgt = ['t.year = ? AND t.month = ?'];
+      const paramsTgt = [f.year, f.month];
+      const whereTgtYtd = ['t.year = ? AND t.month <= ?'];
+      const paramsTgtYtd = [f.year, f.month];
+
+      if (req.query.salesmanId) {
+        whereAgg.push('a.salesman_id = ?');
+        paramsAgg.push(req.query.salesmanId);
+        whereAggYtd.push('a.salesman_id = ?');
+        paramsAggYtd.push(req.query.salesmanId);
+
+        whereTgt.push('t.salesman_id = ?');
+        paramsTgt.push(req.query.salesmanId);
+        whereTgtYtd.push('t.salesman_id = ?');
+        paramsTgtYtd.push(req.query.salesmanId);
+      } else if (req.query.spvId) {
+        whereAgg.push('a.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE spv_id = ?)');
+        paramsAgg.push(req.query.spvId);
+        whereAggYtd.push('a.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE spv_id = ?)');
+        paramsAggYtd.push(req.query.spvId);
+
+        whereTgt.push('t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE spv_id = ?)');
+        paramsTgt.push(req.query.spvId);
+        whereTgtYtd.push('t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE spv_id = ?)');
+        paramsTgtYtd.push(req.query.spvId);
+      }
+
+      if (req.query.salesGroup) {
+        whereAgg.push('a.sales_group = ?');
+        paramsAgg.push(req.query.salesGroup);
+        whereAggYtd.push('a.sales_group = ?');
+        paramsAggYtd.push(req.query.salesGroup);
+
+        whereTgt.push('t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)');
+        paramsTgt.push(req.query.salesGroup);
+        whereTgtYtd.push('t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)');
+        paramsTgtYtd.push(req.query.salesGroup);
+      }
+
+      if (req.query.principal) {
+        whereAgg.push('a.principal = ?');
+        paramsAgg.push(req.query.principal);
+        whereAggYtd.push('a.principal = ?');
+        paramsAggYtd.push(req.query.principal);
+      }
+      if (req.query.brand) {
+        whereAgg.push('a.brand = ?');
+        paramsAgg.push(req.query.brand);
+        whereAggYtd.push('a.brand = ?');
+        paramsAggYtd.push(req.query.brand);
+      }
+      if (req.query.groupSku) {
+        whereAgg.push('a.group_sku = ?');
+        paramsAgg.push(req.query.groupSku);
+        whereAggYtd.push('a.group_sku = ?');
+        paramsAggYtd.push(req.query.groupSku);
+
+        whereTgt.push('UPPER(TRIM(t.group_sku)) = UPPER(TRIM(?))');
+        paramsTgt.push(req.query.groupSku);
+        whereTgtYtd.push('UPPER(TRIM(t.group_sku)) = UPPER(TRIM(?))');
+        paramsTgtYtd.push(req.query.groupSku);
+      }
+
+      const actualRows = db.query(`
+        SELECT
+          a.principal,
+          a.brand,
+          a.group_sku,
+          COALESCE(SUM(a.net_cartons), 0) AS actual_cartons,
+          COALESCE(SUM(a.gross_cartons), 0) AS gross_cartons,
+          COALESCE(SUM(a.retur_cartons), 0) AS return_cartons,
+          COALESCE(SUM(a.net_value), 0) AS sales_netto
+        FROM agg_monthly_sales_movement a
+        WHERE ${whereAgg.join(' AND ')}
+        GROUP BY a.principal, a.brand, a.group_sku
+        ORDER BY actual_cartons DESC
+      `, paramsAgg);
+
+      const targetRows = db.query(`
+        SELECT
+          t.group_sku,
+          COALESCE(SUM(t.target_cartons), 0) AS target_cartons,
+          COALESCE(SUM(t.target_value), 0) AS target_value
+        FROM fact_quantity_target t
+        WHERE ${whereTgt.join(' AND ')}
+        GROUP BY t.group_sku
+      `, paramsTgt);
+
+      const ytdActualRows = db.query(`
+        SELECT
+          a.principal,
+          a.brand,
+          a.group_sku,
+          COALESCE(SUM(a.net_cartons), 0) AS actual_cartons_ytd,
+          COALESCE(SUM(a.net_value), 0) AS sales_netto_ytd
+        FROM agg_monthly_sales_movement a
+        WHERE ${whereAggYtd.join(' AND ')}
+        GROUP BY a.principal, a.brand, a.group_sku
+      `, paramsAggYtd);
+
+      const ytdTargetRows = db.query(`
+        SELECT
+          t.group_sku,
+          COALESCE(SUM(t.target_cartons), 0) AS target_cartons_ytd,
+          COALESCE(SUM(t.target_value), 0) AS target_value_ytd
+        FROM fact_quantity_target t
+        WHERE ${whereTgtYtd.join(' AND ')}
+        GROUP BY t.group_sku
+      `, paramsTgtYtd);
+
+      function matchTarget(gSku, bName, tgtList, ktnField, valField) {
+        const gNorm = (gSku || '').toUpperCase().trim();
+        const bNorm = (bName || '').toUpperCase().trim();
+
+        let match = tgtList.find(t => (t.group_sku || '').toUpperCase().trim() === gNorm);
+        if (!match) {
+          match = tgtList.find(t => (t.group_sku || '').toUpperCase().trim() === bNorm);
+        }
+        if (!match) {
+          match = tgtList.find(t => {
+            const tg = (t.group_sku || '').toUpperCase().trim();
+            return (gNorm && tg.includes(gNorm)) || (tg && gNorm.includes(tg)) ||
+                   (bNorm && tg.includes(bNorm)) || (tg && bNorm.includes(tg));
+          });
+        }
+
+        return {
+          cartons: match ? Math.round(match[ktnField] * 10) / 10 : 0,
+          value: match ? Math.round(match[valField]) : 0
+        };
+      }
+
+      const totalCartons = Math.max(actualRows.reduce((s, r) => s + r.actual_cartons, 0), 0);
+      const totalSalesNetto = Math.max(actualRows.reduce((s, r) => s + r.sales_netto, 0), 0);
+      const totalTargetCartons = targetRows.reduce((s, t) => s + (t.target_cartons || 0), 0);
+      const totalTargetValue = targetRows.reduce((s, t) => s + (t.target_value || 0), 0);
+
+      const totalCartonsYtd = Math.max(ytdActualRows.reduce((s, yr) => s + yr.actual_cartons_ytd, 0), 0);
+      const totalSalesNettoYtd = Math.max(ytdActualRows.reduce((s, yr) => s + yr.sales_netto_ytd, 0), 0);
+      const totalTargetCartonsYtd = ytdTargetRows.reduce((s, t) => s + (t.target_cartons_ytd || 0), 0);
+      const totalTargetValueYtd = ytdTargetRows.reduce((s, t) => s + (t.target_value_ytd || 0), 0);
+
+      const items = actualRows.map(r => {
+        const act = Math.max(Math.round(r.actual_cartons * 10) / 10, 0);
+        const tgt = matchTarget(r.group_sku, r.brand, targetRows, 'target_cartons', 'target_value');
+        const achv = tgt.cartons > 0 ? Math.round((act / tgt.cartons) * 1000) / 10 : 0;
+        const valAchv = tgt.value > 0 ? Math.round((Math.max(r.sales_netto, 0) / tgt.value) * 1000) / 10 : 0;
+        const contrib = totalCartons > 0 ? Math.round((act / totalCartons) * 1000) / 10 : 0;
+
+        return {
+          principal: r.principal,
+          brand: r.brand,
+          groupSku: r.group_sku,
+          targetCartons: tgt.cartons,
+          targetValue: tgt.value,
+          actualCartons: act,
+          achievementPct: achv,
+          valueAchievementPct: valAchv,
+          gapCartons: Math.max(Math.round((tgt.cartons - act) * 10) / 10, 0),
+          gapValue: Math.max(tgt.value - Math.max(r.sales_netto, 0), 0),
+          salesNetto: Math.round(r.sales_netto),
+          returnCartons: Math.round(r.return_cartons * 10) / 10,
+          contributionPct: contrib
+        };
+      });
+
+      const groupMap = {};
+      items.forEach(it => {
+        const g = it.groupSku || 'LAIN-LAIN';
+        if (!groupMap[g]) {
+          groupMap[g] = {
+            groupSku: g,
+            brand: it.brand,
+            principal: it.principal,
+            targetCartons: 0,
+            targetValue: 0,
+            actualCartons: 0,
+            salesNetto: 0,
+            returnCartons: 0
+          };
+        }
+        groupMap[g].targetCartons += it.targetCartons || 0;
+        groupMap[g].targetValue += it.targetValue || 0;
+        groupMap[g].actualCartons += it.actualCartons || 0;
+        groupMap[g].salesNetto += it.salesNetto || 0;
+        groupMap[g].returnCartons += it.returnCartons || 0;
+      });
+
+      const ytdGroupMap = {};
+      ytdActualRows.forEach(yr => {
+        const gKey = yr.group_sku || 'LAIN-LAIN';
+        if (!ytdGroupMap[gKey]) {
+          ytdGroupMap[gKey] = {
+            actualCartons: 0,
+            salesNetto: 0,
+            brand: yr.brand,
+            principal: yr.principal
+          };
+        }
+        ytdGroupMap[gKey].actualCartons += Math.max(yr.actual_cartons_ytd, 0);
+        ytdGroupMap[gKey].salesNetto += Math.max(yr.sales_netto_ytd, 0);
+      });
+
+      const groupSkus = Object.values(groupMap).map(g => {
+        const tgt = Math.round(g.targetCartons * 10) / 10;
+        const tgtVal = Math.round(g.targetValue || 0);
+        const act = Math.round(g.actualCartons * 10) / 10;
+        const achv = tgt > 0 ? Math.round((act / tgt) * 1000) / 10 : 0;
+        const valAchv = tgtVal > 0 ? Math.round((Math.max(g.salesNetto, 0) / tgtVal) * 1000) / 10 : 0;
+        const contrib = totalCartons > 0 ? Math.round((act / totalCartons) * 1000) / 10 : 0;
+
+        const ytdActData = ytdGroupMap[g.groupSku] || { actualCartons: 0, salesNetto: 0 };
+        const ytdTgt = matchTarget(g.groupSku, g.brand, ytdTargetRows, 'target_cartons_ytd', 'target_value_ytd');
+        const ytdAct = Math.round(ytdActData.actualCartons * 10) / 10;
+        const ytdVal = Math.round(ytdActData.salesNetto);
+        const ytdAchv = ytdTgt.cartons > 0 ? Math.round((ytdAct / ytdTgt.cartons) * 1000) / 10 : 0;
+        const ytdValAchv = ytdTgt.value > 0 ? Math.round((ytdVal / ytdTgt.value) * 1000) / 10 : 0;
+        const ytdGapCartons = Math.max(Math.round((ytdTgt.cartons - ytdAct) * 10) / 10, 0);
+        const ytdGapValue = Math.max(ytdTgt.value - ytdVal, 0);
+
+        return {
+          ...g,
+          targetCartons: tgt,
+          targetValue: tgtVal,
+          actualCartons: act,
+          achievementPct: achv,
+          valueAchievementPct: valAchv,
+          gapCartons: Math.max(Math.round((tgt - act) * 10) / 10, 0),
+          gapValue: Math.max(tgtVal - Math.max(g.salesNetto, 0), 0),
+          contributionPct: contrib,
+          ytd: {
+            asOfMonth: f.month,
+            targetCartons: ytdTgt.cartons,
+            targetValue: ytdTgt.value,
+            actualCartons: ytdAct,
+            salesNetto: ytdVal,
+            achievementPct: ytdAchv,
+            valueAchievementPct: ytdValAchv,
+            gapCartons: ytdGapCartons,
+            gapValue: ytdGapValue
+          }
+        };
+      });
+
+      const sortBy = req.query.sortBy || 'actualCartons';
+      const sortDir = req.query.sortDir === 'asc' ? 'asc' : 'desc';
+
+      items.sort((a, b) => {
+        let valA = a[sortBy] !== undefined ? a[sortBy] : '';
+        let valB = b[sortBy] !== undefined ? b[sortBy] : '';
+        if (typeof valA === 'string') {
+          return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        return sortDir === 'asc' ? valA - valB : valB - valA;
+      });
+
+      groupSkus.sort((a, b) => {
+        let valA = a[sortBy] !== undefined ? a[sortBy] : '';
+        let valB = b[sortBy] !== undefined ? b[sortBy] : '';
+        if (typeof valA === 'string') {
+          return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        return sortDir === 'asc' ? valA - valB : valB - valA;
+      });
+
+      const summary = {
+        totalCartons: Math.round(totalCartons * 10) / 10,
+        totalSalesNetto: Math.round(totalSalesNetto),
+        totalTargetCartons: Math.round(totalTargetCartons * 10) / 10,
+        totalTargetValue: Math.round(totalTargetValue),
+        totalSkus: items.length,
+        totalGroups: groupSkus.length,
+        ytd: {
+          asOfMonth: f.month,
+          targetCartons: Math.round(totalTargetCartonsYtd * 10) / 10,
+          targetValue: Math.round(totalTargetValueYtd),
+          actualCartons: Math.round(totalCartonsYtd * 10) / 10,
+          salesNetto: Math.round(totalSalesNettoYtd),
+          achievementPct: totalTargetCartonsYtd > 0 ? Math.round((totalCartonsYtd / totalTargetCartonsYtd) * 1000) / 10 : 0,
+          valueAchievementPct: totalTargetValueYtd > 0 ? Math.round((totalSalesNettoYtd / totalTargetValueYtd) * 1000) / 10 : 0,
+          gapCartons: Math.max(Math.round((totalTargetCartonsYtd - totalCartonsYtd) * 10) / 10, 0),
+          gapValue: Math.max(Math.round(totalTargetValueYtd - totalSalesNettoYtd), 0)
+        }
+      };
+
+      return res.json({
+        summary,
+        products: items,
+        groupSkus
+      });
+    }
+
     // Grouped by Principal, Brand, Group SKU
     const sql = `
       SELECT
