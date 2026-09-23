@@ -271,7 +271,9 @@ function updateHeaderDate(cal) {
   const now = new Date();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} WIB`;
   
-  if (cal && cal.monitoringDate) {
+  if (cal && cal.isFullMonth) {
+    el.textContent = `Periode Selesai: ${monthNames[cal.month]} ${cal.year} (Full Month) | ${timeStr}`;
+  } else if (cal && cal.monitoringDate) {
     const d = new Date(cal.monitoringDate);
     const dayName = dayNames[d.getDay()] || '';
     el.textContent = `${dayName ? dayName + ', ' : ''}${d.getDate()} ${monthNames[cal.month]} ${cal.year} | ${timeStr}`;
@@ -807,13 +809,24 @@ async function renderBeranda() {
           <div>
             <div class="flex items-center gap-2 flex-wrap">
               <span class="text-xs font-bold uppercase tracking-wider text-blue-300">Pace Operasional (Senin s/d Jumat)</span>
-              <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${s.achievementPct >= (cal.timegonePct || 71.4) ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : (s.achievementPct >= (cal.timegonePct || 71.4) - 15 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40')}">
-                ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 71.4) ? 'ON PACE (Ahead Timerate)' : (s.achievementPct >= (cal.timegonePct || 71.4) - 15 ? 'NEEDS ATTENTION' : 'BEHIND PACE')) : 'STANDBY'}
-              </span>
+              ${cal.isFullMonth ? `
+                <span class="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-blue-500/20 text-blue-300 border border-blue-400/40">
+                  BULAN SELESAI (FULL MONTH)
+                </span>
+              ` : `
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${s.achievementPct >= (cal.timegonePct || 71.4) ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : (s.achievementPct >= (cal.timegonePct || 71.4) - 15 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40')}">
+                  ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 71.4) ? 'ON PACE (Ahead Timerate)' : (s.achievementPct >= (cal.timegonePct || 71.4) - 15 ? 'NEEDS ATTENTION' : 'BEHIND PACE')) : 'STANDBY'}
+                </span>
+              `}
             </div>
             <p class="text-base font-extrabold text-white mt-0.5">
-              HKE Berjalan: <span class="text-emerald-400">${cal.monFriAsOfHke || 15}</span> / ${cal.monFriTotalHk || 21} HK 
-              <span class="text-slate-400 text-xs font-normal">(Sisa ${cal.monFriRemainingHk || 6} Hari Kerja)</span>
+              ${cal.isFullMonth ? `
+                Realisasi Penuh: <span class="text-emerald-400">${cal.monFriTotalHk || 21}</span> / ${cal.monFriTotalHk || 21} HK 
+                <span class="text-slate-400 text-xs font-normal">(Bulan Telah Ditutup / Full Month)</span>
+              ` : `
+                HKE Berjalan: <span class="text-emerald-400">${cal.monFriAsOfHke || 15}</span> / ${cal.monFriTotalHk || 21} HK 
+                <span class="text-slate-400 text-xs font-normal">(Sisa ${cal.monFriRemainingHk || 6} Hari Kerja)</span>
+              `}
             </p>
           </div>
         </div>
@@ -822,12 +835,12 @@ async function renderBeranda() {
           <!-- Timegone -->
           <div>
             <span class="text-slate-400 text-[10px] block">Timegone (Timerate)</span>
-            <span class="font-extrabold text-amber-300 text-sm">${cal.timegonePct || 71.4}%</span>
+            <span class="font-extrabold ${cal.isFullMonth ? 'text-blue-300' : 'text-amber-300'} text-sm">${cal.isFullMonth ? '100.0%' : (cal.timegonePct || 71.4) + '%'}</span>
           </div>
           <!-- Capaian MTD -->
           <div>
-            <span class="text-slate-400 text-[10px] block">Capaian Target MTD</span>
-            <span class="font-extrabold ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 71.4) ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-400'} text-sm">${s.hasTarget && s.achievementPct !== null ? s.achievementPct + '%' : 'N/A'}</span>
+            <span class="text-slate-400 text-[10px] block">${cal.isFullMonth ? 'Capaian Target Final' : 'Capaian Target MTD'}</span>
+            <span class="font-extrabold ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 71.4) ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-400'} text-sm">${s.hasTarget && s.achievementPct !== null ? s.achievementPct + '%' + (cal.isFullMonth ? ' (Final)' : '') : 'N/A'}</span>
           </div>
           <!-- GAP Bulanan -->
           <div>
@@ -837,7 +850,7 @@ async function renderBeranda() {
           <!-- GAP Harian -->
           <div>
             <span class="text-slate-400 text-[10px] block">GAP Harian (Sisa HK)</span>
-            <span class="font-extrabold text-emerald-400 text-sm">${s.gapDailyMonFri !== null && s.hasTarget ? s.gapDailyMonFri.toLocaleString('id-ID') + ' KTN/hr' : 'N/A'}</span>
+            <span class="font-extrabold ${cal.isFullMonth ? 'text-slate-300' : 'text-emerald-400'} text-sm">${cal.isFullMonth ? '0 KTN/hr (Selesai)' : (s.gapDailyMonFri !== null && s.hasTarget ? s.gapDailyMonFri.toLocaleString('id-ID') + ' KTN/hr' : 'N/A')}</span>
           </div>
         </div>
       </div>
@@ -858,10 +871,10 @@ async function renderBeranda() {
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Actual KTN</span>
-            <i data-lucide="package-check" class="w-3.5 h-3.5 text-emerald-500"></i>
+            <i data-lucide="package-check" class="w-3.5 h-3.5 ${cal.isFullMonth ? 'text-blue-500' : 'text-emerald-500'}"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">${s.actualCartons.toLocaleString('id-ID')}</p>
-          <p class="text-[10px] text-emerald-600 font-medium flex items-center gap-0.5 mt-0.5"><i data-lucide="trending-up" class="w-2.5 h-2.5"></i> MTD Realisasi</p>
+          <p class="text-[10px] ${cal.isFullMonth ? 'text-blue-600' : 'text-emerald-600'} font-medium flex items-center gap-0.5 mt-0.5"><i data-lucide="${cal.isFullMonth ? 'check-circle' : 'trending-up'}" class="w-2.5 h-2.5"></i> ${cal.isFullMonth ? 'Realisasi Penuh (Full Month)' : 'MTD Realisasi'}</p>
         </div>
 
         <!-- 3. Achievement -->
@@ -871,7 +884,7 @@ async function renderBeranda() {
             <i data-lucide="award" class="w-3.5 h-3.5 text-amber-500"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">${s.hasTarget && s.achievementPct !== null ? s.achievementPct + '%' : '<span class="text-slate-400 text-sm">N/A</span>'}</p>
-          <span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${s.hasTarget && s.latestEstimateAchvPct !== null ? achvBadgeClass : 'bg-slate-100 text-slate-500'} mt-0.5">LE ${s.hasTarget && s.latestEstimateAchvPct !== null ? s.latestEstimateAchvPct + '%' : 'N/A'}</span>
+          <span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${cal.isFullMonth ? 'bg-blue-50 text-blue-700 border border-blue-200' : (s.hasTarget && s.latestEstimateAchvPct !== null ? achvBadgeClass : 'bg-slate-100 text-slate-500')} mt-0.5">${cal.isFullMonth ? 'Final Realisasi: ' + (s.achievementPct !== null ? s.achievementPct + '%' : 'N/A') : ('LE ' + (s.hasTarget && s.latestEstimateAchvPct !== null ? s.latestEstimateAchvPct + '%' : 'N/A'))}</span>
         </div>
 
         <!-- 4. Gap -->
@@ -881,7 +894,7 @@ async function renderBeranda() {
             <i data-lucide="trending-down" class="w-3.5 h-3.5 text-rose-500"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">${s.hasTarget && s.remainingTarget !== null ? s.remainingTarget.toLocaleString('id-ID') : '<span class="text-slate-400 text-sm">N/A</span>'}</p>
-          <p class="text-[10px] text-rose-600 font-medium mt-0.5">${s.hasTarget ? 'sisa target' : 'target belum ada'}</p>
+          <p class="text-[10px] ${s.hasTarget && s.remainingTarget === 0 ? 'text-emerald-600 font-semibold' : 'text-rose-600'} font-medium mt-0.5">${s.hasTarget ? (s.remainingTarget === 0 ? 'Target tercapai!' : (cal.isFullMonth ? 'sisa target final' : 'sisa target')) : 'target belum ada'}</p>
         </div>
 
         <!-- 5. Sales Value -->
@@ -891,7 +904,7 @@ async function renderBeranda() {
             <i data-lucide="coins" class="w-3.5 h-3.5 text-purple-500"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">Rp ${(s.salesNettoValue / 1000000).toFixed(1)} Jt</p>
-          <p class="text-[10px] ${s.hasTarget && s.targetValue ? 'text-purple-700 font-semibold' : 'text-emerald-600'} font-medium mt-0.5" title="${s.hasTarget && s.targetValue ? 'Target: Rp ' + s.targetValue.toLocaleString('id-ID') : ''}">${s.hasTarget && s.targetValue ? 'Tgt: Rp ' + (s.targetValue / 1000000).toFixed(1) + ' Jt (' + (Math.round((s.salesNettoValue / s.targetValue) * 1000) / 10) + '%)' : 'Netto MTD'}</p>
+          <p class="text-[10px] ${s.hasTarget && s.targetValue ? 'text-purple-700 font-semibold' : 'text-emerald-600'} font-medium mt-0.5" title="${s.hasTarget && s.targetValue ? 'Target: Rp ' + s.targetValue.toLocaleString('id-ID') : ''}">${s.hasTarget && s.targetValue ? 'Tgt: Rp ' + (s.targetValue / 1000000).toFixed(1) + ' Jt (' + (Math.round((s.salesNettoValue / s.targetValue) * 1000) / 10) + '%)' : (cal.isFullMonth ? 'Netto Full Month' : 'Netto MTD')}</p>
         </div>
 
         <!-- 6. Registered Outlet (CL) -->
@@ -2319,6 +2332,7 @@ function openAddUserModal() {
 // 4. PENJUALAN — PERFORMANCE DRILLDOWN & GROUP SKU
 // ==============================================================
 window.penjualanViewMode = 'group'; // 'group' or 'sku'
+window.penjualanPeriodMode = 'monthly'; // 'monthly' or 'ytd'
 window.penjualanSortKey = 'actualCartons';
 window.penjualanSortDir = 'desc';
 
@@ -2340,6 +2354,11 @@ function switchPenjualanView(mode) {
   renderPenjualanContent();
 }
 
+function switchPenjualanPeriodMode(pm) {
+  window.penjualanPeriodMode = pm;
+  renderPenjualanContent();
+}
+
 function sortPenjualanTable(colKey) {
   if (window.penjualanSortKey === colKey) {
     window.penjualanSortDir = window.penjualanSortDir === 'asc' ? 'desc' : 'asc';
@@ -2356,6 +2375,7 @@ function renderPenjualanContent() {
   if (!data) return;
 
   const mode = window.penjualanViewMode;
+  const periodMode = window.penjualanPeriodMode || 'monthly';
   const sortKey = window.penjualanSortKey;
   const sortDir = window.penjualanSortDir;
 
@@ -2364,10 +2384,50 @@ function renderPenjualanContent() {
     return sortDir === 'asc' ? `<span class="text-blue-600 ml-1 font-bold">▲</span>` : `<span class="text-blue-600 ml-1 font-bold">▼</span>`;
   };
 
+  const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const curMonthName = monthNames[globalFilters.month] || `Bulan ${globalFilters.month}`;
+
+  const ytdSummary = data.summary?.ytd || {
+    asOfMonth: globalFilters.month,
+    targetCartons: 0,
+    targetValue: 0,
+    actualCartons: 0,
+    salesNetto: 0,
+    achievementPct: 0,
+    valueAchievementPct: 0,
+    gapCartons: 0,
+    gapValue: 0
+  };
+
+  // Map rows according to periodMode
+  let rawRows = [];
+  if (mode === 'group') {
+    rawRows = (data.groupSkus || []).map(g => {
+      if (periodMode === 'ytd' && g.ytd) {
+        return {
+          ...g,
+          targetCartons: g.ytd.targetCartons,
+          targetValue: g.ytd.targetValue,
+          actualCartons: g.ytd.actualCartons,
+          achievementPct: g.ytd.achievementPct,
+          valueAchievementPct: g.ytd.valueAchievementPct,
+          gapCartons: g.ytd.gapCartons,
+          gapValue: g.ytd.gapValue,
+          salesNetto: g.ytd.salesNetto,
+          contributionPct: ytdSummary.actualCartons > 0 ? Math.round((g.ytd.actualCartons / ytdSummary.actualCartons) * 1000) / 10 : 0
+        };
+      }
+      return g;
+    });
+  } else {
+    rawRows = data.products || [];
+  }
+
+  const sortedRows = sortDataRows(rawRows, sortKey, sortDir);
+
   let rowsHtml = '';
   if (mode === 'group') {
-    const sortedGroups = sortDataRows(data.groupSkus || [], sortKey, sortDir);
-    rowsHtml = sortedGroups.map((g, idx) => `
+    rowsHtml = sortedRows.map((g, idx) => `
       <tr class="hover:bg-blue-50/50 transition">
         <td class="py-2.5 px-4 text-slate-400 font-mono text-center">${idx + 1}</td>
         <td class="py-2.5 px-4 font-bold text-slate-800 flex items-center gap-2">
@@ -2394,8 +2454,7 @@ function renderPenjualanContent() {
       </tr>
     `).join('');
   } else {
-    const sortedProducts = sortDataRows(data.products || [], sortKey, sortDir);
-    rowsHtml = sortedProducts.map((p, idx) => `
+    rowsHtml = sortedRows.map((p, idx) => `
       <tr class="hover:bg-slate-50 transition">
         <td class="py-2.5 px-4 text-slate-400 font-mono text-center">${idx + 1}</td>
         <td class="py-2.5 px-4 font-bold text-slate-800">${p.principal}</td>
@@ -2421,12 +2480,23 @@ function renderPenjualanContent() {
   }
 
   main.innerHTML = `
+    <!-- Header -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
       <div>
         <h2 class="text-xl font-bold text-slate-800 tracking-tight">Analisis Kinerja Penjualan</h2>
-        <p class="text-xs text-slate-500">Drilldown performa penjualan per Group SKU (Gadjah, Caffino, Fox's, Deli, UHT) dan SKU Produk.</p>
+        <p class="text-xs text-slate-500">Drilldown performa penjualan Target vs Actual, Pencapaian, dan Gap secara Bulanan & Year-to-Date (YTD 2026).</p>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Period Mode Toggle (Monthly vs YTD) -->
+        <div class="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs font-semibold">
+          <button onclick="switchPenjualanPeriodMode('monthly')" class="px-3 py-1.5 rounded-lg transition ${periodMode === 'monthly' ? 'bg-white text-blue-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            📅 ${curMonthName}
+          </button>
+          <button onclick="switchPenjualanPeriodMode('ytd')" class="px-3 py-1.5 rounded-lg transition ${periodMode === 'ytd' ? 'bg-blue-600 text-white shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+            📈 YTD 2026 (Jan–${curMonthName})
+          </button>
+        </div>
+
         <!-- View Toggle Pills -->
         <div class="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs">
           <button onclick="switchPenjualanView('group')" class="px-3 py-1.5 rounded-lg font-bold transition ${mode === 'group' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
@@ -2436,19 +2506,90 @@ function renderPenjualanContent() {
             Detail SKU
           </button>
         </div>
-        <span class="text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-xl shadow-xs">
-          Total ${data.summary.totalCartons.toLocaleString('id-ID')} KTN ${data.summary.totalSalesNetto ? '• Rp ' + (data.summary.totalSalesNetto / 1000000).toFixed(1) + ' Jt' : ''}
+      </div>
+    </div>
+
+    <!-- Year-to-Date (YTD 2026) Executive Summary Ribbon -->
+    <div class="mt-4 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 rounded-2xl p-4 text-white shadow-md border border-blue-900/50">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+        <div class="flex items-center gap-2">
+          <span class="px-2 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[10px] font-extrabold rounded tracking-wide">
+            KUMULATIF YEAR TO DATE 2026
+          </span>
+          <span class="text-xs text-slate-300">Periode: <strong>Januari – ${curMonthName} 2026</strong></span>
+        </div>
+        <span class="text-[11px] text-blue-200">
+          Realisasi Bulan Ini: <strong>${data.summary.totalCartons.toLocaleString('id-ID')} KTN</strong> ${data.summary.totalSalesNetto ? '• Rp ' + (data.summary.totalSalesNetto / 1000000).toFixed(1) + ' Jt' : ''}
         </span>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <!-- YTD Target -->
+        <div class="bg-white/5 rounded-xl p-3 border border-white/10">
+          <div class="text-[11px] font-semibold text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="target" class="w-3.5 h-3.5 text-blue-400"></i> Target YTD 2026
+          </div>
+          <div class="text-lg md:text-2xl font-black mt-1 font-mono text-white">
+            ${ytdSummary.targetCartons.toLocaleString('id-ID')} <span class="text-xs font-normal text-slate-300 font-sans">KTN</span>
+          </div>
+          <div class="text-[11px] text-blue-200 mt-0.5">
+            Rp ${(ytdSummary.targetValue / 1000000000).toFixed(2)} Milyar (Target Val)
+          </div>
+        </div>
+
+        <!-- YTD Actual -->
+        <div class="bg-white/5 rounded-xl p-3 border border-white/10">
+          <div class="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i> Actual YTD 2026
+          </div>
+          <div class="text-lg md:text-2xl font-black mt-1 font-mono text-emerald-300">
+            ${ytdSummary.actualCartons.toLocaleString('id-ID')} <span class="text-xs font-normal text-slate-300 font-sans">KTN</span>
+          </div>
+          <div class="text-[11px] text-emerald-200 mt-0.5">
+            Rp ${(ytdSummary.salesNetto / 1000000000).toFixed(2)} Milyar Netto
+          </div>
+        </div>
+
+        <!-- YTD Achievement % -->
+        <div class="bg-white/5 rounded-xl p-3 border border-white/10">
+          <div class="text-[11px] font-semibold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="percent" class="w-3.5 h-3.5 text-amber-400"></i> Pencapaian YTD
+          </div>
+          <div class="text-lg md:text-2xl font-black mt-1 font-mono ${ytdSummary.achievementPct >= 80 ? 'text-emerald-300' : 'text-amber-300'}">
+            ${ytdSummary.achievementPct}% <span class="text-xs font-normal text-slate-300 font-sans">Qty</span>
+          </div>
+          <div class="text-[11px] text-slate-300 mt-0.5">
+            Val: <strong class="text-white">${ytdSummary.valueAchievementPct}%</strong> (Omzet)
+          </div>
+        </div>
+
+        <!-- YTD Gap -->
+        <div class="bg-white/5 rounded-xl p-3 border border-white/10">
+          <div class="text-[11px] font-semibold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-rose-400"></i> GAP YTD 2026
+          </div>
+          <div class="text-lg md:text-2xl font-black mt-1 font-mono ${ytdSummary.gapCartons > 0 ? 'text-rose-400' : 'text-emerald-400'}">
+            ${ytdSummary.gapCartons > 0 ? '-' + ytdSummary.gapCartons.toLocaleString('id-ID') : 'Tercapai'} <span class="text-xs font-normal text-slate-300 font-sans">${ytdSummary.gapCartons > 0 ? 'KTN' : ''}</span>
+          </div>
+          <div class="text-[11px] ${ytdSummary.gapValue > 0 ? 'text-rose-300' : 'text-emerald-300'} mt-0.5">
+            ${ytdSummary.gapValue > 0 ? '-Rp ' + (ytdSummary.gapValue / 1000000).toFixed(1) + ' Jt' : 'Target Value Tercapai'}
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- Table Container -->
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-xs">
-      <div class="p-3 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
-        <span class="text-xs font-bold text-slate-700">
-          ${mode === 'group' ? 'Daftar Kategori Group SKU' : 'Daftar Produk Lengkap'} 
-          <span class="text-slate-400 font-normal">(${mode === 'group' ? (data.groupSkus || []).length : data.products.length} baris)</span>
-        </span>
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden text-xs mt-4">
+      <div class="p-3 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-slate-700">
+            ${mode === 'group' ? 'Daftar Kategori Group SKU' : 'Daftar Produk Lengkap'} 
+            <span class="text-slate-400 font-normal">(${mode === 'group' ? (data.groupSkus || []).length : data.products.length} baris)</span>
+          </span>
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${periodMode === 'ytd' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'}">
+            ${periodMode === 'ytd' ? 'Mode: Kumulatif YTD 2026' : `Mode: Bulan ${curMonthName}`}
+          </span>
+        </div>
         <span class="text-[11px] text-slate-400 italic">Klik header kolom untuk sortir Naik (▲) / Turun (▼)</span>
       </div>
       <div class="overflow-x-auto scrollbar-thin">
@@ -2472,10 +2613,10 @@ function renderPenjualanContent() {
                 </th>
               `}
               <th onclick="sortPenjualanTable('targetCartons')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition">
-                <div class="flex items-center justify-end">Target KTN / Val ${sortIcon('targetCartons')}</div>
+                <div class="flex items-center justify-end">Target ${periodMode === 'ytd' ? 'YTD' : 'KTN'} / Val ${sortIcon('targetCartons')}</div>
               </th>
               <th onclick="sortPenjualanTable('actualCartons')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition">
-                <div class="flex items-center justify-end">Actual KTN ${sortIcon('actualCartons')}</div>
+                <div class="flex items-center justify-end">Actual ${periodMode === 'ytd' ? 'YTD' : 'KTN'} ${sortIcon('actualCartons')}</div>
               </th>
               <th onclick="sortPenjualanTable('achievementPct')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition">
                 <div class="flex items-center justify-end">Achv % ${sortIcon('achievementPct')}</div>
@@ -2679,6 +2820,143 @@ function renderTrendView() {
         </div>
       </div>
     </div>
+
+    <!-- YoY & Full Year Milestone Comparison Panel -->
+    ${(() => {
+      const yoy = data.yearOverYearComparison;
+      if (!yoy) return '';
+      const fy = yoy.fullYear2025VsYtd2026;
+      const ytd = yoy.ytd2025VsYtd2026;
+      const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const asMonthName = monthNames[yoy.asOfMonth] || ('Bulan ' + yoy.asOfMonth);
+
+      return `
+      <div class="mt-5 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-5 text-white shadow-lg border border-indigo-800/40">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-white/10 gap-2 mb-4">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-[10px] font-black rounded-lg tracking-wider uppercase">
+              MILESTONE & YEAR-OVER-YEAR (YOY) BENCHMARK
+            </span>
+            <span class="text-xs text-slate-300">Cut-off Posisi: <strong>Januari – ${asMonthName} 2026</strong></span>
+          </div>
+          <span class="text-[11px] text-indigo-200">
+            Komparasi Makro Historis 2025 vs Realisasi 2026
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Card 1: Full Year 2025 vs Year to Date 2026 -->
+          <div class="bg-white/5 rounded-xl p-4 border border-white/10 flex flex-col justify-between hover:bg-white/[0.08] transition">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                  <i data-lucide="award" class="w-4 h-4 text-amber-400"></i>
+                  1. Full Year 2025 vs Year to Date 2026
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${fy.achievedPctQty >= 75 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">
+                  ${fy.achievedPctQty}% Tercapai
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-300 mt-1">
+                Progress akumulasi penjualan YTD 2026 terhadap total realisasi 1 tahun penuh 2025 (12 Bulan).
+              </p>
+
+              <div class="mt-4 flex items-baseline gap-2">
+                <div class="text-2xl lg:text-3xl font-black font-mono text-white">
+                  ${fy.achievedPctQty}%
+                </div>
+                <div class="text-xs font-semibold ${fy.gapPctQty < 0 ? 'text-rose-400' : 'text-emerald-400'} font-mono">
+                  GAP: ${fy.gapPctQty}% (${fy.gapQty.toLocaleString('id-ID')} KTN)
+                </div>
+              </div>
+
+              <!-- Progress bar -->
+              <div class="w-full bg-white/10 rounded-full h-2.5 mt-2.5 overflow-hidden">
+                <div class="bg-gradient-to-r from-blue-500 to-indigo-400 h-2.5 rounded-full" style="width: ${Math.min(fy.achievedPctQty, 100)}%"></div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-white/10 text-xs">
+                <div>
+                  <div class="text-[10px] text-slate-400 uppercase tracking-wide">Realisasi FY 2025 (12 Bln)</div>
+                  <div class="font-bold font-mono text-slate-200 mt-0.5">${fy.totalQty2025.toLocaleString('id-ID')} KTN</div>
+                  <div class="text-[10px] text-indigo-200">Rp ${(fy.totalValue2025 / 1000000000).toFixed(2)} Milyar</div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-slate-400 uppercase tracking-wide">Realisasi YTD 2026 (Jan–${asMonthName})</div>
+                  <div class="font-bold font-mono text-emerald-300 mt-0.5">${fy.totalQtyYtd2026.toLocaleString('id-ID')} KTN</div>
+                  <div class="text-[10px] text-emerald-200">Rp ${(fy.totalValueYtd2026 / 1000000000).toFixed(2)} Milyar</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 pt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-white/5">
+              <span>Gap Nilai Omzet:</span>
+              <strong class="${fy.gapValue < 0 ? 'text-rose-400' : 'text-emerald-400'} font-mono">
+                ${fy.gapValue < 0 ? '-Rp ' + Math.abs(fy.gapValue / 1000000).toFixed(1) + ' Jt' : 'Surplus'}
+              </strong>
+            </div>
+          </div>
+
+          <!-- Card 2: Year to Date 2025 vs Year to Date 2026 -->
+          <div class="bg-white/5 rounded-xl p-4 border border-white/10 flex flex-col justify-between hover:bg-white/[0.08] transition">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                  <i data-lucide="git-compare" class="w-4 h-4 text-emerald-400"></i>
+                  2. Year to Date 2025 vs Year to Date 2026
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${ytd.growthPctQty >= 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}">
+                  ${ytd.growthPctQty >= 0 ? 'Surplus YoY' : 'Defisit YoY'}
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-300 mt-1">
+                Perbandingan Apple-to-Apple periode yang sama (Januari – ${asMonthName}) antara 2025 dan 2026.
+              </p>
+
+              <div class="mt-4 flex items-baseline gap-2">
+                <div class="text-2xl lg:text-3xl font-black font-mono ${ytd.growthPctQty >= 0 ? 'text-emerald-300' : 'text-rose-400'}">
+                  ${ytd.growthPctQty >= 0 ? '+' : ''}${ytd.growthPctQty}%
+                </div>
+                <div class="text-xs font-semibold ${ytd.diffQty >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-mono">
+                  ${ytd.diffQty >= 0 ? 'Surplus +' : 'Defisit '}${ytd.diffQty.toLocaleString('id-ID')} KTN
+                </div>
+              </div>
+
+              <!-- Metric tags -->
+              <div class="mt-2.5 flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-white/10 text-slate-200">
+                  Growth Qty: <strong class="${ytd.growthPctQty >= 0 ? 'text-emerald-300' : 'text-rose-400'}">${ytd.growthPctQty >= 0 ? '+' : ''}${ytd.growthPctQty}%</strong>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-white/10 text-slate-200">
+                  Growth Value: <strong class="${ytd.growthPctValue >= 0 ? 'text-emerald-300' : 'text-rose-400'}">${ytd.growthPctValue >= 0 ? '+' : ''}${ytd.growthPctValue}%</strong>
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-white/10 text-xs">
+                <div>
+                  <div class="text-[10px] text-slate-400 uppercase tracking-wide">YTD 2025 (Jan–${asMonthName})</div>
+                  <div class="font-bold font-mono text-slate-200 mt-0.5">${ytd.totalQtyYtd2025.toLocaleString('id-ID')} KTN</div>
+                  <div class="text-[10px] text-indigo-200">Rp ${(ytd.totalValueYtd2025 / 1000000000).toFixed(2)} Milyar</div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-slate-400 uppercase tracking-wide">YTD 2026 (Jan–${asMonthName})</div>
+                  <div class="font-bold font-mono text-emerald-300 mt-0.5">${ytd.totalQtyYtd2026.toLocaleString('id-ID')} KTN</div>
+                  <div class="text-[10px] text-emerald-200">Rp ${(ytd.totalValueYtd2026 / 1000000000).toFixed(2)} Milyar</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 pt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-white/5">
+              <span>Gap Nilai Netto (YoY):</span>
+              <strong class="${ytd.diffValue >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-mono">
+                ${ytd.diffValue >= 0 ? '+Rp ' + (ytd.diffValue / 1000000).toFixed(1) + ' Jt' : '-Rp ' + Math.abs(ytd.diffValue / 1000000).toFixed(1) + ' Jt'}
+              </strong>
+            </div>
+          </div>
+        </div>
+      </div>
+      `;
+    })()}
 
     <!-- Control Toolbar (Dimensions, Metrics, Period) -->
     <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-5 space-y-3">

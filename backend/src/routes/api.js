@@ -376,6 +376,113 @@ router.get('/sales/performance', (req, res) => {
       groupMap[g].returnCartons += it.returnCartons || 0;
     });
 
+    // YTD 2026 calculation (cumulative from month 1 to f.month)
+    const whereYtd = [`h.period_year = 2026 AND h.period_month <= ?`];
+    const paramsYtd = [f.month];
+
+    if (req.query.salesmanId) {
+      whereYtd.push(`h.current_owner_salesman_id = ?`);
+      paramsYtd.push(req.query.salesmanId);
+    } else if (req.query.spvId) {
+      whereYtd.push(`h.current_owner_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE spv_id = ?)`);
+      paramsYtd.push(req.query.spvId);
+    }
+    if (req.query.salesGroup) {
+      whereYtd.push(`h.current_owner_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)`);
+      paramsYtd.push(req.query.salesGroup);
+    }
+    if (req.query.principal) {
+      whereYtd.push(`p.principal = ?`);
+      paramsYtd.push(req.query.principal);
+    }
+    if (req.query.brand) {
+      whereYtd.push(`p.brand = ?`);
+      paramsYtd.push(req.query.brand);
+    }
+    if (req.query.groupSku) {
+      whereYtd.push(`p.group_sku = ?`);
+      paramsYtd.push(req.query.groupSku);
+    }
+    if (req.query.kecamatanId) {
+      whereYtd.push(`o.kecamatan_id = ?`);
+      paramsYtd.push(req.query.kecamatanId);
+    }
+    if (req.query.rayonId) {
+      whereYtd.push(`o.current_rayon_id = ?`);
+      paramsYtd.push(req.query.rayonId);
+    }
+
+    const whereYtdSql = 'WHERE ' + whereYtd.join(' AND ');
+
+    const ytdSql = `
+      SELECT
+        p.principal,
+        p.brand,
+        p.group_sku,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS actual_cartons_ytd,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS sales_netto_ytd,
+        (
+          SELECT COALESCE(SUM(t.target_cartons), 0)
+          FROM fact_quantity_target t
+          WHERE (
+            t.group_sku = p.group_sku 
+            OR UPPER(TRIM(t.group_sku)) = UPPER(TRIM(p.brand))
+            OR UPPER(p.brand) LIKE '%' || UPPER(TRIM(t.group_sku)) || '%'
+            OR UPPER(t.group_sku) LIKE '%' || UPPER(TRIM(p.brand)) || '%'
+            OR (UPPER(p.brand) LIKE '%GADJAH%' AND UPPER(t.group_sku) LIKE '%GADJAH%')
+            OR (UPPER(p.brand) LIKE '%MILK LIFE%' AND UPPER(t.group_sku) LIKE '%MILK LIFE%')
+          ) AND t.year = 2026 AND t.month <= ?
+        ) AS target_cartons_ytd,
+        (
+          SELECT COALESCE(SUM(t.target_value), 0)
+          FROM fact_quantity_target t
+          WHERE (
+            t.group_sku = p.group_sku 
+            OR UPPER(TRIM(t.group_sku)) = UPPER(TRIM(p.brand))
+            OR UPPER(p.brand) LIKE '%' || UPPER(TRIM(t.group_sku)) || '%'
+            OR UPPER(t.group_sku) LIKE '%' || UPPER(TRIM(p.brand)) || '%'
+            OR (UPPER(p.brand) LIKE '%GADJAH%' AND UPPER(t.group_sku) LIKE '%GADJAH%')
+            OR (UPPER(p.brand) LIKE '%MILK LIFE%' AND UPPER(t.group_sku) LIKE '%MILK LIFE%')
+          ) AND t.year = 2026 AND t.month <= ?
+        ) AS target_value_ytd
+      FROM fact_sales_line l
+      JOIN fact_sales_header h ON l.document_number = h.document_number
+      JOIN dim_product p ON l.item_code = p.item_code
+      JOIN dim_outlet o ON h.outlet_id = o.outlet_id
+      ${whereYtdSql}
+      GROUP BY p.principal, p.brand, p.group_sku
+    `;
+
+    const ytdRows = db.query(ytdSql, [f.month, f.month, ...paramsYtd]);
+    
+    // Map YTD by group_sku
+    const ytdGroupMap = {};
+    let totalCartonsYtd = 0;
+    let totalSalesNettoYtd = 0;
+    let totalTargetCartonsYtd = 0;
+    let totalTargetValueYtd = 0;
+
+    ytdRows.forEach(yr => {
+      const gKey = yr.group_sku || 'LAIN-LAIN';
+      if (!ytdGroupMap[gKey]) {
+        ytdGroupMap[gKey] = {
+          actualCartons: 0,
+          salesNetto: 0,
+          targetCartons: 0,
+          targetValue: 0
+        };
+      }
+      ytdGroupMap[gKey].actualCartons += Math.max(yr.actual_cartons_ytd, 0);
+      ytdGroupMap[gKey].salesNetto += Math.max(yr.sales_netto_ytd, 0);
+      ytdGroupMap[gKey].targetCartons += yr.target_cartons_ytd || 0;
+      ytdGroupMap[gKey].targetValue += yr.target_value_ytd || 0;
+
+      totalCartonsYtd += Math.max(yr.actual_cartons_ytd, 0);
+      totalSalesNettoYtd += Math.max(yr.sales_netto_ytd, 0);
+      totalTargetCartonsYtd += yr.target_cartons_ytd || 0;
+      totalTargetValueYtd += yr.target_value_ytd || 0;
+    });
+
     const groupSkus = Object.values(groupMap).map(g => {
       const tgt = Math.round(g.targetCartons * 10) / 10;
       const tgtVal = Math.round(g.targetValue || 0);
@@ -383,6 +490,17 @@ router.get('/sales/performance', (req, res) => {
       const achv = tgt > 0 ? Math.round((act / tgt) * 1000) / 10 : 0;
       const valAchv = tgtVal > 0 ? Math.round((Math.max(g.salesNetto, 0) / tgtVal) * 1000) / 10 : 0;
       const contrib = totalCartons > 0 ? Math.round((act / totalCartons) * 1000) / 10 : 0;
+
+      const ytdData = ytdGroupMap[g.groupSku] || { actualCartons: 0, salesNetto: 0, targetCartons: 0, targetValue: 0 };
+      const ytdAct = Math.round(ytdData.actualCartons * 10) / 10;
+      const ytdTgt = Math.round(ytdData.targetCartons * 10) / 10;
+      const ytdVal = Math.round(ytdData.salesNetto);
+      const ytdTgtVal = Math.round(ytdData.targetValue);
+      const ytdAchv = ytdTgt > 0 ? Math.round((ytdAct / ytdTgt) * 1000) / 10 : 0;
+      const ytdValAchv = ytdTgtVal > 0 ? Math.round((ytdVal / ytdTgtVal) * 1000) / 10 : 0;
+      const ytdGapCartons = Math.max(Math.round((ytdTgt - ytdAct) * 10) / 10, 0);
+      const ytdGapValue = Math.max(ytdTgtVal - ytdVal, 0);
+
       return {
         ...g,
         targetCartons: tgt,
@@ -392,7 +510,18 @@ router.get('/sales/performance', (req, res) => {
         valueAchievementPct: valAchv,
         gapCartons: Math.max(tgt - act, 0),
         gapValue: Math.max(tgtVal - Math.max(g.salesNetto, 0), 0),
-        contributionPct: contrib
+        contributionPct: contrib,
+        ytd: {
+          asOfMonth: f.month,
+          targetCartons: ytdTgt,
+          targetValue: ytdTgtVal,
+          actualCartons: ytdAct,
+          salesNetto: ytdVal,
+          achievementPct: ytdAchv,
+          valueAchievementPct: ytdValAchv,
+          gapCartons: ytdGapCartons,
+          gapValue: ytdGapValue
+        }
       };
     });
 
@@ -411,7 +540,18 @@ router.get('/sales/performance', (req, res) => {
         totalSalesNetto: Math.round(rows.reduce((s, r) => s + Math.max(r.sales_netto, 0), 0)),
         totalTargetValue: Math.round(groupSkus.reduce((s, g) => s + (g.targetValue || 0), 0)),
         totalSkus: items.length,
-        totalGroups: groupSkus.length
+        totalGroups: groupSkus.length,
+        ytd: {
+          asOfMonth: f.month,
+          targetCartons: Math.round(totalTargetCartonsYtd * 10) / 10,
+          targetValue: Math.round(totalTargetValueYtd),
+          actualCartons: Math.round(totalCartonsYtd * 10) / 10,
+          salesNetto: Math.round(totalSalesNettoYtd),
+          achievementPct: totalTargetCartonsYtd > 0 ? Math.round((totalCartonsYtd / totalTargetCartonsYtd) * 1000) / 10 : 0,
+          valueAchievementPct: totalTargetValueYtd > 0 ? Math.round((totalSalesNettoYtd / totalTargetValueYtd) * 1000) / 10 : 0,
+          gapCartons: Math.max(Math.round((totalTargetCartonsYtd - totalCartonsYtd) * 10) / 10, 0),
+          gapValue: Math.max(Math.round(totalTargetValueYtd - totalSalesNettoYtd), 0)
+        }
       },
       products: items,
       groupSkus

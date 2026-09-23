@@ -34,9 +34,24 @@ function getCalendarPace(year, month) {
     [year, month]
   )[0];
 
+  const isPastCompletedMonth = year < 2026 || (year === 2026 && month < 9);
+
   if (!cal) {
-    // Default fallback: 25 working days, 8 elapsed
-    cal = { year, month, total_hk: 25, as_of_hke: 8, monitoring_date: `${year}-${String(month).padStart(2, '0')}-08` };
+    if (isPastCompletedMonth) {
+      // Completed month fallback: full month working days
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const monFri = calculateMonFriWorkingDays(year, month, daysInMonth);
+      cal = {
+        year,
+        month,
+        total_hk: monFri.monFriTotalHk,
+        as_of_hke: monFri.monFriTotalHk,
+        monitoring_date: `${year}-${String(month).padStart(2, '0')}-${daysInMonth}`
+      };
+    } else {
+      // Current active / future month fallback
+      cal = { year, month, total_hk: 25, as_of_hke: 8, monitoring_date: `${year}-${String(month).padStart(2, '0')}-08` };
+    }
   }
 
   const totalHk = cal.total_hk;
@@ -45,13 +60,14 @@ function getCalendarPace(year, month) {
   const timeRatePct = totalHk > 0 ? (asOfHke / totalHk) * 100 : 0;
 
   // Working days Monday-Friday (Senin s/d Jumat)
-  // For May 2026 as of May 21: 15 elapsed, 6 remaining, 21 total (71.4% timegone)
   let asOfDay = 21;
   if (cal.monitoring_date) {
     const parts = cal.monitoring_date.split('-');
     if (parts.length === 3) asOfDay = parseInt(parts[2], 10);
   }
   const monFri = calculateMonFriWorkingDays(year, month, asOfDay);
+
+  const isFullMonth = Boolean(isPastCompletedMonth || remainingHk === 0 || monFri.monFriRemainingHk === 0);
 
   return {
     year,
@@ -64,7 +80,8 @@ function getCalendarPace(year, month) {
     monFriTotalHk: monFri.monFriTotalHk,
     monFriAsOfHke: monFri.monFriAsOfHke,
     monFriRemainingHk: monFri.monFriRemainingHk,
-    timegonePct: monFri.monFriTimegonePct
+    timegonePct: monFri.monFriTimegonePct,
+    isFullMonth
   };
 }
 

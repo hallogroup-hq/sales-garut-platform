@@ -316,6 +316,9 @@ function getMovementAnalytics(options = {}) {
   }, 0);
   const avgMonthlyOa = Math.round(sumMonthlyOa / totalMonths);
 
+  // YoY & Full Year Comparison
+  const yoyComparison = calculateYoYComparison(db, options);
+
   return {
     dimension,
     metric,
@@ -329,6 +332,7 @@ function getMovementAnalytics(options = {}) {
       prevMonthVal: Math.round(prevMonthVal * 100) / 100,
       momGrowthPct
     },
+    yearOverYearComparison: yoyComparison,
     chart: {
       labels: timeline.map(t => t.label),
       series: chartSeries,
@@ -340,6 +344,133 @@ function getMovementAnalytics(options = {}) {
       series: oaSeries
     },
     matrix
+  };
+}
+
+function calculateYoYComparison(db, options = {}) {
+  let whereClauses = [];
+  let params = [];
+
+  if (options.spvId) {
+    whereClauses.push('s.spv_id = ?');
+    params.push(options.spvId);
+  }
+  if (options.salesGroup) {
+    whereClauses.push('a.sales_group = ?');
+    params.push(options.salesGroup);
+  }
+  if (options.salesmanId) {
+    whereClauses.push('a.salesman_id = ?');
+    params.push(options.salesmanId);
+  }
+  if (options.principal) {
+    whereClauses.push('a.principal = ?');
+    params.push(options.principal);
+  }
+  if (options.brand) {
+    whereClauses.push('a.brand = ?');
+    params.push(options.brand);
+  }
+
+  const extraWhere = whereClauses.length > 0 ? ' AND ' + whereClauses.join(' AND ') : '';
+
+  // Determine latest 2026 month or selected month
+  const maxMRow = db.query(
+    `SELECT MAX(a.month) as max_m FROM agg_monthly_sales_movement a LEFT JOIN org_salesman s ON a.salesman_id = s.salesman_id WHERE a.year = 2026 ${extraWhere}`,
+    params
+  )[0];
+  const asOfMonth = options.month ? parseInt(options.month, 10) : (maxMRow?.max_m || 9);
+
+  // 1. Full Year 2025
+  const fy2025 = db.query(
+    `SELECT COALESCE(SUM(a.net_cartons), 0) as qty, COALESCE(SUM(a.net_value), 0) as val 
+     FROM agg_monthly_sales_movement a 
+     LEFT JOIN org_salesman s ON a.salesman_id = s.salesman_id 
+     WHERE a.year = 2025 ${extraWhere}`,
+    params
+  )[0];
+
+  // 2. YTD 2026 (Month 1..asOfMonth)
+  const ytd2026 = db.query(
+    `SELECT COALESCE(SUM(a.net_cartons), 0) as qty, COALESCE(SUM(a.net_value), 0) as val 
+     FROM agg_monthly_sales_movement a 
+     LEFT JOIN org_salesman s ON a.salesman_id = s.salesman_id 
+     WHERE a.year = 2026 AND a.month <= ? ${extraWhere}`,
+    [asOfMonth, ...params]
+  )[0];
+
+  // 3. YTD 2025 (Month 1..asOfMonth)
+  const ytd2025 = db.query(
+    `SELECT COALESCE(SUM(a.net_cartons), 0) as qty, COALESCE(SUM(a.net_value), 0) as val 
+     FROM agg_monthly_sales_movement a 
+     LEFT JOIN org_salesman s ON a.salesman_id = s.salesman_id 
+     WHERE a.year = 2025 AND a.month <= ? ${extraWhere}`,
+    [asOfMonth, ...params]
+  )[0];
+
+  const fy2025Qty = Math.round((fy2025?.qty || 0) * 100) / 100;
+  const fy2025Val = Math.round(fy2025?.val || 0);
+  const ytd2026Qty = Math.round((ytd2026?.qty || 0) * 100) / 100;
+  const ytd2026Val = Math.round(ytd2026?.val || 0);
+  const ytd2025Qty = Math.round((ytd2025?.qty || 0) * 100) / 100;
+  const ytd2025Val = Math.round(ytd2025?.val || 0);
+
+  // Full Year 2025 vs YTD 2026
+  const gapFyQty = Math.round((ytd2026Qty - fy2025Qty) * 100) / 100;
+  const gapFyVal = Math.round(ytd2026Val - fy2025Val);
+  const pctAchievedFyQty = fy2025Qty > 0 ? Math.round((ytd2026Qty / fy2025Qty) * 1000) / 10 : 0;
+  const pctAchievedFyVal = fy2025Val > 0 ? Math.round((ytd2026Val / fy2025Val) * 1000) / 10 : 0;
+  const gapPctFyQty = fy2025Qty > 0 ? Math.round((gapFyQty / fy2025Qty) * 1000) / 10 : 0;
+  const gapPctFyVal = fy2025Val > 0 ? Math.round((gapFyVal / fy2025Val) * 1000) / 10 : 0;
+
+  // YTD 2025 vs YTD 2026 (Apple-to-Apple)
+  const diffQty = Math.round((ytd2026Qty - ytd2025Qty) * 100) / 100;
+  const diffVal = Math.round(ytd2026Val - ytd2025Val);
+  const growthQtyPct = ytd2025Qty > 0 ? Math.round((diffQty / ytd2025Qty) * 1000) / 10 : 0;
+  const growthValPct = ytd2025Val > 0 ? Math.round((diffVal / ytd2025Val) * 1000) / 10 : 0;
+
+  return {
+    asOfMonth,
+    fullYear2025VsYtd2026: {
+      fy2025Qty,
+      fy2025Val,
+      totalQty2025: fy2025Qty,
+      totalValue2025: fy2025Val,
+      ytd2026Qty,
+      ytd2026Val,
+      totalQtyYtd2026: ytd2026Qty,
+      totalValueYtd2026: ytd2026Val,
+      pctAchievedQty: pctAchievedFyQty,
+      achievedPctQty: pctAchievedFyQty,
+      pctAchievedVal: pctAchievedFyVal,
+      achievedPctVal: pctAchievedFyVal,
+      gapQty: gapFyQty,
+      gapVal: gapFyVal,
+      gapValue: gapFyVal,
+      gapPctQty: gapPctFyQty,
+      gapPctVal: gapPctFyVal
+    },
+    ytd2025VsYtd2026: {
+      asOfMonth,
+      ytdMonths: asOfMonth,
+      ytd2025Qty,
+      ytd2025Val,
+      totalQtyYtd2025: ytd2025Qty,
+      totalValueYtd2025: ytd2025Val,
+      ytd2026Qty,
+      ytd2026Val,
+      totalQtyYtd2026: ytd2026Qty,
+      totalValueYtd2026: ytd2026Val,
+      diffQty,
+      diffVal,
+      diffValue: diffVal,
+      growthQtyPct,
+      growthPctQty: growthQtyPct,
+      growthValPct,
+      growthPctValue: growthValPct,
+      positionQty: diffQty >= 0 ? 'SURPLUS' : 'DEFICIT',
+      positionVal: diffVal >= 0 ? 'SURPLUS' : 'DEFICIT'
+    }
   };
 }
 
@@ -374,5 +505,6 @@ function exportMovementCsv(options = {}) {
 module.exports = {
   getMovementAnalytics,
   exportMovementCsv,
-  generateTimeline
+  generateTimeline,
+  calculateYoYComparison
 };

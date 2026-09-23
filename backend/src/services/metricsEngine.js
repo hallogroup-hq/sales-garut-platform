@@ -150,14 +150,15 @@ function getExecutiveSummary(filters = {}) {
   let gapDaily = null;
   let leAchvPct = null;
 
-  const leCartons = cal.asOfHke > 0 ? Math.round(((actualKtn / cal.asOfHke) * cal.totalHk) * 100) / 100 : 0;
+  const isFullMonth = Boolean(cal.isFullMonth || cal.remainingHk === 0 || cal.monFriRemainingHk === 0);
+  const leCartons = isFullMonth ? actualKtn : (cal.asOfHke > 0 ? Math.round(((actualKtn / cal.asOfHke) * cal.totalHk) * 100) / 100 : 0);
 
   if (hasTarget && targetKtn !== null) {
     if (targetKtn > 0) {
       achvPct = Math.round((actualKtn / targetKtn) * 1000) / 10;
       remainingTarget = Math.max(Math.round((targetKtn - actualKtn) * 100) / 100, 0);
-      gapDaily = cal.remainingHk > 0 ? Math.round((remainingTarget / cal.remainingHk) * 100) / 100 : 0;
-      leAchvPct = Math.round((leCartons / targetKtn) * 1000) / 10;
+      gapDaily = (!isFullMonth && cal.remainingHk > 0) ? Math.round((remainingTarget / cal.remainingHk) * 100) / 100 : 0;
+      leAchvPct = isFullMonth ? achvPct : Math.round((leCartons / targetKtn) * 1000) / 10;
     } else {
       achvPct = 0;
       remainingTarget = 0;
@@ -238,12 +239,13 @@ function getExecutiveSummary(filters = {}) {
   const dormRes = db.query(outletDormancySql, [f.year, f.month, f.startDate, f.endDate, refDate, dormancyThreshold, refDate, dormancyThreshold])[0];
 
   const gapMonthly = targetKtn !== null ? Math.max(Math.round((targetKtn - actualKtn) * 100) / 100, 0) : null;
-  const gapDailyMonFri = targetKtn !== null && cal.monFriRemainingHk > 0 ? Math.round((gapMonthly / cal.monFriRemainingHk) * 100) / 100 : 0;
+  const gapDailyMonFri = (targetKtn !== null && !isFullMonth && cal.monFriRemainingHk > 0) ? Math.round((gapMonthly / cal.monFriRemainingHk) * 100) / 100 : 0;
 
   return {
     calendar: cal,
     sales: {
       hasTarget,
+      isFullMonth,
       targetCartons: targetKtn,
       targetValue: targetVal,
       actualCartons: actualKtn,
@@ -340,12 +342,15 @@ function getTopSalesmen(filters = {}, limit = 50) {
     const rawCov = regCl > 0 ? (r.active_outlets / regCl) * 100 : 0;
     const cov = Math.min(Math.round(rawCov * 10) / 10, 100.0);
 
+    const isFull = Boolean(cal.isFullMonth || cal.monFriRemainingHk === 0);
     const gapMonthly = tgt !== null ? Math.round((tgt - act) * 10) / 10 : null;
-    const gapDaily = tgt !== null && cal.monFriRemainingHk > 0 ? Math.round(((tgt - act) / cal.monFriRemainingHk) * 10) / 10 : 0;
+    const gapDaily = tgt !== null && !isFull && cal.monFriRemainingHk > 0 ? Math.round(((tgt - act) / cal.monFriRemainingHk) * 10) / 10 : 0;
 
     let paceStatus = 'N/A';
     if (hasTarget && tgt > 0 && achv !== null) {
-      if (achv >= cal.timegonePct) {
+      if (isFull) {
+        paceStatus = achv >= 100 ? 'ACHIEVED' : (achv >= 85 ? 'NEAR_TARGET' : 'MISSED_TARGET');
+      } else if (achv >= cal.timegonePct) {
         paceStatus = 'ON_PACE';
       } else if (achv >= cal.timegonePct - 15) {
         paceStatus = 'NEEDS_ATTENTION';
