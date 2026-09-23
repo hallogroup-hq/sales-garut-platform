@@ -284,12 +284,26 @@ router.get('/sales/performance', (req, res) => {
         (
           SELECT COALESCE(SUM(t.target_cartons), 0)
           FROM fact_quantity_target t
-          WHERE t.group_sku = p.group_sku AND t.year = ? AND t.month = ?
+          WHERE (
+            t.group_sku = p.group_sku 
+            OR UPPER(TRIM(t.group_sku)) = UPPER(TRIM(p.brand))
+            OR UPPER(p.brand) LIKE '%' || UPPER(TRIM(t.group_sku)) || '%'
+            OR UPPER(t.group_sku) LIKE '%' || UPPER(TRIM(p.brand)) || '%'
+            OR (UPPER(p.brand) LIKE '%GADJAH%' AND UPPER(t.group_sku) LIKE '%GADJAH%')
+            OR (UPPER(p.brand) LIKE '%MILK LIFE%' AND UPPER(t.group_sku) LIKE '%MILK LIFE%')
+          ) AND t.year = ? AND t.month = ?
         ) AS target_cartons,
         (
           SELECT COALESCE(SUM(t.target_value), 0)
           FROM fact_quantity_target t
-          WHERE t.group_sku = p.group_sku AND t.year = ? AND t.month = ?
+          WHERE (
+            t.group_sku = p.group_sku 
+            OR UPPER(TRIM(t.group_sku)) = UPPER(TRIM(p.brand))
+            OR UPPER(p.brand) LIKE '%' || UPPER(TRIM(t.group_sku)) || '%'
+            OR UPPER(t.group_sku) LIKE '%' || UPPER(TRIM(p.brand)) || '%'
+            OR (UPPER(p.brand) LIKE '%GADJAH%' AND UPPER(t.group_sku) LIKE '%GADJAH%')
+            OR (UPPER(p.brand) LIKE '%MILK LIFE%' AND UPPER(t.group_sku) LIKE '%MILK LIFE%')
+          ) AND t.year = ? AND t.month = ?
         ) AS target_value
       FROM fact_sales_line l
       JOIN fact_sales_header h ON l.document_number = h.document_number

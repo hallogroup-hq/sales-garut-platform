@@ -29,6 +29,18 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Initialize DB schema & seed (async for Postgres, sync for SQLite)
 Promise.resolve(initSchema()).then(() => {
   return Promise.resolve(seedInitialData());
+}).then(() => {
+  try {
+    const { getDb } = require('./db/connection.js');
+    const db = getDb();
+    const tgt = db.query('SELECT COUNT(*) as c FROM fact_quantity_target WHERE year = 2026 AND month = 9')[0];
+    if (!tgt || tgt.c === 0) {
+      const { runSmallIngestion } = require('./db/ingest_small_files.js');
+      return Promise.resolve(runSmallIngestion());
+    }
+  } catch (e) {
+    console.warn('Target auto-sync notice:', e.message);
+  }
 }).catch(err => console.error('DB init error:', err));
 
 // Register API routes

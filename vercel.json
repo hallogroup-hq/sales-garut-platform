@@ -8,7 +8,8 @@
         "includeFiles": [
           "sales_garut.db",
           "backend/public/**",
-          "backend/src/db/schema.sql"
+          "backend/src/db/schema.sql",
+          "TARGET KUANTITI SALES.xlsx"
         ]
       }
     }

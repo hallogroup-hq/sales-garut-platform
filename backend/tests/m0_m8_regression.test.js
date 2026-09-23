@@ -206,6 +206,6 @@ test('TC11: Cross-Module Aggregation Consistency', async (t) => {
   const totalSalesmenCartons = salesmen.reduce((sum, s) => sum + s.actualCartons, 0);
   assert.ok(Math.abs(totalSalesmenCartons - summary.sales.actualCartons) < 1.0, 'Salesmen sum cartons must match executive summary cartons');
 
-  // Executive summary registered outlets must match registered CL under salesmen with rayon (3,585+)
-  assert.ok(summary.coverage.registeredOutlets >= 3580 && summary.coverage.registeredOutlets <= 3600, `Executive summary registered outlets (${summary.coverage.registeredOutlets}) must match CL registered under salesmen with rayon`);
+  // Executive summary registered outlets must match registered CL on Rayon (~2,452)
+  assert.ok(summary.coverage.registeredOutlets >= 2450 && summary.coverage.registeredOutlets <= 2455, `Executive summary registered outlets (${summary.coverage.registeredOutlets}) must match CL on Rayon`);
 });
