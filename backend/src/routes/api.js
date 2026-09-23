@@ -146,7 +146,7 @@ router.get('/filters/options', (req, res) => {
 
   const salesGroups = [
     { id: 'SAVORIA', name: 'SAVORIA (7 Salesman Rayon)' },
-    { id: 'SMC', name: 'SMC' },
+    { id: 'SCM', name: 'SCM' },
     { id: 'SAVORIA_OTHERS', name: 'SAVORIA (OTHERS)' }
   ];
   const groupSkus = db.query('SELECT DISTINCT group_sku FROM dim_product WHERE group_sku IS NOT NULL ORDER BY group_sku').map(r => r.group_sku);
@@ -272,6 +272,58 @@ router.get('/sales/performance', (req, res) => {
     const db = getDb();
     const f = buildFilterConditions(req.query);
 
+    // Inventory snapshot data for Stock on Hand & Stock Cover Days
+    const stockSnapshotRows = db.query(`
+      SELECT 
+        p.brand,
+        p.group_sku,
+        COALESCE(SUM(s.available_stock_ctn), 0) AS stock_on_hand
+      FROM fact_inventory_snapshot s
+      JOIN dim_product p ON s.item_code = p.item_code
+      GROUP BY p.brand, p.group_sku
+    `);
+
+    const groupStockMap = {};
+    const brandStockMap = {};
+
+    stockSnapshotRows.forEach(sr => {
+      const gKey = (sr.group_sku || '').toUpperCase().trim();
+      const bKey = (sr.brand || '').toUpperCase().trim();
+      groupStockMap[gKey] = (groupStockMap[gKey] || 0) + (sr.stock_on_hand || 0);
+      brandStockMap[bKey] = (brandStockMap[bKey] || 0) + (sr.stock_on_hand || 0);
+    });
+
+    function getStockInfo(groupSku, brand, targetCartons, actualCartons) {
+      const gNorm = (groupSku || '').toUpperCase().trim();
+      const bNorm = (brand || '').toUpperCase().trim();
+      let stock = 0;
+      if (gNorm && groupStockMap[gNorm] !== undefined) {
+        stock = groupStockMap[gNorm];
+      } else if (bNorm && brandStockMap[bNorm] !== undefined) {
+        stock = brandStockMap[bNorm];
+      } else {
+        for (const [k, v] of Object.entries(groupStockMap)) {
+          if ((gNorm && k.includes(gNorm)) || (gNorm && gNorm.includes(k))) {
+            stock = v;
+            break;
+          }
+        }
+        if (!stock) {
+          for (const [k, v] of Object.entries(brandStockMap)) {
+            if ((bNorm && k.includes(bNorm)) || (bNorm && bNorm.includes(k))) {
+              stock = v;
+              break;
+            }
+          }
+        }
+      }
+
+      const stockOnHand = Math.round(stock * 10) / 10;
+      const dailyRate = targetCartons > 0 ? targetCartons / 25 : (actualCartons > 0 ? actualCartons / 25 : 0);
+      const stockCoverDays = dailyRate > 0 ? Math.round((stockOnHand / dailyRate) * 10) / 10 : (stockOnHand > 0 ? 99 : 0);
+      return { stockOnHand, stockCoverDays };
+    }
+
     const aggCheck = db.query(
       'SELECT COUNT(*) as c FROM agg_monthly_sales_movement WHERE year = ? AND month = ?',
       [f.year, f.month]
@@ -312,15 +364,23 @@ router.get('/sales/performance', (req, res) => {
       }
 
       if (req.query.salesGroup) {
-        whereAgg.push('a.sales_group = ?');
-        paramsAgg.push(req.query.salesGroup);
-        whereAggYtd.push('a.sales_group = ?');
-        paramsAggYtd.push(req.query.salesGroup);
+        const isScm = req.query.salesGroup.toUpperCase() === 'SCM' || req.query.salesGroup.toUpperCase() === 'SMC';
+        if (isScm) {
+          whereAgg.push("a.sales_group IN ('SCM', 'SMC')");
+          whereAggYtd.push("a.sales_group IN ('SCM', 'SMC')");
+          whereTgt.push("t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group IN ('SCM', 'SMC'))");
+          whereTgtYtd.push("t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group IN ('SCM', 'SMC'))");
+        } else {
+          whereAgg.push('a.sales_group = ?');
+          paramsAgg.push(req.query.salesGroup);
+          whereAggYtd.push('a.sales_group = ?');
+          paramsAggYtd.push(req.query.salesGroup);
 
-        whereTgt.push('t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)');
-        paramsTgt.push(req.query.salesGroup);
-        whereTgtYtd.push('t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)');
-        paramsTgtYtd.push(req.query.salesGroup);
+          whereTgt.push('t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)');
+          paramsTgt.push(req.query.salesGroup);
+          whereTgtYtd.push('t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)');
+          paramsTgtYtd.push(req.query.salesGroup);
+        }
       }
 
       if (req.query.principal) {
@@ -432,6 +492,7 @@ router.get('/sales/performance', (req, res) => {
         const achv = tgt.cartons > 0 ? Math.round((act / tgt.cartons) * 1000) / 10 : 0;
         const valAchv = tgt.value > 0 ? Math.round((Math.max(r.sales_netto, 0) / tgt.value) * 1000) / 10 : 0;
         const contrib = totalCartons > 0 ? Math.round((act / totalCartons) * 1000) / 10 : 0;
+        const stockInfo = getStockInfo(r.group_sku, r.brand, tgt.cartons, act);
 
         return {
           principal: r.principal,
@@ -446,7 +507,9 @@ router.get('/sales/performance', (req, res) => {
           gapValue: Math.max(tgt.value - Math.max(r.sales_netto, 0), 0),
           salesNetto: Math.round(r.sales_netto),
           returnCartons: Math.round(r.return_cartons * 10) / 10,
-          contributionPct: contrib
+          contributionPct: contrib,
+          stockOnHand: stockInfo.stockOnHand,
+          stockCoverDays: stockInfo.stockCoverDays
         };
       });
 
@@ -494,6 +557,7 @@ router.get('/sales/performance', (req, res) => {
         const achv = tgt > 0 ? Math.round((act / tgt) * 1000) / 10 : 0;
         const valAchv = tgtVal > 0 ? Math.round((Math.max(g.salesNetto, 0) / tgtVal) * 1000) / 10 : 0;
         const contrib = totalCartons > 0 ? Math.round((act / totalCartons) * 1000) / 10 : 0;
+        const stockInfo = getStockInfo(g.groupSku, g.brand, tgt, act);
 
         const ytdActData = ytdGroupMap[g.groupSku] || { actualCartons: 0, salesNetto: 0 };
         const ytdTgt = matchTarget(g.groupSku, g.brand, ytdTargetRows, 'target_cartons_ytd', 'target_value_ytd');
@@ -514,6 +578,8 @@ router.get('/sales/performance', (req, res) => {
           gapCartons: Math.max(Math.round((tgt - act) * 10) / 10, 0),
           gapValue: Math.max(tgtVal - Math.max(g.salesNetto, 0), 0),
           contributionPct: contrib,
+          stockOnHand: stockInfo.stockOnHand,
+          stockCoverDays: stockInfo.stockCoverDays,
           ytd: {
             asOfMonth: f.month,
             targetCartons: ytdTgt.cartons,
@@ -628,6 +694,7 @@ router.get('/sales/performance', (req, res) => {
       const achv = tgt > 0 ? Math.round((act / tgt) * 1000) / 10 : 0;
       const valAchv = tgtVal > 0 ? Math.round((Math.max(r.sales_netto, 0) / tgtVal) * 1000) / 10 : 0;
       const contrib = totalCartons > 0 ? Math.round((act / totalCartons) * 1000) / 10 : 0;
+      const stockInfo = getStockInfo(r.group_sku, r.brand, tgt, act);
       return {
         principal: r.principal,
         brand: r.brand,
@@ -641,7 +708,9 @@ router.get('/sales/performance', (req, res) => {
         gapValue: Math.max(tgtVal - Math.max(r.sales_netto, 0), 0),
         salesNetto: Math.round(r.sales_netto),
         returnCartons: Math.round(r.return_cartons * 10) / 10,
-        contributionPct: contrib
+        contributionPct: contrib,
+        stockOnHand: stockInfo.stockOnHand,
+        stockCoverDays: stockInfo.stockCoverDays
       };
     });
 
@@ -692,8 +761,13 @@ router.get('/sales/performance', (req, res) => {
       paramsYtd.push(req.query.spvId);
     }
     if (req.query.salesGroup) {
-      whereYtd.push(`h.current_owner_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)`);
-      paramsYtd.push(req.query.salesGroup);
+      const isScm = req.query.salesGroup.toUpperCase() === 'SCM' || req.query.salesGroup.toUpperCase() === 'SMC';
+      if (isScm) {
+        whereYtd.push(`h.current_owner_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group IN ('SCM', 'SMC'))`);
+      } else {
+        whereYtd.push(`h.current_owner_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)`);
+        paramsYtd.push(req.query.salesGroup);
+      }
     }
     if (req.query.principal) {
       whereYtd.push(`p.principal = ?`);
@@ -805,6 +879,7 @@ router.get('/sales/performance', (req, res) => {
       const ytdGapCartons = Math.max(Math.round((ytdTgt - ytdAct) * 10) / 10, 0);
       const ytdGapValue = Math.max(ytdTgtVal - ytdVal, 0);
 
+      const stockInfo = getStockInfo(g.groupSku, g.brand, tgt, act);
       return {
         ...g,
         targetCartons: tgt,
@@ -815,6 +890,8 @@ router.get('/sales/performance', (req, res) => {
         gapCartons: Math.max(tgt - act, 0),
         gapValue: Math.max(tgtVal - Math.max(g.salesNetto, 0), 0),
         contributionPct: contrib,
+        stockOnHand: stockInfo.stockOnHand,
+        stockCoverDays: stockInfo.stockCoverDays,
         ytd: {
           asOfMonth: f.month,
           targetCartons: ytdTgt,
@@ -994,6 +1071,51 @@ router.get('/outlets', (req, res) => {
     const filteredCount = filteredItems.length;
     const paginatedItems = filteredItems.slice(offset, offset + limit);
 
+    const pageOutletIds = paginatedItems.map(p => p.outletId);
+    if (pageOutletIds.length > 0) {
+      const placeholders = pageOutletIds.map(() => '?').join(',');
+      const monthlyRows = db.query(`
+        SELECT 
+          h.outlet_id, 
+          h.period_month, 
+          COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS ctn
+        FROM fact_sales_header h
+        JOIN fact_sales_line l ON h.document_number = l.document_number
+        WHERE h.period_year = 2026 AND h.period_month <= 9 AND h.outlet_id IN (${placeholders})
+        GROUP BY h.outlet_id, h.period_month
+      `, pageOutletIds);
+
+      const monthlyMap = {};
+      monthlyRows.forEach(mr => {
+        if (!monthlyMap[mr.outlet_id]) monthlyMap[mr.outlet_id] = {};
+        monthlyMap[mr.outlet_id][mr.period_month] = Math.max(Math.round(mr.ctn * 10) / 10, 0);
+      });
+
+      paginatedItems.forEach(item => {
+        const m = monthlyMap[item.outletId] || {};
+        item.monthlySales = {
+          m1: m[1] || 0,
+          m2: m[2] || 0,
+          m3: m[3] || 0,
+          m4: m[4] || 0,
+          m5: m[5] || 0,
+          m6: m[6] || 0,
+          m7: m[7] || 0,
+          m8: m[8] || 0,
+          m9: m[9] || 0
+        };
+        const totalYtd = Object.values(item.monthlySales).reduce((a, b) => a + b, 0);
+        // Average last 3 months: 1 month before September (m9) is August (m8). L3M = m6, m7, m8
+        const avgL3M = Math.round(((item.monthlySales.m6 + item.monthlySales.m7 + item.monthlySales.m8) / 3) * 10) / 10;
+        // Average last 6 months: m3, m4, m5, m6, m7, m8
+        const avgL6M = Math.round(((item.monthlySales.m3 + item.monthlySales.m4 + item.monthlySales.m5 + item.monthlySales.m6 + item.monthlySales.m7 + item.monthlySales.m8) / 6) * 10) / 10;
+
+        item.totalYtdCartons = Math.round(totalYtd * 10) / 10;
+        item.avgLast3Months = avgL3M;
+        item.avgLast6Months = avgL6M;
+      });
+    }
+
     res.json({
       totalUniverse,
       filteredCount,
@@ -1049,100 +1171,212 @@ router.get('/outlets/:id/360', (req, res) => {
       daysSinceLastOrder = Math.max(Math.floor((today - d) / (1000 * 60 * 60 * 24)), 0);
     }
 
-    // Top 5 SKUs
-    const topSkus = db.query(
-      `SELECT
-         p.item_name,
-         COALESCE(SUM(l.sales_netto), 0) AS total_val,
-         COALESCE(SUM(l.carton_quantity), 0) AS total_ctn
-       FROM fact_sales_line l
-       JOIN fact_sales_header h ON l.document_number = h.document_number
-       JOIN dim_product p ON l.item_code = p.item_code
-       WHERE h.outlet_id = ? AND h.unit_type = 'Sales'
-       GROUP BY p.item_name
-       ORDER BY total_val DESC
-       LIMIT 5`,
-      [outletId]
-    );
+    // 1. Outlet sales summary in 2026:
+    const salesSummaryRow = db.query(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS total_cartons,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS total_netto,
+        COUNT(DISTINCT h.document_number) AS total_invoices,
+        COUNT(DISTINCT h.period_month) AS active_months
+      FROM fact_sales_header h
+      JOIN fact_sales_line l ON h.document_number = l.document_number
+      WHERE h.outlet_id = ? AND h.period_year = 2026
+    `, [outletId])[0] || {};
 
-    // Product Mix by Category
-    const productMix = [
-      { name: 'Kopi', pct: 42, color: '#2563EB' },
-      { name: 'Beverage', pct: 24, color: '#3B82F6' },
-      { name: 'Wafer / Biscuit', pct: 18, color: '#10B981' },
-      { name: 'Confectionery', pct: 10, color: '#F59E0B' },
-      { name: 'Lainnya', pct: 6, color: '#9CA3AF' }
-    ];
+    const totalCartons = Math.max(Math.round((salesSummaryRow.total_cartons || 0) * 10) / 10, 0);
+    const totalNetto = Math.max(Math.round(salesSummaryRow.total_netto || 0), 0);
+    const totalInvoices = salesSummaryRow.total_invoices || 0;
+    const activeMonths = salesSummaryRow.active_months || 1;
 
-    // Must Have Penetration (e.g. 4/6 Tersedia)
-    const mhLines = db.query(
-      `SELECT DISTINCT p.must_have_line
-       FROM fact_sales_line l
-       JOIN fact_sales_header h ON l.document_number = h.document_number
-       JOIN dim_product p ON l.item_code = p.item_code
-       WHERE h.outlet_id = ? AND p.must_have_line != 'NONE'`,
-      [outletId]
-    ).map(r => r.must_have_line);
+    const trenPenjualanJt = Math.round((totalNetto / 1000000) * 10) / 10;
+    const frekuensiOrderBulan = Math.round((totalInvoices / Math.max(activeMonths, 1)) * 10) / 10;
+    const rataRataDropJt = totalInvoices > 0 ? Math.round((totalNetto / totalInvoices / 1000000) * 10) / 10 : 0;
 
-    // AR & Overdue
+    // Calculate last 3 months growth (Jun-Aug vs Mar-May)
+    const l3mRow = db.query(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN h.period_month IN (6,7,8) THEN l.sales_netto ELSE 0 END), 0) AS l3m_val,
+        COALESCE(SUM(CASE WHEN h.period_month IN (3,4,5) THEN l.sales_netto ELSE 0 END), 0) AS p3m_val
+      FROM fact_sales_header h
+      JOIN fact_sales_line l ON h.document_number = l.document_number
+      WHERE h.outlet_id = ? AND h.period_year = 2026
+    `, [outletId])[0] || {};
+
+    const l3mVal = l3mRow.l3m_val || 0;
+    const p3mVal = l3mRow.p3m_val || 0;
+    const trenPenjualanGrowthPct = p3mVal > 0 ? Math.round(((l3mVal - p3mVal) / p3mVal) * 100) : (l3mVal > 0 ? 100 : 0);
+
+    // 2. Product mix by Brand (real data):
+    const brandMixRows = db.query(`
+      SELECT 
+        p.brand AS name,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS total_val
+      FROM fact_sales_line l
+      JOIN fact_sales_header h ON l.document_number = h.document_number
+      JOIN dim_product p ON l.item_code = p.item_code
+      WHERE h.outlet_id = ? AND h.period_year = 2026
+      GROUP BY p.brand
+      ORDER BY total_val DESC
+    `, [outletId]);
+
+    const brandColors = ['#2563EB', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#9CA3AF'];
+    const totalBrandVal = brandMixRows.reduce((s, b) => s + Math.max(b.total_val, 0), 0);
+    let productMix = brandMixRows.map((b, idx) => ({
+      name: b.name || 'Lain-lain',
+      pct: totalBrandVal > 0 ? Math.round((Math.max(b.total_val, 0) / totalBrandVal) * 100) : 0,
+      color: brandColors[idx % brandColors.length]
+    })).slice(0, 5);
+
+    if (productMix.length === 0) {
+      productMix = [
+        { name: 'Kopi Tubruk Gadjah', pct: 0, color: '#2563EB' },
+        { name: 'Milk Life', pct: 0, color: '#3B82F6' },
+        { name: 'Deli', pct: 0, color: '#10B981' }
+      ];
+    }
+
+    // 3. Top SKUs (real data):
+    const topSkusRows = db.query(`
+      SELECT
+        p.item_name,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS total_val,
+        COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS total_ctn
+      FROM fact_sales_line l
+      JOIN fact_sales_header h ON l.document_number = h.document_number
+      JOIN dim_product p ON l.item_code = p.item_code
+      WHERE h.outlet_id = ? AND h.period_year = 2026
+      GROUP BY p.item_name
+      ORDER BY total_val DESC
+      LIMIT 5
+    `, [outletId]);
+
+    const topSkus = topSkusRows.map((s, idx) => ({
+      rank: idx + 1,
+      sku: s.item_name,
+      penjualanJt: Math.round((Math.max(s.total_val, 0) / 1000000) * 10) / 10,
+      pct: totalBrandVal > 0 ? Math.round((Math.max(s.total_val, 0) / totalBrandVal) * 100) : 0
+    }));
+
+    // 4. Must Have Lines:
+    const mhLines = db.query(`
+      SELECT DISTINCT p.must_have_line
+      FROM fact_sales_line l
+      JOIN fact_sales_header h ON l.document_number = h.document_number
+      JOIN dim_product p ON l.item_code = p.item_code
+      WHERE h.outlet_id = ? AND p.must_have_line != 'NONE' AND p.must_have_line IS NOT NULL AND h.period_year = 2026
+    `, [outletId]).map(r => r.must_have_line);
+
+    const tersediaCount = mhLines.length;
+    const totalTargetCount = 6;
+    const penetrationPct = Math.round((tersediaCount / totalTargetCount) * 100);
+
+    // 5. NPL History (Deli Daily / NPL):
+    const nplOrders = db.query(`
+      SELECT COUNT(DISTINCT h.document_number) AS ro_count
+      FROM fact_sales_line l
+      JOIN fact_sales_header h ON l.document_number = h.document_number
+      JOIN dim_product p ON l.item_code = p.item_code
+      WHERE h.outlet_id = ? AND (p.group_sku LIKE '%NPL%' OR p.item_name LIKE '%DELI%' OR p.item_name LIKE '%NPL%') AND h.period_year = 2026
+    `, [outletId])[0]?.ro_count || 0;
+
+    // 6. AR & Overdue:
     const arRows = db.query('SELECT * FROM fact_ar_invoice WHERE outlet_id = ?', [outletId]);
-    const totalAr = arRows.reduce((s, r) => s + r.saldo_piutang, 0);
-    const overdueAr = arRows.filter(r => r.overdue_days > 0).reduce((s, r) => s + r.saldo_piutang, 0);
+    const totalAr = arRows.reduce((s, r) => s + (r.saldo_piutang || 0), 0);
+    const overdueAr = arRows.filter(r => (r.overdue_days || 0) > 0).reduce((s, r) => s + (r.saldo_piutang || 0), 0);
+    const overduePct = totalAr > 0 ? Math.round((overdueAr / totalAr) * 100) : 0;
+
+    // 7. Dynamic Recommendations:
+    const recommendations = [];
+    if (trenPenjualanGrowthPct > 0) {
+      recommendations.push({
+        type: 'SUCCESS',
+        title: 'Performa Positif',
+        desc: `Penjualan 3 bulan terakhir bertumbuh +${trenPenjualanGrowthPct}%. Pertahankan coverage rutin dan kontinuitas pengiriman.`
+      });
+    } else if (totalInvoices === 0) {
+      recommendations.push({
+        type: 'WARNING',
+        title: 'Outlet Belum Transaksi',
+        desc: 'Belum ada transaksi di tahun 2026. Lakukan re-aktivasi rute dan kenalkan produk starter pack promo.'
+      });
+    } else {
+      recommendations.push({
+        type: 'INFO',
+        title: 'Peluang Re-order',
+        desc: `Rata-rata drop Rp ${rataRataDropJt} Jt. Optimalkan penawaran bundling untuk meningkatkan omzet per nota.`
+      });
+    }
+
+    if (penetrationPct < 50) {
+      recommendations.push({
+        type: 'WARNING',
+        title: 'Must Have SKU Belum Lengkap',
+        desc: `Penetrasi Must Have baru ${penetrationPct}% (${tersediaCount}/${totalTargetCount}). Tawarkan varian Must Have yang belum masuk toko.`
+      });
+    } else {
+      recommendations.push({
+        type: 'SUCCESS',
+        title: 'Penetrasi Must Have Unggul',
+        desc: `${tersediaCount} dari ${totalTargetCount} item Must Have aktif dibeli (${penetrationPct}%).`
+      });
+    }
+
+    if (overdueAr > 0) {
+      recommendations.push({
+        type: 'WARNING',
+        title: 'Perhatian Piutang Overdue',
+        desc: `Terdapat piutang overdue sebesar Rp ${(overdueAr / 1000000).toFixed(1)} Jt (${overduePct}%). Prioritaskan penagihan sebelum pengiriman berikutnya.`
+      });
+    }
 
     res.json({
       identity: {
         outletId: outlet.outlet_id,
         canonicalName: outlet.canonical_name,
         aliases: aliases.map(a => a.source_customer_code),
-        salesmanName: outlet.salesman_name || 'Andi Agung Gumilar',
+        salesmanName: outlet.salesman_name || 'Belum Di-assign',
+        spvName: outlet.spv_name || '—',
         rayon: outlet.rayon_code || 'R01',
         kecamatan: outlet.kecamatan_name || 'Garut Kota',
         tipeOutlet: outlet.cluster_tier || 'Toko Kelontong (GT)',
-        statusKredit: 'Lancar',
+        statusKredit: overdueAr > 0 ? 'Perlu Perhatian' : 'Lancar',
         limitKredit: outlet.credit_limit || 50000000,
         topDays: outlet.term_of_payment || 30,
-        lastOrderDate: lastOrderRow ? lastOrderRow.last_date : '2026-05-25',
+        lastOrderDate: lastOrderRow ? lastOrderRow.last_date : null,
         daysSinceLastOrder,
-        status: daysSinceLastOrder >= 60 ? 'Dormant' : (daysSinceLastOrder > 20 ? 'Risiko' : 'Aktif')
+        status: daysSinceLastOrder === null ? 'Belum Pernah Order' : (daysSinceLastOrder >= 60 ? 'Dormant' : (daysSinceLastOrder > 20 ? 'Inaktif MTD' : 'Aktif'))
       },
       summaryMetrics: {
-        trenPenjualanJt: 28.5,
-        trenPenjualanGrowthPct: 12,
-        frekuensiOrderBulan: 3.6,
-        rataRataDropJt: 7.9
+        trenPenjualanJt,
+        trenPenjualanGrowthPct,
+        frekuensiOrderBulan,
+        rataRataDropJt,
+        totalCartons,
+        totalInvoices
       },
       productMix,
-      topSkus: topSkus.map((s, idx) => ({
-        rank: idx + 1,
-        sku: s.item_name,
-        penjualanJt: Math.round(s.total_val / 100000) / 10 || 4.2,
-        pct: 22
-      })),
+      topSkus,
       mustHave: {
-        tersediaCount: Math.max(mhLines.length, 4),
-        totalTargetCount: 6,
-        penetrationPct: 67
+        tersediaCount,
+        totalTargetCount,
+        penetrationPct
       },
       nplHistory: {
-        ro1Count: 1,
-        ro2Count: 0
+        ro1Count: nplOrders,
+        ro2Count: Math.max(nplOrders - 1, 0)
       },
       arOverdue: {
-        totalAr: totalAr || 18750000,
-        overdue: overdueAr || 2500000,
-        overduePct: 13,
+        totalAr,
+        overdue: overdueAr,
+        overduePct,
         buckets: [
-          { name: 'Current', nilai: 16250000, pct: 87 },
-          { name: '1 - 30 hari', nilai: 2500000, pct: 13 },
+          { name: 'Current', nilai: Math.max(totalAr - overdueAr, 0), pct: totalAr > 0 ? Math.round((Math.max(totalAr - overdueAr, 0) / totalAr) * 100) : 0 },
+          { name: '1 - 30 hari', nilai: overdueAr, pct: overduePct },
           { name: '31 - 60 hari', nilai: 0, pct: 0 },
           { name: '> 60 hari', nilai: 0, pct: 0 }
         ]
       },
-      recommendations: [
-        { type: 'SUCCESS', title: 'Performa Positif', desc: 'Penjualan 3 bulan terakhir naik 12%. Pertahankan coverage dan ketersediaan produk inti.' },
-        { type: 'INFO', title: 'Peluang Pertumbuhan', desc: 'Nilai drop masih 22% lebih rendah dari rata-rata outlet sejenis di rayon ini. Tingkatkan cross-selling.' },
-        { type: 'WARNING', title: 'Coverage Gap', desc: 'Outlet belum order 6 hari. Jadwalkan kunjungan untuk menjaga momentum stok.' }
-      ]
+      recommendations
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

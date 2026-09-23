@@ -688,9 +688,15 @@ async function openGarutMapModal(coverageData, totalStats) {
           <p class="text-xs text-slate-500">Visualisasi geografis 42 kecamatan dan penetrasi outlet aktif</p>
         </div>
       </div>
-      <button onclick="document.getElementById('modal-container').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100">
-        <i data-lucide="x" class="w-5 h-5"></i>
-      </button>
+      <div class="flex items-center gap-2">
+        <a href="https://www.google.com/maps/search/?api=1&query=Kabupaten+Garut" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition">
+          <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+          <span>Buka di Google Maps</span>
+        </a>
+        <button onclick="document.getElementById('modal-container').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-4">
@@ -714,6 +720,7 @@ async function openGarutMapModal(coverageData, totalStats) {
                   <th class="py-2 px-2 text-right">Outlet</th>
                   <th class="py-2 px-2 text-right">Coverage</th>
                   <th class="py-2 px-2 text-right">KTN</th>
+                  <th class="py-2 px-2 text-center w-8">Maps</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
@@ -726,6 +733,11 @@ async function openGarutMapModal(coverageData, totalStats) {
                     <td class="py-2 px-2 text-right text-slate-600">${k.activeOutlets}/${k.registeredOutlets}</td>
                     <td class="py-2 px-2 text-right font-bold ${k.coveragePct >= 60 ? 'text-emerald-600' : (k.coveragePct >= 40 ? 'text-amber-600' : (k.registeredOutlets > 0 ? 'text-rose-600' : 'text-slate-400'))}">${k.registeredOutlets > 0 ? k.coveragePct + '%' : '—'}</td>
                     <td class="py-2 px-2 text-right text-slate-700 font-semibold">${k.actualCartons || 0}</td>
+                    <td class="py-2 px-2 text-center" onclick="event.stopPropagation()">
+                      <a href="https://www.google.com/maps/search/?api=1&query=Kecamatan+${encodeURIComponent(k.name)}+Garut" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-emerald-600 p-1 inline-flex items-center" title="Buka di Google Maps">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                      </a>
+                    </td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -998,7 +1010,7 @@ async function renderBeranda() {
                   </span>
                   <div>
                     <p class="font-bold text-slate-800">${s.salesmanName}</p>
-                    <p class="text-[10px] text-slate-400">${s.spvName || 'SPV Nopan'} • Cov: ${s.activeOutlets}/${s.registeredOutlets} (${s.coveragePct}%)</p>
+                    <p class="text-[10px] text-slate-400">${(s.salesmanName?.includes('DSM') || s.salesGroup === 'SAVORIA_OTHERS' || s.salesGroup === 'SCM' || s.salesGroup === 'SMC' || !s.spvName) ? '—' : s.spvName} • Cov: ${s.activeOutlets}/${s.registeredOutlets} (${s.coveragePct}%)</p>
                   </div>
                 </div>
                 <div class="text-right">
@@ -1426,6 +1438,17 @@ async function renderOutlet() {
                 <th onclick="toggleOutletSort('rayon')" class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition whitespace-nowrap">Rayon ${sortIcon('rayon')}</th>
                 <th onclick="toggleOutletSort('kecamatan')" class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition whitespace-nowrap">Kecamatan ${sortIcon('kecamatan')}</th>
                 <th onclick="toggleOutletSort('cluster')" class="py-3 px-4 cursor-pointer hover:bg-slate-100 transition whitespace-nowrap">Cluster ${sortIcon('cluster')}</th>
+                <th class="py-3 px-2 text-right whitespace-nowrap font-semibold">Jan</th>
+                <th class="py-3 px-2 text-right whitespace-nowrap font-semibold">Feb</th>
+                <th class="py-3 px-2 text-right whitespace-nowrap font-semibold">Mar</th>
+                <th class="py-3 px-2 text-right whitespace-nowrap font-semibold">Apr</th>
+                <th class="py-3 px-2 text-right whitespace-nowrap font-semibold">Mei</th>
+                <th class="py-3 px-2 text-right whitespace-nowrap font-semibold">Jun</th>
+                <th class="py-3 px-2 text-right whitespace-nowrap font-semibold">Jul</th>
+                <th class="py-3 px-2 text-right whitespace-nowrap font-semibold">Agu</th>
+                <th class="py-3 px-2 text-right whitespace-nowrap font-bold bg-blue-50/60 text-blue-900">Sep</th>
+                <th class="py-3 px-3 text-right whitespace-nowrap font-bold bg-indigo-50/70 text-indigo-900">Avg 3 Bln</th>
+                <th class="py-3 px-3 text-right whitespace-nowrap font-bold bg-purple-50/70 text-purple-900">Avg 6 Bln</th>
                 <th onclick="toggleOutletSort('status')" class="py-3 px-4 text-center cursor-pointer hover:bg-slate-100 transition whitespace-nowrap">Status ${sortIcon('status')}</th>
                 <th onclick="toggleOutletSort('daysSinceLastOrder')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-100 transition whitespace-nowrap">Hari Sejak Order ${sortIcon('daysSinceLastOrder')}</th>
                 <th class="py-3 px-4 text-right">Aksi</th>
@@ -1449,6 +1472,17 @@ async function renderOutlet() {
                   <td class="py-3 px-4 font-bold text-blue-600">${o.rayon}</td>
                   <td class="py-3 px-4 text-slate-600">${o.kecamatan}</td>
                   <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium text-[10px]">${o.cluster}</span></td>
+                  <td class="py-3 px-2 text-right font-mono text-slate-600">${(o.monthlySales?.m1 || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-2 text-right font-mono text-slate-600">${(o.monthlySales?.m2 || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-2 text-right font-mono text-slate-600">${(o.monthlySales?.m3 || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-2 text-right font-mono text-slate-600">${(o.monthlySales?.m4 || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-2 text-right font-mono text-slate-600">${(o.monthlySales?.m5 || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-2 text-right font-mono text-slate-600">${(o.monthlySales?.m6 || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-2 text-right font-mono text-slate-600">${(o.monthlySales?.m7 || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-2 text-right font-mono text-slate-600">${(o.monthlySales?.m8 || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-2 text-right font-mono font-bold text-blue-700 bg-blue-50/30">${(o.monthlySales?.m9 || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-3 text-right font-mono font-extrabold text-indigo-700 bg-indigo-50/40">${(o.avgLast3Months || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-3 text-right font-mono font-extrabold text-purple-700 bg-purple-50/40">${(o.avgLast6Months || 0).toLocaleString('id-ID')}</td>
                   <td class="py-3 px-4 text-center">
                     <span class="px-2 py-0.5 rounded text-[10px] font-bold ${o.stateCode === 'ACTIVE' ? 'badge-success' : (o.stateCode === 'DORMANT_60D' ? 'badge-danger' : (o.stateCode === 'INACTIVE_MTD' ? 'badge-warning' : 'bg-slate-200 text-slate-700'))}">
                       ${o.status}
@@ -1515,6 +1549,9 @@ async function openOutlet360(outletId) {
           </div>
         </div>
         <div class="flex items-center gap-2">
+          <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(idn.canonicalName + ' ' + (idn.address || idn.kecamatan) + ' Garut')}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-lg hover:bg-emerald-100 transition flex items-center gap-1 shadow-sm">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Maps
+          </a>
           <button class="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">Bagikan</button>
           <button class="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition flex items-center gap-1 shadow-sm">
             <i data-lucide="plus" class="w-3.5 h-3.5"></i> Buat Kunjungan
@@ -2451,6 +2488,10 @@ function renderPenjualanContent() {
         </td>
         <td class="py-2.5 px-4 text-right font-mono font-medium">Rp ${(g.salesNetto / 1000000).toFixed(1)} Jt</td>
         <td class="py-2.5 px-4 text-right font-extrabold text-blue-700">${g.contributionPct}%</td>
+        <td class="py-2.5 px-4 text-right font-extrabold text-indigo-700 bg-indigo-50/30 font-mono">${(g.stockOnHand || 0).toLocaleString('id-ID')}</td>
+        <td class="py-2.5 px-4 text-right font-bold bg-indigo-50/30 ${(g.stockCoverDays || 0) < 7 ? 'text-rose-600' : ((g.stockCoverDays || 0) <= 25 ? 'text-emerald-600' : 'text-amber-600')}">
+          ${(g.stockCoverDays || 0).toLocaleString('id-ID')} hr
+        </td>
       </tr>
     `).join('');
   } else {
@@ -2465,7 +2506,7 @@ function renderPenjualanContent() {
           ${p.targetValue > 0 ? `<div class="text-[10px] text-slate-400 font-normal">Rp ${(p.targetValue / 1000000).toFixed(1)} Jt</div>` : ''}
         </td>
         <td class="py-2.5 px-4 text-right font-extrabold text-slate-900">${p.actualCartons.toLocaleString('id-ID')}</td>
-        <td class="py-2.5 px-4 text-right font-bold ${p.targetCartons > 0 ? (p.achievementPct >= 80 ? 'text-emerald-600' : 'text-amber-600') : 'text-slate-400'}">
+        <td class="py-2.5 px-4 text-right font-bold ${p.targetCartons > 0 ? (p.achievementPct >= 80 ? 'text-emerald-600' : (p.achievementPct >= 60 ? 'text-amber-600' : 'text-rose-600')) : 'text-slate-400'}">
           <div>${p.targetCartons > 0 ? p.achievementPct + '%' : 'N/A'}</div>
           ${p.targetValue > 0 ? `<div class="text-[10px] ${p.valueAchievementPct >= 80 ? 'text-emerald-600' : 'text-amber-600'} font-normal">Val: ${p.valueAchievementPct}%</div>` : ''}
         </td>
@@ -2475,6 +2516,10 @@ function renderPenjualanContent() {
         </td>
         <td class="py-2.5 px-4 text-right font-mono font-medium">Rp ${(p.salesNetto / 1000000).toFixed(1)} Jt</td>
         <td class="py-2.5 px-4 text-right font-extrabold text-blue-700">${p.contributionPct}%</td>
+        <td class="py-2.5 px-4 text-right font-extrabold text-indigo-700 bg-indigo-50/30 font-mono">${(p.stockOnHand || 0).toLocaleString('id-ID')}</td>
+        <td class="py-2.5 px-4 text-right font-bold bg-indigo-50/30 ${(p.stockCoverDays || 0) < 7 ? 'text-rose-600' : ((p.stockCoverDays || 0) <= 25 ? 'text-emerald-600' : 'text-amber-600')}">
+          ${(p.stockCoverDays || 0).toLocaleString('id-ID')} hr
+        </td>
       </tr>
     `).join('');
   }
@@ -2629,6 +2674,12 @@ function renderPenjualanContent() {
               </th>
               <th onclick="sortPenjualanTable('contributionPct')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition">
                 <div class="flex items-center justify-end">Kontribusi % ${sortIcon('contributionPct')}</div>
+              </th>
+              <th onclick="sortPenjualanTable('stockOnHand')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition bg-indigo-50/50">
+                <div class="flex items-center justify-end text-indigo-900">Stock on Hand (KTN) ${sortIcon('stockOnHand')}</div>
+              </th>
+              <th onclick="sortPenjualanTable('stockCoverDays')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition bg-indigo-50/50">
+                <div class="flex items-center justify-end text-indigo-900">Stock Cover (Hari) ${sortIcon('stockCoverDays')}</div>
               </th>
             </tr>
           </thead>
@@ -3407,8 +3458,8 @@ function renderSalesmanContent() {
         <button onclick="filterSalesmanByGroup('SAVORIA')" class="px-3 py-1.5 rounded-lg font-bold transition ${currentGrp === 'SAVORIA' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
           SAVORIA (7 Rayon)
         </button>
-        <button onclick="filterSalesmanByGroup('SMC')" class="px-3 py-1.5 rounded-lg font-bold transition ${currentGrp === 'SMC' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
-          SMC
+        <button onclick="filterSalesmanByGroup('SCM')" class="px-3 py-1.5 rounded-lg font-bold transition ${currentGrp === 'SCM' || currentGrp === 'SMC' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
+          SCM
         </button>
         <button onclick="filterSalesmanByGroup('SAVORIA_OTHERS')" class="px-3 py-1.5 rounded-lg font-bold transition ${currentGrp === 'SAVORIA_OTHERS' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
           SAVORIA (OTHERS)
@@ -3472,14 +3523,14 @@ function renderSalesmanContent() {
                 <td class="py-2.5 px-3 text-slate-400 text-center font-mono">${idx + 1}</td>
                 <td class="py-2.5 px-3">
                   <div class="font-bold text-slate-800">${s.salesmanName}</div>
-                  <div class="text-[10px] text-slate-400">${s.spvName || 'SPV Nopan'}</div>
+                  <div class="text-[10px] text-slate-400">${(s.salesmanName?.includes('DSM') || s.salesGroup === 'SAVORIA_OTHERS' || s.salesGroup === 'SCM' || s.salesGroup === 'SMC' || !s.spvName) ? '—' : s.spvName}</div>
                 </td>
                 <td class="py-2.5 px-3">
                   <span class="px-2 py-0.5 rounded text-[10px] font-bold ${s.salesmanType === 'Kanvas' ? 'bg-blue-50 text-blue-700 border border-blue-200' : (s.salesmanType === 'GT' ? 'bg-purple-50 text-purple-700 border border-purple-200' : (s.salesmanType === 'CB' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-600'))}">
                     ${s.salesmanType || 'Kanvas'}
                   </span>
                 </td>
-                <td class="py-2.5 px-3 font-semibold text-slate-600 text-[11px]">${s.salesGroup || 'SAVORIA'}</td>
+                <td class="py-2.5 px-3 font-semibold text-slate-600 text-[11px]">${s.salesGroup === 'SMC' ? 'SCM' : (s.salesGroup || 'SAVORIA')}</td>
                 <td class="py-2.5 px-3 text-right font-medium text-slate-700">${s.hasRayon ? s.targetCl + ' toko' : '—'}</td>
                 <td class="py-2.5 px-3 text-right font-semibold ${s.hasTarget && s.targetCartons !== null ? 'text-slate-800' : 'text-slate-400'}">
                   <div>${s.hasTarget && s.targetCartons !== null ? s.targetCartons.toLocaleString('id-ID') : '—'}</div>
@@ -3524,7 +3575,7 @@ function renderSalesmanContent() {
             <div class="flex items-center justify-between mb-2">
               <div>
                 <h4 class="font-bold text-slate-800 text-sm">${s.salesmanName}</h4>
-                <p class="text-[11px] text-slate-400 font-medium">${s.spvName || 'SPV Nopan'} • <span class="font-bold text-blue-600">${s.salesmanType || 'Kanvas'}</span></p>
+                <p class="text-[11px] text-slate-400 font-medium">${(s.salesmanName?.includes('DSM') || s.salesGroup === 'SAVORIA_OTHERS' || s.salesGroup === 'SCM' || s.salesGroup === 'SMC' || !s.spvName) ? '—' : s.spvName} • <span class="font-bold text-blue-600">${s.salesmanType || 'Kanvas'}</span></p>
               </div>
               <span class="${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= 80 ? 'badge-success' : 'badge-warning') : 'bg-slate-100 text-slate-500'} text-xs font-bold px-2 py-0.5 rounded">
                 ${s.hasTarget && s.achievementPct !== null ? s.achievementPct + '%' : 'N/A'}
@@ -3579,7 +3630,7 @@ async function openIncentiveModal(salesmanId) {
       <div class="border-b border-slate-200 pb-4 mb-4">
         <span class="text-[10px] font-bold uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Rincian Insentif Salesman</span>
         <h2 class="text-xl font-bold text-slate-800 mt-1">${data.salesmanName}</h2>
-        <p class="text-xs text-slate-500">${data.spvName || 'SPV Nopan'} • Periode: ${globalFilters.month}/${data.year}</p>
+        <p class="text-xs text-slate-500">${data.spvName || '—'} • Periode: ${globalFilters.month}/${data.year}</p>
       </div>
 
       <!-- Total Payout Banner -->
@@ -4029,7 +4080,7 @@ async function renderTrackerSubTab() {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div class="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
             <div class="flex justify-between items-center mb-2">
-              <span class="font-bold text-slate-800 text-sm">DELI Stick Wafer NPL</span>
+              <span class="font-bold text-slate-800 text-sm">Deli Daily NPL</span>
               <span class="badge-success text-[10px] font-bold px-2 py-0.5 rounded">Campaign Aktif</span>
             </div>
             <p class="text-slate-500 mb-2">Target M1: 70% • Target M3: 85%</p>

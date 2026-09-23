@@ -47,16 +47,23 @@ function buildFilterConditions(filters = {}) {
     paramsOutlet.push(filters.spvId);
   }
 
-  // Salesman Group filter (SAVORIA, SMC, SAVORIA_OTHERS)
+  // Salesman Group filter (SAVORIA, SCM, SAVORIA_OTHERS)
   if (filters.salesGroup) {
-    whereTx.push(`h.current_owner_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)`);
-    paramsTx.push(filters.salesGroup);
+    const isScm = filters.salesGroup.toUpperCase() === 'SCM' || filters.salesGroup.toUpperCase() === 'SMC';
+    if (isScm) {
+      whereTx.push(`h.current_owner_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group IN ('SCM', 'SMC'))`);
+      whereTgt.push(`t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group IN ('SCM', 'SMC'))`);
+      whereOutlet.push(`o.current_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group IN ('SCM', 'SMC'))`);
+    } else {
+      whereTx.push(`h.current_owner_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)`);
+      paramsTx.push(filters.salesGroup);
 
-    whereTgt.push(`t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)`);
-    paramsTgt.push(filters.salesGroup);
+      whereTgt.push(`t.salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)`);
+      paramsTgt.push(filters.salesGroup);
 
-    whereOutlet.push(`o.current_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)`);
-    paramsOutlet.push(filters.salesGroup);
+      whereOutlet.push(`o.current_salesman_id IN (SELECT salesman_id FROM org_salesman WHERE sales_group = ?)`);
+      paramsOutlet.push(filters.salesGroup);
+    }
   }
 
   // Product filters
@@ -130,8 +137,13 @@ function getExecutiveSummary(filters = {}) {
       paramsAgg.push(filters.spvId);
     }
     if (filters.salesGroup) {
-      whereAgg.push('a.sales_group = ?');
-      paramsAgg.push(filters.salesGroup);
+      const isScm = filters.salesGroup.toUpperCase() === 'SCM' || filters.salesGroup.toUpperCase() === 'SMC';
+      if (isScm) {
+        whereAgg.push(`a.sales_group IN ('SCM', 'SMC')`);
+      } else {
+        whereAgg.push('a.sales_group = ?');
+        paramsAgg.push(filters.salesGroup);
+      }
     }
     if (filters.principal) {
       whereAgg.push('a.principal = ?');
@@ -147,18 +159,30 @@ function getExecutiveSummary(filters = {}) {
     }
     const whereAggSql = 'WHERE ' + whereAgg.join(' AND ');
 
-    salesRes = db.query(`
+    const activeOutletRow = db.query(`
+      SELECT COUNT(DISTINCT h.outlet_id) AS active_outlets_mtd
+      FROM fact_sales_header h
+      JOIN dim_outlet o ON h.outlet_id = o.outlet_id
+      ${f.whereTxSql}
+    `, f.paramsTx)[0];
+    const activeOutletsMtd = activeOutletRow ? activeOutletRow.active_outlets_mtd : 0;
+
+    const baseAgg = db.query(`
       SELECT
         COALESCE(SUM(a.net_cartons), 0) AS net_cartons,
         COALESCE(SUM(a.gross_cartons), 0) AS gross_cartons,
         COALESCE(SUM(a.retur_cartons), 0) AS return_cartons,
         COALESCE(SUM(a.net_value), 0) AS net_value,
         COALESCE(SUM(a.dpp_value), 0) AS net_dpp,
-        COALESCE(SUM(a.total_invoices), 0) AS total_invoices,
-        COALESCE(SUM(a.active_outlets), 0) AS active_outlets_mtd
+        COALESCE(SUM(a.total_invoices), 0) AS total_invoices
       FROM agg_monthly_sales_movement a
       ${whereAggSql}
     `, paramsAgg)[0];
+
+    salesRes = {
+      ...baseAgg,
+      active_outlets_mtd: activeOutletsMtd
+    };
   } else {
     const salesSql = `
       SELECT
@@ -220,9 +244,7 @@ function getExecutiveSummary(filters = {}) {
 
   // 3. Registered Universe & Coverage (Requirement: Registered CL denominator reflects operational CL on Rayon: ~2,452 outlets)
   let registeredCl = 0;
-  if (!filters.salesmanId && !filters.spvId && !filters.kecamatanId && !filters.rayonId && !filters.salesGroup) {
-    registeredCl = 2452;
-  } else if (filters.salesmanId) {
+  if (filters.salesmanId) {
     const sInfo = db.query('SELECT target_cl, has_rayon FROM org_salesman WHERE salesman_id = ?', [filters.salesmanId])[0];
     if (sInfo && sInfo.target_cl > 0) {
       registeredCl = sInfo.target_cl;
@@ -236,7 +258,7 @@ function getExecutiveSummary(filters = {}) {
       const clRes = db.query(clSql, f.paramsOutlet)[0];
       registeredCl = clRes?.registered_outlets || 375;
     }
-  } else {
+  } else if (filters.rayonId || filters.kecamatanId) {
     const clSql = `
       SELECT COUNT(*) AS registered_outlets
       FROM dim_outlet o
@@ -245,6 +267,9 @@ function getExecutiveSummary(filters = {}) {
     `;
     const clRes = db.query(clSql, f.paramsOutlet)[0];
     registeredCl = clRes?.registered_outlets || 2452;
+  } else {
+    // For overall or any salesmanGroup filter: always use total master customer on Rayon (~2,452 CL)
+    registeredCl = 2452;
   }
   const activeOc = salesRes.active_outlets_mtd || 0;
   const rawCoverage = registeredCl > 0 ? (activeOc / registeredCl) * 100 : 0;
