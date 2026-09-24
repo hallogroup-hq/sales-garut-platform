@@ -159,15 +159,38 @@ function getExecutiveSummary(filters = {}) {
     }
     const whereAggSql = 'WHERE ' + whereAgg.join(' AND ');
 
-    const activeOutletRow = db.query(`
-      SELECT COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS active_outlets_mtd
-      FROM fact_sales_header h
-      JOIN dim_outlet o ON h.outlet_id = o.outlet_id
-      LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
-      LEFT JOIN dim_product p ON l.item_code = p.item_code
-      ${f.whereTxSql}
-    `, f.paramsTx)[0];
-    const activeOutletsMtd = activeOutletRow ? activeOutletRow.active_outlets_mtd : 0;
+    let activeOutletsMtd = 0;
+    try {
+      let daoRow;
+      if (filters.salesmanId) {
+        daoRow = db.query(
+          `SELECT distinct_active_outlets FROM fact_distinct_active_outlet 
+           WHERE year = ? AND month = ? AND salesman_id = ? AND group_sku = 'ALL' LIMIT 1`,
+          [f.year, f.month, filters.salesmanId]
+        )[0];
+      } else if (!filters.kecamatanId && !filters.rayonId && (!filters.brand && !filters.groupSku)) {
+        daoRow = db.query(
+          `SELECT distinct_active_outlets FROM fact_distinct_active_outlet 
+           WHERE year = ? AND month = ? AND salesman_id = 'DSO' AND group_sku = 'ALL' LIMIT 1`,
+          [f.year, f.month]
+        )[0];
+      }
+      if (daoRow && daoRow.distinct_active_outlets > 0) {
+        activeOutletsMtd = daoRow.distinct_active_outlets;
+      }
+    } catch (e) {}
+
+    if (!activeOutletsMtd) {
+      const activeOutletRow = db.query(`
+        SELECT COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS active_outlets_mtd
+        FROM fact_sales_header h
+        JOIN dim_outlet o ON h.outlet_id = o.outlet_id
+        LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
+        LEFT JOIN dim_product p ON l.item_code = p.item_code
+        ${f.whereTxSql}
+      `, f.paramsTx)[0];
+      activeOutletsMtd = activeOutletRow ? activeOutletRow.active_outlets_mtd : 0;
+    }
 
     const baseAgg = db.query(`
       SELECT
@@ -202,6 +225,25 @@ function getExecutiveSummary(filters = {}) {
       ${f.whereTxSql}
     `;
     salesRes = db.query(salesSql, f.paramsTx)[0];
+    try {
+      let daoRow;
+      if (filters.salesmanId) {
+        daoRow = db.query(
+          `SELECT distinct_active_outlets FROM fact_distinct_active_outlet 
+           WHERE year = ? AND month = ? AND salesman_id = ? AND group_sku = 'ALL' LIMIT 1`,
+          [f.year, f.month, filters.salesmanId]
+        )[0];
+      } else if (!filters.kecamatanId && !filters.rayonId && (!filters.brand && !filters.groupSku)) {
+        daoRow = db.query(
+          `SELECT distinct_active_outlets FROM fact_distinct_active_outlet 
+           WHERE year = ? AND month = ? AND salesman_id = 'DSO' AND group_sku = 'ALL' LIMIT 1`,
+          [f.year, f.month]
+        )[0];
+      }
+      if (daoRow && daoRow.distinct_active_outlets > 0) {
+        salesRes.active_outlets_mtd = daoRow.distinct_active_outlets;
+      }
+    } catch (e) {}
   }
 
   // 2. Target Aggregation (Requirement 2: Missing Target vs Zero Target)
@@ -364,7 +406,7 @@ function getTopSalesmen(filters = {}, limit = 50) {
   let rows;
   if (useAgg) {
     let aggGroupClause = '';
-    const aggParams = [f.year, f.month, f.year, f.month, f.year, f.month, f.year, f.month, f.startDate, f.endDate, f.year, f.month];
+    const aggParams = [f.year, f.month, f.year, f.month, f.year, f.month, f.year, f.month, f.year, f.month, f.startDate, f.endDate, f.year, f.month];
     if (filters.salesGroup) {
       aggGroupClause = ' AND s.sales_group = ?';
       aggParams.push(filters.salesGroup);
@@ -400,12 +442,20 @@ function getTopSalesmen(filters = {}, limit = 50) {
           WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
         ) AS target_value,
         COALESCE((
+          SELECT fdao.distinct_active_outlets
+          FROM fact_distinct_active_outlet fdao
+          WHERE fdao.salesman_id = s.salesman_id
+            AND fdao.year = ?
+            AND fdao.month = ?
+            AND fdao.group_sku = 'ALL'
+          LIMIT 1
+        ), (
           SELECT COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END)
           FROM fact_sales_header h
           WHERE h.current_owner_salesman_id = s.salesman_id
             AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
         ), 0) AS active_outlets,
-        (SELECT COUNT(*) FROM dim_outlet o WHERE o.current_salesman_id = s.salesman_id AND o.is_active_cl = 1) AS registered_outlets
+        COALESCE(s.target_cl, CASE WHEN s.salesman_id = '305028' THEN 200 ELSE 375 END) AS registered_outlets
       FROM org_salesman s
       LEFT JOIN org_spv spv ON s.spv_id = spv.spv_id
       LEFT JOIN agg_monthly_sales_movement a ON (
@@ -421,7 +471,7 @@ function getTopSalesmen(filters = {}, limit = 50) {
     rows = db.query(aggSql, aggParams);
   } else {
     let groupClause = '';
-    const queryParams = [f.year, f.month, f.year, f.month, f.year, f.month, f.year, f.month, f.startDate, f.endDate];
+    const queryParams = [f.year, f.month, f.year, f.month, f.year, f.month, f.year, f.month, f.year, f.month, f.startDate, f.endDate];
 
     if (filters.salesGroup) {
       groupClause = ' AND s.sales_group = ?';
@@ -457,8 +507,16 @@ function getTopSalesmen(filters = {}, limit = 50) {
           FROM fact_quantity_target t
           WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
         ) AS target_value,
-        COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS active_outlets,
-        (SELECT COUNT(*) FROM dim_outlet o WHERE o.current_salesman_id = s.salesman_id AND o.is_active_cl = 1) AS registered_outlets
+        COALESCE((
+          SELECT fdao.distinct_active_outlets
+          FROM fact_distinct_active_outlet fdao
+          WHERE fdao.salesman_id = s.salesman_id
+            AND fdao.year = ?
+            AND fdao.month = ?
+            AND fdao.group_sku = 'ALL'
+          LIMIT 1
+        ), COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END)) AS active_outlets,
+        COALESCE(s.target_cl, CASE WHEN s.salesman_id = '305028' THEN 200 ELSE 375 END) AS registered_outlets
       FROM org_salesman s
       LEFT JOIN org_spv spv ON s.spv_id = spv.spv_id
       LEFT JOIN fact_sales_header h ON s.salesman_id = h.current_owner_salesman_id AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))

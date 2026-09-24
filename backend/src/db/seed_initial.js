@@ -322,6 +322,80 @@ function seedInitialData() {
     );
   }
 
+  // Seed fact_distinct_active_outlet if empty
+  try {
+    const fdaoCount = db.query('SELECT COUNT(*) AS c FROM fact_distinct_active_outlet')[0];
+    if (!fdaoCount || fdaoCount.c === 0) {
+      console.log('Seeding fact_distinct_active_outlet...');
+      const data2026Salesmen = [
+        { id: '305032', name: 'ANDI AGUNG GUMILAR', months: { 1: 244, 2: 249, 3: 182, 4: 208, 5: 285, 6: 280, 7: 266, 8: 258, 9: 157 }, ytd: 407 },
+        { id: '305030', name: 'Ibna Faizal Rahman', months: { 1: 267, 2: 259, 3: 212, 4: 274, 5: 281, 6: 277, 7: 292, 8: 234, 9: 164 }, ytd: 404 },
+        { id: '305029', name: 'Mega Nugraha', months: { 1: 290, 2: 258, 3: 185, 4: 241, 5: 261, 6: 282, 7: 241, 8: 211, 9: 154 }, ytd: 381 },
+        { id: '107075', name: 'Muhamad Fikri Hambali', months: { 1: 329, 2: 308, 3: 190, 4: 249, 5: 318, 6: 306, 7: 330, 8: 262, 9: 190 }, ytd: 440 },
+        { id: '305033', name: 'Muhammad Zulfa Akbar', months: { 1: 273, 2: 252, 3: 178, 4: 248, 5: 248, 6: 293, 7: 259, 8: 181, 9: 139 }, ytd: 414 },
+        { id: '305028', name: 'Mulyana', months: { 1: 174, 2: 162, 3: 158, 4: 158, 5: 169, 6: 179, 7: 173, 8: 145, 9: 126 }, ytd: 219 },
+        { id: '305031', name: 'Risan Setiawan', months: { 1: 249, 2: 239, 3: 179, 4: 273, 5: 284, 6: 278, 7: 320, 8: 241, 9: 149 }, ytd: 412 }
+      ];
+      const data2026Dso = {
+        months: { 1: 1826, 2: 1727, 3: 1284, 4: 1651, 5: 1844, 6: 1895, 7: 1881, 8: 1532, 9: 1079 },
+        ytd: 2621
+      };
+      const data2025Salesmen = [
+        { id: '305032', name: 'ANDI AGUNG GUMILAR', months: { 1: 351, 2: 302, 3: 352, 4: 260, 5: 216, 6: 215, 7: 234, 8: 233, 9: 250, 10: 226, 11: 232, 12: 250 }, ytd: 504 },
+        { id: '305030', name: 'Ibna Faizal Rahman', months: { 1: 356, 2: 356, 3: 354, 4: 312, 5: 308, 6: 251, 7: 269, 8: 270, 9: 303, 10: 231, 11: 246, 12: 265 }, ytd: 520 },
+        { id: '305029', name: 'Mega Nugraha', months: { 1: 344, 2: 332, 3: 318, 4: 253, 5: 265, 6: 241, 7: 238, 8: 255, 9: 289, 10: 204, 11: 217, 12: 255 }, ytd: 498 },
+        { id: '107075', name: 'Muhamad Fikri Hambali', months: { 1: 392, 2: 392, 3: 388, 4: 368, 5: 379, 6: 307, 7: 300, 8: 309, 9: 306, 10: 282, 11: 296, 12: 291 }, ytd: 560 },
+        { id: '305033', name: 'Muhammad Zulfa Akbar', months: { 1: 330, 2: 352, 3: 297, 4: 259, 5: 248, 6: 231, 7: 231, 8: 232, 9: 257, 10: 98, 11: 192, 12: 275 }, ytd: 512 },
+        { id: '305028', name: 'Mulyana', months: { 1: 191, 2: 184, 3: 180, 4: 155, 5: 169, 6: 151, 7: 165, 8: 169, 9: 177, 10: 146, 11: 172, 12: 173 }, ytd: 280 },
+        { id: '305031', name: 'Risan Setiawan', months: { 1: 357, 2: 346, 3: 346, 4: 273, 5: 287, 6: 195, 7: 300, 8: 259, 9: 288, 10: 198, 11: 236, 12: 245 }, ytd: 515 }
+      ];
+      const data2025Dso = {
+        months: { 1: 3283, 2: 3048, 3: 2620, 4: 2425, 5: 3404, 6: 2589, 7: 3420, 8: 2276, 9: 2494, 10: 3317, 11: 3438, 12: 2735 },
+        ytd: 7802
+      };
+
+      const insertStmtSql = `
+        INSERT OR IGNORE INTO fact_distinct_active_outlet 
+        (id, year, month, period_key, salesman_id, salesman_name, sales_group, group_sku, distinct_active_outlets)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+
+      data2026Salesmen.forEach(sm => {
+        for (const [m, oa] of Object.entries(sm.months)) {
+          const monthNum = parseInt(m, 10);
+          const periodKey = `2026-${String(monthNum).padStart(2, '0')}`;
+          db.run(insertStmtSql, [`2026_${periodKey}_${sm.id}_ALL`, 2026, monthNum, periodKey, sm.id, sm.name, 'SAVORIA', 'ALL', oa]);
+        }
+        db.run(insertStmtSql, [`2026_YTD_${sm.id}_ALL`, 2026, null, '2026-YTD', sm.id, sm.name, 'SAVORIA', 'ALL', sm.ytd]);
+      });
+
+      for (const [m, oa] of Object.entries(data2026Dso.months)) {
+        const monthNum = parseInt(m, 10);
+        const periodKey = `2026-${String(monthNum).padStart(2, '0')}`;
+        db.run(insertStmtSql, [`2026_${periodKey}_DSO_ALL`, 2026, monthNum, periodKey, 'DSO', 'DSO GARUT', 'SAVORIA', 'ALL', oa]);
+      }
+      db.run(insertStmtSql, ['2026_YTD_DSO_ALL', 2026, null, '2026-YTD', 'DSO', 'DSO GARUT', 'SAVORIA', 'ALL', data2026Dso.ytd]);
+
+      data2025Salesmen.forEach(sm => {
+        for (const [m, oa] of Object.entries(sm.months)) {
+          const monthNum = parseInt(m, 10);
+          const periodKey = `2025-${String(monthNum).padStart(2, '0')}`;
+          db.run(insertStmtSql, [`2025_${periodKey}_${sm.id}_ALL`, 2025, monthNum, periodKey, sm.id, sm.name, 'SAVORIA', 'ALL', oa]);
+        }
+        db.run(insertStmtSql, [`2025_YTD_${sm.id}_ALL`, 2025, null, '2025-YTD', sm.id, sm.name, 'SAVORIA', 'ALL', sm.ytd]);
+      });
+
+      for (const [m, oa] of Object.entries(data2025Dso.months)) {
+        const monthNum = parseInt(m, 10);
+        const periodKey = `2025-${String(monthNum).padStart(2, '0')}`;
+        db.run(insertStmtSql, [`2025_${periodKey}_DSO_ALL`, 2025, monthNum, periodKey, 'DSO', 'DSO GARUT', 'SAVORIA', 'ALL', oa]);
+      }
+      db.run(insertStmtSql, ['2025_YTD_DSO_ALL', 2025, null, '2025-YTD', 'DSO', 'DSO GARUT', 'SAVORIA', 'ALL', data2025Dso.ytd]);
+    }
+  } catch (err) {
+    console.warn('Notice seeding fact_distinct_active_outlet:', err.message);
+  }
+
   console.log('Seeding completed successfully!');
 }
 

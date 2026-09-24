@@ -187,6 +187,18 @@ function getMovementAnalytics(options = {}) {
   const headerWhereSql = headerWhere.length > 0 ? `WHERE ${headerWhere.join(' AND ')}` : '';
 
   // 1. Branch / overall scope single-counted distinct active outlets per month
+  const branchOaMap = {};
+  try {
+    const dsoOaRows = db.query(`
+      SELECT period_key, distinct_active_outlets
+      FROM fact_distinct_active_outlet
+      WHERE salesman_id = 'DSO' AND group_sku = 'ALL' AND month IS NOT NULL
+    `);
+    dsoOaRows.forEach(r => {
+      branchOaMap[r.period_key] = r.distinct_active_outlets;
+    });
+  } catch (e) {}
+
   const branchOaSql = `
     SELECT
       printf('%04d-%02d', COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)), COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT))) AS period_key,
@@ -199,15 +211,31 @@ function getMovementAnalytics(options = {}) {
     GROUP BY period_key
   `;
   const branchOaRows = db.query(branchOaSql, headerParams);
-  const branchOaMap = {};
   branchOaRows.forEach(r => {
-    branchOaMap[r.period_key] = r.distinct_oa;
+    if (!branchOaMap[r.period_key]) {
+      branchOaMap[r.period_key] = r.distinct_oa;
+    }
   });
 
   // 2. Entity-level single-counted distinct active outlets per month
   let entityOaIdCol = 'h.current_owner_salesman_id';
   if (dimension === 'principal') entityOaIdCol = 'p.principal';
   else if (dimension === 'brand') entityOaIdCol = 'p.brand';
+
+  const entityOaMap = {};
+  if (dimension !== 'principal' && dimension !== 'brand') {
+    try {
+      const smOaRows = db.query(`
+        SELECT salesman_id, period_key, distinct_active_outlets
+        FROM fact_distinct_active_outlet
+        WHERE salesman_id != 'DSO' AND group_sku = 'ALL' AND month IS NOT NULL
+      `);
+      smOaRows.forEach(r => {
+        if (!entityOaMap[r.salesman_id]) entityOaMap[r.salesman_id] = {};
+        entityOaMap[r.salesman_id][r.period_key] = r.distinct_active_outlets;
+      });
+    } catch (e) {}
+  }
 
   const entityOaSql = `
     SELECT
@@ -222,11 +250,12 @@ function getMovementAnalytics(options = {}) {
     GROUP BY entity_id, period_key
   `;
   const entityOaRows = db.query(entityOaSql, headerParams);
-  const entityOaMap = {};
   entityOaRows.forEach(r => {
     if (!r.entity_id) return;
     if (!entityOaMap[r.entity_id]) entityOaMap[r.entity_id] = {};
-    entityOaMap[r.entity_id][r.period_key] = r.distinct_oa;
+    if (!entityOaMap[r.entity_id][r.period_key]) {
+      entityOaMap[r.entity_id][r.period_key] = r.distinct_oa;
+    }
   });
 
   // Targets query (for 2026)

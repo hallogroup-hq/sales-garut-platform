@@ -209,6 +209,23 @@ CREATE INDEX IF NOT EXISTS idx_agg_monthly_salesman ON agg_monthly_sales_movemen
 CREATE INDEX IF NOT EXISTS idx_agg_monthly_brand ON agg_monthly_sales_movement(brand);
 CREATE INDEX IF NOT EXISTS idx_agg_monthly_principal ON agg_monthly_sales_movement(principal);
 
+-- 6b. Single-Counted Distinct Active Outlets (Authoritative Truth from Raw Data Pivot)
+CREATE TABLE IF NOT EXISTS fact_distinct_active_outlet (
+    id VARCHAR(100) PRIMARY KEY,
+    year INTEGER NOT NULL,
+    month INTEGER,
+    period_key VARCHAR(10) NOT NULL,
+    salesman_id VARCHAR(50),
+    salesman_name VARCHAR(100),
+    sales_group VARCHAR(50) DEFAULT 'SAVORIA',
+    group_sku VARCHAR(100) DEFAULT 'ALL',
+    distinct_active_outlets INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_fdao_lookup ON fact_distinct_active_outlet(year, month, salesman_id);
+CREATE INDEX IF NOT EXISTS idx_fdao_period ON fact_distinct_active_outlet(period_key);
+
 -- 7. Targets
 CREATE TABLE IF NOT EXISTS fact_quantity_target (
     target_id VARCHAR(50) PRIMARY KEY,
