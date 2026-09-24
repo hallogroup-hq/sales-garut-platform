@@ -160,9 +160,11 @@ function getExecutiveSummary(filters = {}) {
     const whereAggSql = 'WHERE ' + whereAgg.join(' AND ');
 
     const activeOutletRow = db.query(`
-      SELECT COUNT(DISTINCT h.outlet_id) AS active_outlets_mtd
+      SELECT COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS active_outlets_mtd
       FROM fact_sales_header h
       JOIN dim_outlet o ON h.outlet_id = o.outlet_id
+      LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
+      LEFT JOIN dim_product p ON l.item_code = p.item_code
       ${f.whereTxSql}
     `, f.paramsTx)[0];
     const activeOutletsMtd = activeOutletRow ? activeOutletRow.active_outlets_mtd : 0;
@@ -192,7 +194,7 @@ function getExecutiveSummary(filters = {}) {
         COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS net_value,
         COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.dpp_amount ELSE -l.dpp_amount END), 0) AS net_dpp,
         COUNT(DISTINCT h.document_number) AS total_invoices,
-        COUNT(DISTINCT h.outlet_id) AS active_outlets_mtd
+        COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS active_outlets_mtd
       FROM fact_sales_line l
       JOIN fact_sales_header h ON l.document_number = h.document_number
       JOIN dim_product p ON l.item_code = p.item_code
@@ -398,7 +400,7 @@ function getTopSalesmen(filters = {}, limit = 50) {
           WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
         ) AS target_value,
         COALESCE((
-          SELECT COUNT(DISTINCT h.outlet_id)
+          SELECT COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END)
           FROM fact_sales_header h
           WHERE h.current_owner_salesman_id = s.salesman_id
             AND ((h.period_year = ? AND h.period_month = ?) OR (h.period_year IS NULL AND h.transaction_date >= ? AND h.transaction_date < ?))
@@ -455,7 +457,7 @@ function getTopSalesmen(filters = {}, limit = 50) {
           FROM fact_quantity_target t
           WHERE t.salesman_id = s.salesman_id AND t.year = ? AND t.month = ?
         ) AS target_value,
-        COUNT(DISTINCT h.outlet_id) AS active_outlets,
+        COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS active_outlets,
         (SELECT COUNT(*) FROM dim_outlet o WHERE o.current_salesman_id = s.salesman_id AND o.is_active_cl = 1) AS registered_outlets
       FROM org_salesman s
       LEFT JOIN org_spv spv ON s.spv_id = spv.spv_id
@@ -578,7 +580,7 @@ function getKecamatanCoverage(filters = {}) {
       k.kecamatan_id,
       k.name AS kecamatan_name,
       COUNT(DISTINCT o.outlet_id) AS registered_outlets,
-      COUNT(DISTINCT CASE WHEN h.document_number IS NOT NULL THEN o.outlet_id END) AS active_outlets,
+      COUNT(DISTINCT CASE WHEN h.document_number IS NOT NULL AND h.unit_type = 'Sales' THEN o.outlet_id END) AS active_outlets,
       COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS actual_cartons,
       COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS sales_value,
       COUNT(DISTINCT h.current_owner_salesman_id) AS active_salesmen_count
@@ -617,7 +619,7 @@ function getPerformanceByRayon(filters = {}) {
       r.rayon_id,
       r.code AS rayon_code,
       COUNT(DISTINCT o.outlet_id) AS registered_outlets,
-      COUNT(DISTINCT CASE WHEN h.document_number IS NOT NULL THEN o.outlet_id END) AS active_outlets,
+      COUNT(DISTINCT CASE WHEN h.document_number IS NOT NULL AND h.unit_type = 'Sales' THEN o.outlet_id END) AS active_outlets,
       COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS actual_cartons,
       COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS sales_value
     FROM dim_rayon r

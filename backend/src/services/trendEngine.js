@@ -142,6 +142,93 @@ function getMovementAnalytics(options = {}) {
 
   const rows = db.query(sql, params);
 
+  // Authentic Single-Counted Active Outlets (OA) Calculation from fact_sales_header
+  let headerWhere = [];
+  let headerParams = [];
+
+  if (periodRange === '2026') {
+    headerWhere.push('(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= 9)');
+  } else if (periodRange === '2025') {
+    headerWhere.push('COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025');
+  } else {
+    headerWhere.push('(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025 OR (COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= 9))');
+  }
+
+  if (options.spvId) {
+    headerWhere.push('s.spv_id = ?');
+    headerParams.push(options.spvId);
+  }
+
+  if (options.salesGroup) {
+    const isScm = options.salesGroup.toUpperCase() === 'SCM' || options.salesGroup.toUpperCase() === 'SMC';
+    if (isScm) {
+      headerWhere.push("s.sales_group IN ('SCM', 'SMC')");
+    } else {
+      headerWhere.push('s.sales_group = ?');
+      headerParams.push(options.salesGroup);
+    }
+  }
+
+  if (options.salesmanId) {
+    headerWhere.push('h.current_owner_salesman_id = ?');
+    headerParams.push(options.salesmanId);
+  }
+
+  if (options.principal) {
+    headerWhere.push('p.principal = ?');
+    headerParams.push(options.principal);
+  }
+
+  if (options.brand) {
+    headerWhere.push('p.brand = ?');
+    headerParams.push(options.brand);
+  }
+
+  const headerWhereSql = headerWhere.length > 0 ? `WHERE ${headerWhere.join(' AND ')}` : '';
+
+  // 1. Branch / overall scope single-counted distinct active outlets per month
+  const branchOaSql = `
+    SELECT
+      printf('%04d-%02d', COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)), COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT))) AS period_key,
+      COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS distinct_oa
+    FROM fact_sales_header h
+    LEFT JOIN org_salesman s ON h.current_owner_salesman_id = s.salesman_id
+    LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
+    LEFT JOIN dim_product p ON l.item_code = p.item_code
+    ${headerWhereSql}
+    GROUP BY period_key
+  `;
+  const branchOaRows = db.query(branchOaSql, headerParams);
+  const branchOaMap = {};
+  branchOaRows.forEach(r => {
+    branchOaMap[r.period_key] = r.distinct_oa;
+  });
+
+  // 2. Entity-level single-counted distinct active outlets per month
+  let entityOaIdCol = 'h.current_owner_salesman_id';
+  if (dimension === 'principal') entityOaIdCol = 'p.principal';
+  else if (dimension === 'brand') entityOaIdCol = 'p.brand';
+
+  const entityOaSql = `
+    SELECT
+      ${entityOaIdCol} AS entity_id,
+      printf('%04d-%02d', COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)), COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT))) AS period_key,
+      COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS distinct_oa
+    FROM fact_sales_header h
+    LEFT JOIN org_salesman s ON h.current_owner_salesman_id = s.salesman_id
+    LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
+    LEFT JOIN dim_product p ON l.item_code = p.item_code
+    ${headerWhereSql}
+    GROUP BY entity_id, period_key
+  `;
+  const entityOaRows = db.query(entityOaSql, headerParams);
+  const entityOaMap = {};
+  entityOaRows.forEach(r => {
+    if (!r.entity_id) return;
+    if (!entityOaMap[r.entity_id]) entityOaMap[r.entity_id] = {};
+    entityOaMap[r.entity_id][r.period_key] = r.distinct_oa;
+  });
+
   // Targets query (for 2026)
   let targetMap = {}; // entity_id -> { month -> target_cartons }
   if (periodRange !== '2025') {
@@ -205,22 +292,47 @@ function getMovementAnalytics(options = {}) {
       });
     }
 
+    const distinctOa = (entityOaMap[eId] && entityOaMap[eId][r.period_key]) ? entityOaMap[eId][r.period_key] : 0;
+
     const metricVal = metric === 'value'
       ? r.total_val
       : metric === 'oa'
-        ? r.max_oa
+        ? distinctOa
         : r.total_qty;
 
     entityData[eId].periods[r.period_key] = metricVal;
-    entityData[eId].oaByMonth[r.period_key] = r.max_oa;
+    entityData[eId].oaByMonth[r.period_key] = distinctOa;
     entityData[eId].totalQty += r.total_qty;
     entityData[eId].totalVal += r.total_val;
-    entityData[eId].totalOa += r.max_oa;
+    entityData[eId].totalOa += distinctOa;
 
-    monthlyTotals[r.period_key] = (monthlyTotals[r.period_key] || 0) + metricVal;
+    if (metric !== 'oa') {
+      monthlyTotals[r.period_key] = (monthlyTotals[r.period_key] || 0) + metricVal;
+    }
     grandTotalQty += r.total_qty;
     grandTotalVal += r.total_val;
   });
+
+  // Ensure all entities have accurate distinct OA across all timeline periods
+  Object.keys(entityData).forEach(eId => {
+    let entOaSum = 0;
+    periodKeys.forEach(pk => {
+      const distinctOa = (entityOaMap[eId] && entityOaMap[eId][pk]) ? entityOaMap[eId][pk] : 0;
+      entityData[eId].oaByMonth[pk] = distinctOa;
+      if (metric === 'oa') {
+        entityData[eId].periods[pk] = distinctOa;
+      }
+      entOaSum += distinctOa;
+    });
+    entityData[eId].totalOa = entOaSum;
+  });
+
+  // For 'oa' metric, set monthlyTotals directly to the authentic branch single-counted distinct count
+  if (metric === 'oa') {
+    periodKeys.forEach(pk => {
+      monthlyTotals[pk] = branchOaMap[pk] || 0;
+    });
+  }
 
   // Calculate targets per entity
   Object.keys(entityData).forEach(eId => {
@@ -308,11 +420,10 @@ function getMovementAnalytics(options = {}) {
     };
   });
 
-  // Calculate OA Average
+  // Calculate OA Average: Single-counted distinct active outlets per month
   const totalMonths = periodKeys.length || 1;
   const sumMonthlyOa = periodKeys.reduce((acc, pk) => {
-    // Count unique outlets active in that month
-    return acc + (monthlyTotals[pk] && metric === 'oa' ? monthlyTotals[pk] : 0);
+    return acc + (branchOaMap[pk] || 0);
   }, 0);
   const avgMonthlyOa = Math.round(sumMonthlyOa / totalMonths);
 
