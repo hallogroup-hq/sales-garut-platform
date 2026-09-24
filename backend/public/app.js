@@ -1709,8 +1709,16 @@ async function openOutlet360(outletId) {
 }
 
 function closeModal() {
-  document.getElementById('modal-container').classList.add('hidden');
+  const mc = document.getElementById('modal-container');
+  if (mc) mc.classList.add('hidden');
+  const am = document.getElementById('app-modal');
+  if (am) am.classList.add('hidden');
 }
+
+// Global Escape listener to close modals
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
 
 // ==============================================================
 // 3. DATA CENTER — IMPORT EXCEL WIZARD (media_1789300934965.jpg)
@@ -6354,82 +6362,287 @@ function renderSimulationSummaryAndTotals() {
   lucide.createIcons();
 }
 
-function openAddSkuToSimulationModal() {
-  const modal = document.getElementById('app-modal');
-  const modalTitle = document.getElementById('modal-title');
-  const modalContent = document.getElementById('modal-content');
+window.simModalFilter = {
+  search: '',
+  category: 'ALL'
+};
 
-  modalTitle.textContent = 'Tambah Produk ke Simulasi Order';
-  const { items } = window.pricelistState;
+async function openAddSkuToSimulationModal() {
+  const modal = document.getElementById('modal-container') || document.getElementById('app-modal');
+  const modalContent = document.getElementById('modal-content');
+  if (!modal || !modalContent) return;
+
+  // Make sure items are loaded
+  if (!window.pricelistState.items || window.pricelistState.items.length === 0) {
+    try {
+      const res = await fetch('/api/pricelist');
+      const data = await res.json();
+      window.pricelistState.items = data.items || [];
+      window.pricelistState.principals = data.principals || [];
+      window.pricelistState.initialized = true;
+    } catch (err) {
+      console.error('Failed to load pricelist:', err);
+    }
+  }
+
+  window.simModalFilter = { search: '', category: 'ALL' };
+  renderAddSkuModalBase();
+  modal.classList.remove('hidden');
+}
+
+function renderAddSkuModalBase() {
+  const modalContent = document.getElementById('modal-content');
+  if (!modalContent) return;
+
+  const totalItems = (window.pricelistState.items || []).length;
+  const currentCat = window.simModalFilter.category;
 
   modalContent.innerHTML = `
-    <div class="space-y-4">
+    <!-- Modal Header -->
+    <div class="flex items-center justify-between pb-3.5 border-b border-slate-200">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-sm shrink-0">
+          <i data-lucide="package-plus" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-slate-800">Tambah SKU ke Simulasi Order</h3>
+          <p class="text-xs text-slate-500">Pilih dari ${totalItems} SKU pricelist resmi Garut • Strata diskon volume otomatis terhitung</p>
+        </div>
+      </div>
+      <button onclick="closeModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition" title="Tutup (Esc)">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- Search & Category Filters -->
+    <div class="pt-3 pb-2 space-y-2.5">
       <div class="relative">
         <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-        <input type="text" id="sim-modal-search" oninput="filterAddSkuModalList(this.value)" placeholder="Ketik nama SKU atau kode..." class="w-full bg-slate-50 border border-slate-300 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-800 focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
+        <input 
+          type="text" 
+          id="sim-modal-search" 
+          value="${window.simModalFilter.search}" 
+          oninput="handleSimModalSearch(this.value)" 
+          placeholder="Cari nama produk, kode SKU, atau principal (cth: Caffino, Fox, Sariwangi, MilkLife)..." 
+          class="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition shadow-inner"
+        >
+        ${window.simModalFilter.search ? `
+          <button onclick="handleSimModalSearch('')" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <i data-lucide="x-circle" class="w-4 h-4"></i>
+          </button>
+        ` : ''}
       </div>
 
-      <div class="max-h-80 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg" id="sim-modal-list">
-        ${items.slice(0, 50).map(it => {
-          const cat = getItemStrataCategory(it);
-          return `
-            <div class="p-2.5 flex items-center justify-between hover:bg-slate-50 transition">
-              <div>
-                <div class="font-bold text-xs text-slate-900">${it.item_name}</div>
-                <div class="text-[10px] text-slate-500 font-mono mt-0.5">
-                  ${it.item_code} • ${it.principal} • Rp ${Math.round(it.price_carton_inc_ppn || 0).toLocaleString('id-ID')} / Ktn
-                </div>
-                <div class="mt-1">
-                  <span class="inline-flex px-1.5 py-0.2 rounded text-[9px] font-bold bg-${cat.color}-50 text-${cat.color}-800 border border-${cat.color}-200">
-                    Strata: ${cat.name}
-                  </span>
-                </div>
-              </div>
-              <button onclick="addToSimulation('${it.item_code}'); closeModal();" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition">
-                + Pilih
-              </button>
-            </div>
-          `;
-        }).join('')}
+      <!-- Category Filter Pills -->
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+        <button onclick="setSimModalCategory('ALL')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'ALL' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+          Semua SKU (${totalItems})
+        </button>
+        <button onclick="setSimModalCategory('KOPI_NON_RTD')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'KOPI_NON_RTD' ? 'bg-amber-600 text-white shadow-sm' : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'}">
+          ☕ Kopi (Gadjah & Caffino)
+        </button>
+        <button onclick="setSimModalCategory('BEVERAGE_RTD_MILKLIFE')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'BEVERAGE_RTD_MILKLIFE' ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'}">
+          🥛 RTD & MilkLife
+        </button>
+        <button onclick="setSimModalCategory('PRIMA_TOP_BOGA')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'PRIMA_TOP_BOGA' ? 'bg-purple-600 text-white shadow-sm' : 'bg-purple-50 text-purple-900 hover:bg-purple-100 border border-purple-200'}">
+          🍞 Prima Top (5Days, Deli)
+        </button>
+        <button onclick="setSimModalCategory('CANDY_FOXS')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'CANDY_FOXS' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'}">
+          🍬 Permen FOX'S
+        </button>
+        <button onclick="setSimModalCategory('UNILEVER')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'UNILEVER' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200'}">
+          🍵 Unilever Indonesia
+        </button>
       </div>
+    </div>
+
+    <!-- Product List Items Container -->
+    <div id="sim-modal-list-container" class="max-h-[50vh] overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl my-2 scrollbar-thin">
+      <!-- Injected by renderAddSkuModalItems -->
+    </div>
+
+    <!-- Bottom Cart Summary & Done Button -->
+    <div id="sim-modal-footer" class="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/90 -mx-6 -mb-6 p-4 rounded-b-2xl">
+      <!-- Injected by renderAddSkuModalFooter -->
     </div>
   `;
 
-  modal.classList.remove('hidden');
+  renderAddSkuModalItems();
+  renderAddSkuModalFooter();
   lucide.createIcons();
+
+  setTimeout(() => {
+    const inp = document.getElementById('sim-modal-search');
+    if (inp) inp.focus();
+  }, 60);
 }
 
-function filterAddSkuModalList(query) {
-  const container = document.getElementById('sim-modal-list');
+function renderAddSkuModalItems() {
+  const container = document.getElementById('sim-modal-list-container');
   if (!container) return;
 
-  const q = (query || '').toLowerCase();
-  const { items } = window.pricelistState;
-  const filtered = items.filter(i => 
-    (i.item_code || '').toLowerCase().includes(q) ||
-    (i.item_name || '').toLowerCase().includes(q) ||
-    (i.principal || '').toLowerCase().includes(q)
-  );
+  const { items, simulationItems } = window.pricelistState;
+  const q = (window.simModalFilter.search || '').toLowerCase().trim();
+  const catFilter = window.simModalFilter.category || 'ALL';
 
-  container.innerHTML = filtered.slice(0, 50).map(it => {
+  let filtered = (items || []).filter(it => {
+    if (q) {
+      const match = (it.item_code || '').toLowerCase().includes(q) ||
+                    (it.item_name || '').toLowerCase().includes(q) ||
+                    (it.principal || '').toLowerCase().includes(q) ||
+                    (it.brand || '').toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    if (catFilter !== 'ALL') {
+      const cat = getItemStrataCategory(it);
+      if (cat.id !== catFilter) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="py-12 text-center text-slate-400">
+        <i data-lucide="package-search" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+        <p class="text-xs font-semibold">Tidak ada produk yang cocok dengan pencarian.</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">Coba kata kunci lain atau pilih kategori "Semua SKU".</p>
+      </div>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  const displayItems = filtered.slice(0, 80);
+
+  container.innerHTML = displayItems.map(it => {
     const cat = getItemStrataCategory(it);
+    const existing = (simulationItems || []).find(s => s.item_code === it.item_code);
+    const currentQty = existing ? existing.qty : 0;
+    const priceKtn = it.price_carton_inc_ppn || 0;
+
     return `
-      <div class="p-2.5 flex items-center justify-between hover:bg-slate-50 transition">
-        <div>
-          <div class="font-bold text-xs text-slate-900">${it.item_name}</div>
-          <div class="text-[10px] text-slate-500 font-mono mt-0.5">
-            ${it.item_code} • ${it.principal} • Rp ${Math.round(it.price_carton_inc_ppn || 0).toLocaleString('id-ID')} / Ktn
-          </div>
-          <div class="mt-1">
-            <span class="inline-flex px-1.5 py-0.2 rounded text-[9px] font-bold bg-${cat.color}-50 text-${cat.color}-800 border border-${cat.color}-200">
-              Strata: ${cat.name}
+      <div class="p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition ${existing ? 'bg-blue-50/40' : ''}">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-xs text-slate-900 truncate" title="${it.item_name}">${it.item_name}</span>
+            <span class="inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold bg-${cat.color}-100 text-${cat.color}-800 border border-${cat.color}-200 shrink-0">
+              ${cat.name.split(' (')[0]}
             </span>
           </div>
+          <div class="text-[10px] text-slate-500 font-mono mt-0.5 flex flex-wrap items-center gap-x-2">
+            <span class="text-blue-700 font-semibold">${it.item_code}</span>
+            <span>•</span>
+            <span>${it.principal}</span>
+            <span>•</span>
+            <span class="font-bold text-slate-700">Rp ${Math.round(priceKtn).toLocaleString('id-ID')} / Ktn</span>
+            ${it.packaging ? `<span>• Isi: ${it.packaging}</span>` : ''}
+          </div>
         </div>
-        <button onclick="addToSimulation('${it.item_code}'); closeModal();" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition">
-          + Pilih
-        </button>
+
+        <div class="shrink-0 flex items-center gap-2">
+          ${existing ? `
+            <div class="flex items-center gap-1.5 bg-blue-100/80 border border-blue-200 rounded-lg p-1">
+              <button onclick="decrementSkuFromModal('${it.item_code}')" class="w-6 h-6 rounded bg-white hover:bg-rose-50 hover:text-rose-600 text-blue-900 font-bold flex items-center justify-center text-xs transition shadow-sm" title="Kurangi 1 ktn">-</button>
+              <span class="w-12 text-center font-bold text-xs text-blue-950 font-mono">${currentQty} ktn</span>
+              <button onclick="incrementSkuFromModal('${it.item_code}')" class="w-6 h-6 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center justify-center text-xs transition shadow-sm" title="Tambah 1 ktn">+</button>
+            </div>
+          ` : `
+            <button onclick="addSkuFromModal('${it.item_code}')" class="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+              <span>Pilih</span>
+            </button>
+          `}
+        </div>
       </div>
     `;
   }).join('');
+
+  lucide.createIcons();
+}
+
+function renderAddSkuModalFooter() {
+  const footer = document.getElementById('sim-modal-footer');
+  if (!footer) return;
+
+  const { simulationItems } = window.pricelistState;
+  let totalKtn = 0;
+  let totalModal = 0;
+  (simulationItems || []).forEach(it => {
+    const qty = it.qty || 1;
+    const disc = it.discPct || 0;
+    const priceKtn = it.price_carton_inc_ppn || 0;
+    totalKtn += qty;
+    totalModal += (priceKtn * (1 - disc / 100)) * qty;
+  });
+
+  footer.innerHTML = `
+    <div class="text-xs text-slate-600 flex items-center gap-2">
+      <div class="w-2 h-2 rounded-full ${simulationItems.length > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}"></div>
+      <span>Total di Keranjang: <strong class="text-blue-900 font-mono text-sm">${totalKtn} Ktn</strong> (${simulationItems.length} SKU) • Estimasi Modal: <strong class="text-emerald-700 font-mono">Rp ${Math.round(totalModal).toLocaleString('id-ID')}</strong></span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="closeModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5">
+        <i data-lucide="check" class="w-4 h-4"></i>
+        <span>Selesai & Lihat Simulasi</span>
+      </button>
+    </div>
+  `;
+  lucide.createIcons();
+}
+
+function handleSimModalSearch(val) {
+  window.simModalFilter.search = val || '';
+  const searchInput = document.getElementById('sim-modal-search');
+  if (searchInput && searchInput.value !== window.simModalFilter.search) {
+    searchInput.value = window.simModalFilter.search;
+  }
+  renderAddSkuModalItems();
+}
+
+function setSimModalCategory(catKey) {
+  window.simModalFilter.category = catKey;
+  renderAddSkuModalBase();
+}
+
+function addSkuFromModal(itemCode) {
+  addToSimulation(itemCode);
+  renderAddSkuModalItems();
+  renderAddSkuModalFooter();
+}
+
+function incrementSkuFromModal(itemCode) {
+  const item = window.pricelistState.simulationItems.find(i => i.item_code === itemCode);
+  if (item) {
+    item.qty += 1;
+    if (window.pricelistState.autoApplyStrata) {
+      const cat = getItemStrataCategory(item);
+      item.discPct = getStrataDiscountInfo(cat, item.qty).discPct;
+    }
+  }
+  renderSimulationSummaryAndTotals();
+  renderAddSkuModalItems();
+  renderAddSkuModalFooter();
+}
+
+function decrementSkuFromModal(itemCode) {
+  const idx = window.pricelistState.simulationItems.findIndex(i => i.item_code === itemCode);
+  if (idx !== -1) {
+    const item = window.pricelistState.simulationItems[idx];
+    if (item.qty > 1) {
+      item.qty -= 1;
+      if (window.pricelistState.autoApplyStrata) {
+        const cat = getItemStrataCategory(item);
+        item.discPct = getStrataDiscountInfo(cat, item.qty).discPct;
+      }
+    } else {
+      window.pricelistState.simulationItems.splice(idx, 1);
+    }
+  }
+  renderSimulationSummaryAndTotals();
+  renderAddSkuModalItems();
+  renderAddSkuModalFooter();
+}
+
+function filterAddSkuModalList(query) {
+  handleSimModalSearch(query);
 }
