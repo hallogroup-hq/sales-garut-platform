@@ -5285,18 +5285,154 @@ function toggleAlertsMenu() {
 }
 
 // ==============================================================
-// 11. PRICELIST & SIMULATION (KATALOG & KALKULATOR ORDER TOKO)
+// 11. PRICELIST & SIMULATION (KATALOG, STRATA DISKON & KALKULATOR ORDER TOKO)
 // ==============================================================
 window.pricelistState = {
-  subTab: 'katalog', // 'katalog' | 'simulasi'
+  subTab: 'katalog', // 'katalog' | 'strata' | 'simulasi'
   selectedPrincipal: 'ALL',
   searchTerm: '',
   items: [],
   principals: [],
+  strataRules: null,
   simulationItems: [],
   simulationOutlet: '',
+  autoApplyStrata: true,
+  strataCalcCategory: 'KOPI_NON_RTD',
+  strataCalcQty: 5,
   initialized: false
 };
+
+const CLIENT_STRATA_RULES = {
+  KOPI_NON_RTD: {
+    id: 'KOPI_NON_RTD',
+    name: 'Kopi Bubuk / Sachet (Non-RTD)',
+    brandScope: 'Kopi Gadjah & Caffino (selain beverage/RTD)',
+    color: 'amber',
+    icon: 'coffee',
+    description: 'Semua varian kopi sachet, bag, pouch, renteng, dan box Kopi Tubruk Gadjah dan Caffino (non-RTD).',
+    tiers: [
+      { min: 0, max: 1.999, discPct: 0, label: '0 - 1 ktn', badge: '0% Diskon', desc: 'Tidak ada diskon' },
+      { min: 2, max: 7.999, discPct: 2, label: '2 - 7 ktn', badge: '2% Diskon', desc: 'Diskon dasar toko' },
+      { min: 8, max: 14.999, discPct: 3, label: '8 - 14 ktn', badge: '3% Diskon', desc: 'Diskon grosir medium' },
+      { min: 15, max: Infinity, discPct: 4, label: '≥ 15 ktn', badge: '4% Diskon', desc: 'Diskon maksimal grosir besar' }
+    ]
+  },
+  BEVERAGE_RTD_MILKLIFE: {
+    id: 'BEVERAGE_RTD_MILKLIFE',
+    name: 'Beverage RTD, MilkLife UHT & Yoghurt',
+    brandScope: 'MilkLife UHT/ESL, Yoghurt Drink, Oat Life & RTD Botol',
+    color: 'blue',
+    icon: 'milk',
+    description: 'Semua produk cair siap minum (RTD), MilkLife ESL/UHT (Kids, Teens, Full Cream), Yoghurt Drink, dan RTD botol.',
+    tiers: [
+      { min: 0, max: 0.999, discPct: 0, label: '< 1 ktn', badge: '0% Diskon', desc: 'Tidak ada diskon' },
+      { min: 1, max: 2.999, discPct: 1, label: '1 - 2 ktn', badge: '1% Diskon', desc: 'Diskon toko kecil' },
+      { min: 3, max: 9.999, discPct: 2, label: '3 - 9 ktn', badge: '2% Diskon', desc: 'Diskon kartonan' },
+      { min: 10, max: Infinity, discPct: 3, label: '≥ 10 ktn', badge: '3% Diskon', desc: 'Diskon volume grosir' }
+    ]
+  },
+  PRIMA_TOP_BOGA: {
+    id: 'PRIMA_TOP_BOGA',
+    name: 'Principal Prima Top Boga',
+    brandScope: '5Days Croissant, Mini Choco & Deli Daily',
+    color: 'rose',
+    icon: 'croissant',
+    description: 'Semua produk roti croissant 5Days, 5Days Mini Chocolate, dan wafer/snack Deli Daily.',
+    tiers: [
+      { min: 0, max: 0.999, discPct: 0, label: '< 1 ktn', badge: '0% Diskon', desc: 'Tidak ada diskon' },
+      { min: 1, max: 4.999, discPct: 2, label: '1 - 4 ktn', badge: '2% Diskon', desc: 'Diskon order paket toko' },
+      { min: 5, max: Infinity, discPct: 3, label: '≥ 5 ktn', badge: '3% Diskon', desc: 'Diskon grosir roti & snack' }
+    ]
+  },
+  CANDY_FOXS: {
+    id: 'CANDY_FOXS',
+    name: 'Semua Candy FOX\'S',
+    brandScope: 'FOX\'S Bag, Tin, Stickpack, Spring Tea & Mints',
+    color: 'emerald',
+    icon: 'candy',
+    description: 'Semua varian permen kristal FOX\'S (Fruits, Berries, Mint, Tin, Bag, Stickpack) dan permen SHOT.',
+    tiers: [
+      { min: 0, max: 0.999, discPct: 0, label: '< 1 ktn', badge: '0% Diskon', desc: 'Tidak ada diskon' },
+      { min: 1, max: 4.999, discPct: 2, label: '1 - 4 ktn', badge: '2% Diskon', desc: 'Diskon toples/bag reguler' },
+      { min: 5, max: Infinity, discPct: 3, label: '≥ 5 ktn', badge: '3% Diskon', desc: 'Diskon grosir permen' }
+    ]
+  },
+  UNILEVER: {
+    id: 'UNILEVER',
+    name: 'Semua Produk Unilever Indonesia',
+    brandScope: 'SariWangi, SariMurni, SariMelati',
+    color: 'purple',
+    icon: 'coffee',
+    description: 'Semua varian teh celup dan teh kantong resmi Unilever Indonesia (SariWangi, SariMelati, SariMurni).',
+    tiers: [
+      { min: 0, max: 5.999, discPct: 0, label: '0 - 5 ktn', badge: '0% Diskon', desc: 'Order ritel standar' },
+      { min: 6, max: 19.999, discPct: 2, label: '6 - 19 ktn', badge: '2% Diskon', desc: 'Diskon grosir awal' },
+      { min: 20, max: 49.999, discPct: 3, label: '20 - 49 ktn', badge: '3% Diskon', desc: 'Diskon grosir menengah' },
+      { min: 50, max: Infinity, discPct: 5, label: '≥ 50 ktn', badge: '5% Diskon', desc: 'Diskon grosir utama (Big Order)' }
+    ]
+  }
+};
+
+function getItemStrataCategory(it) {
+  if (!it) return CLIENT_STRATA_RULES.KOPI_NON_RTD;
+  const p = (it.principal || '').toUpperCase();
+  const b = (it.brand || '').toUpperCase();
+  const name = (it.item_name || '').toUpperCase();
+
+  // 1. Beverage RTD & MilkLife
+  if (p === 'GLOBAL DAIRY ALAMI' || name.includes(' RTD') || name.includes('CAF RTD') || name.includes('BEVERAGE') || 
+      name.includes('HYDROPLUS') || name.includes('YUZU') || name.includes('ISOTONIC') || name.includes('TEA MIX') || 
+      name.includes('ORANGE GO') || name.includes('CHOCOLUV')) {
+    return CLIENT_STRATA_RULES.BEVERAGE_RTD_MILKLIFE;
+  }
+  // 2. Candy FOX'S
+  if (b.includes('FOX') || name.includes('FOX') || name.includes('SHOT MINT')) {
+    return CLIENT_STRATA_RULES.CANDY_FOXS;
+  }
+  // 3. Prima Top Boga (5Days, Deli Daily)
+  if (p === 'PRIMA TOP BOGA' || b.includes('5DAYS') || b.includes('DELI') || name.includes('5DAYS') || name.includes('DELI')) {
+    return CLIENT_STRATA_RULES.PRIMA_TOP_BOGA;
+  }
+  // 4. Unilever
+  if (p === 'UNILEVER INDONESIA' || b.includes('SARI') || name.includes('SARIWANGI') || name.includes('SARIMELATI') || name.includes('SARIMURNI')) {
+    return CLIENT_STRATA_RULES.UNILEVER;
+  }
+  // 5. Kopi Non-RTD
+  if (p === 'SUMBER KOPI PRIMA' || b.includes('CAFFINO') || b.includes('GADJAH') || name.includes('CAFFINO') || name.includes('GADJAH') || name.includes('KOPI')) {
+    return CLIENT_STRATA_RULES.KOPI_NON_RTD;
+  }
+  return CLIENT_STRATA_RULES.CANDY_FOXS;
+}
+
+function getStrataDiscountInfo(categoryObj, qty) {
+  const q = parseFloat(qty) || 0;
+  const category = categoryObj || CLIENT_STRATA_RULES.KOPI_NON_RTD;
+  const tiers = category.tiers || [];
+
+  let matchedTier = tiers[0];
+  let matchedIndex = 0;
+  for (let i = 0; i < tiers.length; i++) {
+    const t = tiers[i];
+    if (q >= t.min && q <= t.max) {
+      matchedTier = t;
+      matchedIndex = i;
+      break;
+    }
+  }
+
+  const nextTier = matchedIndex < tiers.length - 1 ? tiers[matchedIndex + 1] : null;
+  const neededToNext = nextTier ? Math.max(0, Math.ceil(nextTier.min - q)) : 0;
+
+  return {
+    category,
+    qty: q,
+    discPct: matchedTier.discPct,
+    currentTier: matchedTier,
+    nextTier,
+    neededToNext,
+    hint: nextTier && neededToNext > 0 ? `+ ${neededToNext} ktn lagi ke diskon ${nextTier.discPct}%` : 'Maksimal tier'
+  };
+}
 
 async function renderPricelist() {
   const main = document.getElementById('main-content');
@@ -5312,8 +5448,16 @@ async function renderPricelist() {
       if (window.pricelistState.simulationItems.length === 0 && window.pricelistState.items.length > 0) {
         const sample1 = window.pricelistState.items.find(i => i.item_code === '30000000') || window.pricelistState.items[0];
         const sample2 = window.pricelistState.items.find(i => i.item_code === '40399') || window.pricelistState.items[1];
-        if (sample1) window.pricelistState.simulationItems.push({ ...sample1, qty: 5, discPct: 0 });
-        if (sample2) window.pricelistState.simulationItems.push({ ...sample2, qty: 2, discPct: 0 });
+        if (sample1) {
+          const cat1 = getItemStrataCategory(sample1);
+          const d1 = getStrataDiscountInfo(cat1, 5).discPct;
+          window.pricelistState.simulationItems.push({ ...sample1, qty: 5, discPct: d1 });
+        }
+        if (sample2) {
+          const cat2 = getItemStrataCategory(sample2);
+          const d2 = getStrataDiscountInfo(cat2, 2).discPct;
+          window.pricelistState.simulationItems.push({ ...sample2, qty: 2, discPct: d2 });
+        }
       }
     }
 
@@ -5322,36 +5466,46 @@ async function renderPricelist() {
     main.innerHTML = `
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-200">
         <div>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded">OFFICIAL PRICELIST</span>
+            <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">STRATA DISKON VOLUME</span>
             <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">RETAIL PROFIT SIMULATOR</span>
           </div>
           <h1 class="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight mt-1">Pricelist & Simulation</h1>
-          <p class="text-xs text-slate-500 mt-0.5">Katalog harga resmi seluruh SKU per Principal dan kalkulator simulasi paket order toko & margin pengecer</p>
+          <p class="text-xs text-slate-500 mt-0.5">Katalog harga resmi SKU, matriks strata diskon kuantiti order, dan kalkulator keuntungan pengecer</p>
         </div>
 
-        <!-- Sub-Tab Switcher -->
-        <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+        <!-- Sub-Tab Switcher (3 Tabs) -->
+        <div class="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
           <button onclick="switchPricelistSubTab('katalog')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${subTab === 'katalog' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
             <i data-lucide="book-open" class="w-3.5 h-3.5 text-blue-600"></i>
-            <span>Katalog Pricelist Resmi</span>
+            <span>Katalog Resmi</span>
           </button>
+
+          <button onclick="switchPricelistSubTab('strata')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${subTab === 'strata' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
+            <i data-lucide="layers" class="w-3.5 h-3.5 text-emerald-600"></i>
+            <span>Matriks Strata Diskon</span>
+            <span class="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-full">5 Kategori</span>
+          </button>
+
           <button onclick="switchPricelistSubTab('simulasi')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${subTab === 'simulasi' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
             <i data-lucide="calculator" class="w-3.5 h-3.5 text-amber-500"></i>
-            <span>Simulator Order & Margin Toko</span>
+            <span>Simulator Order & Margin</span>
             <span class="px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-black rounded-full">${window.pricelistState.simulationItems.length}</span>
           </button>
         </div>
       </div>
 
       <div id="pricelist-container" class="mt-4">
-        <!-- Rendered based on subTab -->
+        <!-- Injected based on subTab -->
       </div>
     `;
 
     lucide.createIcons();
     if (subTab === 'katalog') {
       renderPricelistCatalogView();
+    } else if (subTab === 'strata') {
+      renderPricelistStrataView();
     } else {
       renderPricelistSimulatorView();
     }
@@ -5387,8 +5541,6 @@ function renderPricelistCatalogView() {
   if (!container) return;
 
   const { items, principals, selectedPrincipal } = window.pricelistState;
-
-  // Filter items
   let filtered = items;
   if (selectedPrincipal !== 'ALL') {
     filtered = filtered.filter(i => i.principal === selectedPrincipal);
@@ -5425,14 +5577,14 @@ function renderPricelistCatalogView() {
 
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div class="text-xs font-semibold text-slate-500 mb-1 flex items-center justify-between">
-          <span>Item di Simulator</span>
-          <i data-lucide="shopping-cart" class="w-4 h-4 text-amber-500"></i>
+          <span>Panduan Strata Diskon</span>
+          <i data-lucide="layers" class="w-4 h-4 text-emerald-600"></i>
         </div>
-        <div class="text-xl md:text-2xl font-extrabold text-amber-700 font-mono">
-          ${window.pricelistState.simulationItems.length} <span class="text-xs font-normal text-slate-500">SKU</span>
+        <div class="text-xl md:text-2xl font-extrabold text-emerald-700 font-mono">
+          5 <span class="text-xs font-normal text-slate-500">Kategori</span>
         </div>
         <div class="mt-2 text-[11px] text-slate-500">
-          <button onclick="switchPricelistSubTab('simulasi')" class="text-blue-600 hover:underline font-semibold">Buka Kalkulator Toko →</button>
+          <button onclick="switchPricelistSubTab('strata')" class="text-emerald-700 hover:underline font-semibold">Buka Matriks Diskon →</button>
         </div>
       </div>
 
@@ -5480,7 +5632,7 @@ function renderPricelistCatalogView() {
               <th class="py-2.5 px-3 text-center w-10">No</th>
               <th class="py-2.5 px-3">Kode SKU</th>
               <th class="py-2.5 px-3">Nama Produk & Kemasan</th>
-              <th class="py-2.5 px-3">Principal</th>
+              <th class="py-2.5 px-3">Strata Diskon</th>
               <th class="py-2.5 px-3 text-center">Isi/Ktn</th>
               <th class="py-2.5 px-3 text-right text-blue-900 bg-blue-50/50">PL Ktn (Inc PPN)</th>
               <th class="py-2.5 px-3 text-right">PL Ktn (Exc PPN)</th>
@@ -5507,7 +5659,6 @@ function renderPricelistTableBody() {
   if (!tbody) return;
 
   const { items, selectedPrincipal, searchTerm } = window.pricelistState;
-
   let filtered = items;
   if (selectedPrincipal !== 'ALL') {
     filtered = filtered.filter(i => i.principal === selectedPrincipal);
@@ -5526,30 +5677,22 @@ function renderPricelistTableBody() {
   }
 
   tbody.innerHTML = filtered.map((it, idx) => {
-    // Calculate retail margin: (HET Pcs * Pcs Per Ktn - PL Ktn Inc) / (HET Pcs * Pcs Per Ktn)
-    let marginPct = null;
-    if (it.het_pcs_inc_ppn && it.pcs_per_ktn && it.price_carton_inc_ppn) {
-      const retailTotal = it.het_pcs_inc_ppn * it.pcs_per_ktn;
-      if (retailTotal > 0) {
-        marginPct = Math.round(((retailTotal - it.price_carton_inc_ppn) / retailTotal) * 1000) / 10;
-      }
-    } else if (it.het_inner_inc_ppn && it.isi_per_ktn && it.price_carton_inc_ppn) {
-      const retailTotal = it.het_inner_inc_ppn * it.isi_per_ktn;
-      if (retailTotal > 0) {
-        marginPct = Math.round(((retailTotal - it.price_carton_inc_ppn) / retailTotal) * 1000) / 10;
+    let marginPct = it.retail_margin_pct;
+    if (marginPct === null || marginPct === undefined) {
+      if (it.het_pcs_inc_ppn && it.pcs_per_ktn && it.price_carton_inc_ppn) {
+        const retailTotal = it.het_pcs_inc_ppn * it.pcs_per_ktn;
+        if (retailTotal > 0) marginPct = Math.round(((retailTotal - it.price_carton_inc_ppn) / retailTotal) * 1000) / 10;
+      } else if (it.het_inner_inc_ppn && it.isi_per_ktn && it.price_carton_inc_ppn) {
+        const retailTotal = it.het_inner_inc_ppn * it.isi_per_ktn;
+        if (retailTotal > 0) marginPct = Math.round(((retailTotal - it.price_carton_inc_ppn) / retailTotal) * 1000) / 10;
       }
     }
 
-    const marginBadge = marginPct !== null
+    const marginBadge = marginPct !== null && marginPct !== undefined
       ? `<span class="inline-flex items-center font-mono font-bold text-xs ${marginPct >= 15 ? 'text-emerald-700' : marginPct >= 10 ? 'text-blue-700' : 'text-amber-700'}">${marginPct}%</span>`
       : `<span class="text-slate-300">—</span>`;
 
-    const principalBadgeColor = 
-      it.principal === 'SUMBER KOPI PRIMA' ? 'bg-amber-100 text-amber-800' :
-      it.principal === 'PRIMA TOP BOGA' ? 'bg-rose-100 text-rose-800' :
-      it.principal === 'GLOBAL DAIRY ALAMI' ? 'bg-blue-100 text-blue-800' :
-      it.principal === 'SAVORIA KREASI RASA' ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800';
-
+    const strataCat = getItemStrataCategory(it);
     const isAlreadyInSim = window.pricelistState.simulationItems.some(s => s.item_code === it.item_code);
 
     return `
@@ -5561,11 +5704,15 @@ function renderPricelistTableBody() {
         <td class="py-2.5 px-3">
           <div class="font-bold text-slate-900">${it.item_name}</div>
           <div class="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-            <span class="px-1.5 py-0.2 rounded font-semibold ${principalBadgeColor}">${it.brand || it.principal}</span>
-            ${it.satuan_inner ? `<span>Isi: ${it.isi_per_ktn} ${it.satuan_inner}</span>` : ''}
+            <span class="font-semibold text-slate-600">${it.brand || it.principal}</span>
+            ${it.satuan_inner ? `<span>• Isi: ${it.isi_per_ktn} ${it.satuan_inner}</span>` : ''}
           </div>
         </td>
-        <td class="py-2.5 px-3 text-slate-600 text-[11px] whitespace-nowrap">${it.principal}</td>
+        <td class="py-2.5 px-3 whitespace-nowrap">
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-${strataCat.color}-50 text-${strataCat.color}-800 border border-${strataCat.color}-200">
+            ${strataCat.name.split(' (')[0]}
+          </span>
+        </td>
         <td class="py-2.5 px-3 text-center font-mono text-[11px] text-slate-700 whitespace-nowrap">
           ${it.isi_per_ktn ? `${it.isi_per_ktn} ${it.satuan_inner || ''}` : '—'}
         </td>
@@ -5597,6 +5744,204 @@ function renderPricelistTableBody() {
   lucide.createIcons();
 }
 
+// ==============================================================
+// 11B. MATRIKS STRATA DISKON VIEW
+// ==============================================================
+function renderPricelistStrataView() {
+  const container = document.getElementById('pricelist-container');
+  if (!container) return;
+
+  const currentCatKey = window.pricelistState.strataCalcCategory || 'KOPI_NON_RTD';
+  const currentQty = window.pricelistState.strataCalcQty || 5;
+  const currentCalc = getStrataDiscountInfo(CLIENT_STRATA_RULES[currentCatKey], currentQty);
+
+  container.innerHTML = `
+    <!-- Header Banner -->
+    <div class="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 p-6 rounded-2xl text-white shadow-md border border-emerald-800/40">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-2">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+            <span>Ketentuan Resmi Cabang Garut</span>
+          </div>
+          <h2 class="text-xl md:text-2xl font-black text-white">Matriks Strata Diskon Volume Penjualan</h2>
+          <p class="text-xs text-emerald-100 mt-1 max-w-2xl leading-relaxed">
+            Strata diskon resmi berbasis akumulasi kuantiti karton (Ktn) per kategori produk. Skema diskon ini diterapkan secara otomatis pada kalkulator order toko untuk mendorong basket size dan volume grosir.
+          </p>
+        </div>
+
+        <button onclick="switchPricelistSubTab('simulasi')" class="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black transition shadow-lg">
+          <i data-lucide="calculator" class="w-4 h-4"></i>
+          <span>Buka Kalkulator Simulasi Order</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Interactive Strata Quick-Tester Widget -->
+    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-4">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+        <div>
+          <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
+            <span>Kalkulator Uji Cepat Strata Diskon</span>
+          </h3>
+          <p class="text-xs text-slate-500 mt-0.5">Pilih kategori produk dan masukkan jumlah karton untuk melihat hasil diskon serta jarak ke tier selanjutnya</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Pilih Kategori:</label>
+            <select id="strata-test-cat" onchange="handleStrataQuickTestChange()" class="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+              ${Object.values(CLIENT_STRATA_RULES).map(r => `
+                <option value="${r.id}" ${r.id === currentCatKey ? 'selected' : ''}>${r.name}</option>
+              `).join('')}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Qty Order (Karton):</label>
+            <input type="number" id="strata-test-qty" min="0" max="999" value="${currentQty}" oninput="handleStrataQuickTestChange()" class="w-24 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 text-center focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Tester Result Bar -->
+      <div id="strata-test-result" class="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="p-3 rounded-xl bg-emerald-100 text-emerald-800 font-mono font-black text-2xl">
+            ${currentCalc.discPct}%
+          </div>
+          <div>
+            <div class="text-xs font-bold text-slate-900">
+              Tier Terpenuhi: <span class="text-emerald-700 font-mono font-extrabold">${currentCalc.currentTier.label} (${currentCalc.currentTier.badge})</span>
+            </div>
+            <div class="text-[11px] text-slate-600 mt-0.5">
+              Kategori: <strong>${currentCalc.category.name}</strong> (${currentCalc.qty} Karton)
+            </div>
+          </div>
+        </div>
+
+        <div class="md:text-right">
+          <div class="text-xs font-bold text-slate-700">
+            ${currentCalc.nextTier ? `Tier Berikutnya: <span class="text-blue-700 font-mono font-bold">${currentCalc.nextTier.label} (${currentCalc.nextTier.badge})</span>` : '<span class="text-emerald-700 font-bold">Tier Diskon Tertinggi!</span>'}
+          </div>
+          <div class="text-[11px] text-amber-700 font-semibold mt-0.5">
+            ${currentCalc.hint}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 Strata Category Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
+      ${Object.values(CLIENT_STRATA_RULES).map((cat, idx) => `
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between">
+          <div>
+            <!-- Card Header -->
+            <div class="p-4 bg-slate-50/80 border-b border-slate-200">
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-${cat.color}-100 text-${cat.color}-900 font-mono">
+                  KATEGORI 0${idx + 1}
+                </span>
+                <span class="text-[10px] text-slate-500 font-medium">Resmi DSO Garut</span>
+              </div>
+              <h4 class="text-sm font-extrabold text-slate-900 mt-2">${cat.name}</h4>
+              <p class="text-[11px] text-slate-500 font-medium mt-0.5">${cat.brandScope}</p>
+            </div>
+
+            <!-- Tiers Table -->
+            <div class="p-4">
+              <div class="text-[11px] font-bold text-slate-700 mb-2 flex items-center justify-between">
+                <span>Volume Order (Karton)</span>
+                <span>Diskon Promo</span>
+              </div>
+              <div class="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
+                ${cat.tiers.map((t, tIdx) => `
+                  <div class="py-2 px-3 flex items-center justify-between text-xs ${tIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}">
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono font-bold text-slate-800">${t.label}</span>
+                      <span class="text-[10px] text-slate-400">• ${t.desc}</span>
+                    </div>
+                    <span class="font-mono font-black text-${cat.color}-700 bg-${cat.color}-50 px-2 py-0.5 rounded text-xs">
+                      ${t.badge}
+                    </span>
+                  </div>
+                `).join('')}
+              </div>
+
+              <!-- Scope description -->
+              <p class="text-[11px] text-slate-500 mt-3 leading-relaxed">
+                ${cat.description}
+              </p>
+            </div>
+          </div>
+
+          <!-- Card Footer Action -->
+          <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <span class="text-[10px] text-slate-500 font-medium">${cat.tiers.length} tingkatan strata</span>
+            <button onclick="openSimulationForCategory('${cat.id}')" class="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 transition">
+              <span>Simulasikan Order</span>
+              <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  lucide.createIcons();
+}
+
+function handleStrataQuickTestChange() {
+  const catEl = document.getElementById('strata-test-cat');
+  const qtyEl = document.getElementById('strata-test-qty');
+  if (!catEl || !qtyEl) return;
+
+  const catKey = catEl.value;
+  const qty = parseFloat(qtyEl.value) || 0;
+  window.pricelistState.strataCalcCategory = catKey;
+  window.pricelistState.strataCalcQty = qty;
+
+  const calc = getStrataDiscountInfo(CLIENT_STRATA_RULES[catKey], qty);
+  const resultContainer = document.getElementById('strata-test-result');
+  if (resultContainer) {
+    resultContainer.innerHTML = `
+      <div class="flex items-center gap-4">
+        <div class="p-3 rounded-xl bg-emerald-100 text-emerald-800 font-mono font-black text-2xl">
+          ${calc.discPct}%
+        </div>
+        <div>
+          <div class="text-xs font-bold text-slate-900">
+            Tier Terpenuhi: <span class="text-emerald-700 font-mono font-extrabold">${calc.currentTier.label} (${calc.currentTier.badge})</span>
+          </div>
+          <div class="text-[11px] text-slate-600 mt-0.5">
+            Kategori: <strong>${calc.category.name}</strong> (${calc.qty} Karton)
+          </div>
+        </div>
+      </div>
+
+      <div class="md:text-right">
+        <div class="text-xs font-bold text-slate-700">
+          ${calc.nextTier ? `Tier Berikutnya: <span class="text-blue-700 font-mono font-bold">${calc.nextTier.label} (${calc.nextTier.badge})</span>` : '<span class="text-emerald-700 font-bold">Tier Diskon Tertinggi!</span>'}
+        </div>
+        <div class="text-[11px] text-amber-700 font-semibold mt-0.5">
+          ${calc.hint}
+        </div>
+      </div>
+    `;
+  }
+}
+
+function openSimulationForCategory(catId) {
+  const cat = CLIENT_STRATA_RULES[catId];
+  if (!cat) return;
+  // Switch to simulation subtab
+  switchPricelistSubTab('simulasi');
+}
+
+// ==============================================================
+// 11C. SIMULATOR ORDER & MARGIN RETAIL VIEW
+// ==============================================================
 function addToSimulation(itemCode) {
   const item = window.pricelistState.items.find(i => i.item_code === itemCode);
   if (!item) return;
@@ -5604,15 +5949,21 @@ function addToSimulation(itemCode) {
   const existing = window.pricelistState.simulationItems.find(i => i.item_code === itemCode);
   if (existing) {
     existing.qty += 1;
+    if (window.pricelistState.autoApplyStrata) {
+      const cat = getItemStrataCategory(existing);
+      existing.discPct = getStrataDiscountInfo(cat, existing.qty).discPct;
+    }
   } else {
+    const cat = getItemStrataCategory(item);
+    const initialQty = 1;
+    const initialDisc = window.pricelistState.autoApplyStrata ? getStrataDiscountInfo(cat, initialQty).discPct : 0;
     window.pricelistState.simulationItems.push({
       ...item,
-      qty: 1,
-      discPct: 0
+      qty: initialQty,
+      discPct: initialDisc
     });
   }
 
-  // If in catalog view, re-render icons/count, or if in simulation view, re-render
   if (window.pricelistState.subTab === 'simulasi') {
     renderPricelistSimulatorView();
   } else {
@@ -5620,10 +5971,27 @@ function addToSimulation(itemCode) {
   }
 }
 
+function toggleAutoApplyStrata(enabled) {
+  window.pricelistState.autoApplyStrata = enabled;
+  if (enabled) {
+    // Recalculate discount for all items based on strata
+    window.pricelistState.simulationItems.forEach(it => {
+      const cat = getItemStrataCategory(it);
+      it.discPct = getStrataDiscountInfo(cat, it.qty).discPct;
+    });
+  }
+  renderPricelistSimulatorView();
+}
+
 function updateSimulationQty(idx, qty) {
   const val = parseFloat(qty) || 0;
   if (val > 0) {
-    window.pricelistState.simulationItems[idx].qty = val;
+    const it = window.pricelistState.simulationItems[idx];
+    it.qty = val;
+    if (window.pricelistState.autoApplyStrata) {
+      const cat = getItemStrataCategory(it);
+      it.discPct = getStrataDiscountInfo(cat, val).discPct;
+    }
   }
   renderSimulationSummaryAndTotals();
 }
@@ -5632,6 +6000,20 @@ function updateSimulationDisc(idx, disc) {
   const val = parseFloat(disc) || 0;
   window.pricelistState.simulationItems[idx].discPct = Math.max(0, Math.min(100, val));
   renderSimulationSummaryAndTotals();
+}
+
+function upgradeItemToNextTier(idx) {
+  const it = window.pricelistState.simulationItems[idx];
+  if (!it) return;
+  const cat = getItemStrataCategory(it);
+  const info = getStrataDiscountInfo(cat, it.qty);
+  if (info.nextTier) {
+    it.qty = Math.ceil(info.nextTier.min);
+    if (window.pricelistState.autoApplyStrata) {
+      it.discPct = info.nextTier.discPct;
+    }
+    renderPricelistSimulatorView();
+  }
 }
 
 function removeSimulationItem(idx) {
@@ -5650,7 +6032,7 @@ function renderPricelistSimulatorView() {
   const container = document.getElementById('pricelist-container');
   if (!container) return;
 
-  const { simulationItems } = window.pricelistState;
+  const { simulationItems, autoApplyStrata } = window.pricelistState;
 
   container.innerHTML = `
     <!-- Top Simulator Control Header -->
@@ -5663,10 +6045,14 @@ function renderPricelistSimulatorView() {
         </div>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button onclick="openAddSkuToSimulationModal()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
           <i data-lucide="plus-circle" class="w-4 h-4"></i>
           <span>Tambah SKU</span>
+        </button>
+        <button onclick="switchPricelistSubTab('strata')" class="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition">
+          <i data-lucide="layers" class="w-4 h-4 text-emerald-600"></i>
+          <span>Lihat Matriks Strata</span>
         </button>
         <button onclick="clearSimulation()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
           <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
@@ -5677,6 +6063,24 @@ function renderPricelistSimulatorView() {
           <span>Cetak Nota Simulasi</span>
         </button>
       </div>
+    </div>
+
+    <!-- Strata Automation Switch Banner -->
+    <div class="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="flex items-center gap-2.5">
+        <div class="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <span class="font-bold text-emerald-950">Otomatisasi Strata Diskon Resmi Garut:</span>
+          <span class="text-emerald-800 ml-1">Diskon dihitung otomatis sesuai kuantiti karton dan kategori produk (Kopi, RTD/MilkLife, Prima Top Boga, Fox's, Unilever).</span>
+        </div>
+      </div>
+
+      <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+        <input type="checkbox" onchange="toggleAutoApplyStrata(this.checked)" ${autoApplyStrata ? 'checked' : ''} class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+        <span class="font-bold text-emerald-900 text-xs">Terapkan Strata Otomatis</span>
+      </label>
     </div>
 
     <!-- 4 KPI Summary Cards (Dynamic) -->
@@ -5691,7 +6095,7 @@ function renderPricelistSimulatorView() {
           <i data-lucide="calculator" class="w-4 h-4 text-blue-600"></i>
           <span>Rincian Paket Order & Potensi Margin Retailer</span>
         </h3>
-        <span class="text-[11px] text-slate-500">Edit Qty dan Diskon untuk melihat simulasi keuntungan toko</span>
+        <span class="text-[11px] text-slate-500">Edit Qty Karton; Diskon otomatis mengikuti strata volume</span>
       </div>
 
       <div class="overflow-x-auto scrollbar-thin">
@@ -5699,10 +6103,10 @@ function renderPricelistSimulatorView() {
           <thead class="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 select-none">
             <tr>
               <th class="py-2.5 px-3 text-center w-10">No</th>
-              <th class="py-2.5 px-3">Produk & Kemasan</th>
+              <th class="py-2.5 px-3">Produk & Strata</th>
               <th class="py-2.5 px-3 text-right">Modal/Ktn (Inc)</th>
-              <th class="py-2.5 px-3 text-center w-24">Qty Order (Ktn)</th>
-              <th class="py-2.5 px-3 text-center w-24">Diskon (%)</th>
+              <th class="py-2.5 px-3 text-center w-28">Qty Order (Ktn)</th>
+              <th class="py-2.5 px-3 text-center w-32">Diskon Strata</th>
               <th class="py-2.5 px-3 text-right font-extrabold text-blue-900 bg-blue-50/40">Total Modal Toko</th>
               <th class="py-2.5 px-3 text-right">HET / Pcs</th>
               <th class="py-2.5 px-3 text-right font-bold text-emerald-900 bg-emerald-50/30">Potensi Omzet (HET)</th>
@@ -5751,6 +6155,7 @@ function renderSimulationSummaryAndTotals() {
   let totalModal = 0;
   let totalPotensi = 0;
   let totalLaba = 0;
+  let totalHematDiskon = 0;
 
   tbody.innerHTML = simulationItems.map((it, idx) => {
     const qty = it.qty || 1;
@@ -5758,15 +6163,16 @@ function renderSimulationSummaryAndTotals() {
     const priceKtn = it.price_carton_inc_ppn || 0;
     const netPriceKtn = priceKtn * (1 - disc / 100);
     const subtotalModal = netPriceKtn * qty;
+    const nominalHemat = (priceKtn * (disc / 100)) * qty;
 
-    // Potential retail turnover: qty * pcs_per_ktn * het_pcs
+    // Potential retail turnover
     let retailTotal = 0;
     if (it.het_pcs_inc_ppn && it.pcs_per_ktn) {
       retailTotal = qty * it.pcs_per_ktn * it.het_pcs_inc_ppn;
     } else if (it.het_inner_inc_ppn && it.isi_per_ktn) {
       retailTotal = qty * it.isi_per_ktn * it.het_inner_inc_ppn;
     } else {
-      retailTotal = subtotalModal * 1.15; // default estimate
+      retailTotal = subtotalModal * 1.15;
     }
 
     const labaToko = Math.max(0, retailTotal - subtotalModal);
@@ -5776,22 +6182,42 @@ function renderSimulationSummaryAndTotals() {
     totalModal += subtotalModal;
     totalPotensi += retailTotal;
     totalLaba += labaToko;
+    totalHematDiskon += nominalHemat;
+
+    const cat = getItemStrataCategory(it);
+    const strataInfo = getStrataDiscountInfo(cat, qty);
 
     return `
       <tr class="hover:bg-slate-50/80 transition">
         <td class="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">${idx + 1}</td>
         <td class="py-2.5 px-3">
           <div class="font-bold text-slate-900">${it.item_name}</div>
-          <div class="text-[10px] text-slate-500 font-mono">${it.item_code} • ${it.isi_per_ktn || ''} ${it.satuan_inner || ''}</div>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <span class="inline-flex px-1.5 py-0.2 rounded text-[9px] font-bold bg-${cat.color}-100 text-${cat.color}-800">
+              ${cat.name.split(' (')[0]}
+            </span>
+            <span class="text-[10px] text-slate-400 font-mono">${it.item_code}</span>
+          </div>
         </td>
         <td class="py-2.5 px-3 text-right font-mono text-slate-700 whitespace-nowrap">
           Rp ${Math.round(priceKtn).toLocaleString('id-ID')}
         </td>
         <td class="py-2.5 px-3 text-center">
           <input type="number" min="1" value="${qty}" onchange="updateSimulationQty(${idx}, this.value)" class="w-16 text-center border border-slate-300 rounded px-1.5 py-1 text-xs font-mono font-bold text-blue-900 focus:outline-none focus:ring-1 focus:ring-blue-500">
+          <div class="text-[9px] text-slate-500 font-mono mt-0.5">${strataInfo.currentTier.label}</div>
         </td>
         <td class="py-2.5 px-3 text-center">
-          <input type="number" min="0" max="50" step="0.5" value="${disc}" onchange="updateSimulationDisc(${idx}, this.value)" class="w-14 text-center border border-slate-300 rounded px-1 py-1 text-xs font-mono font-semibold text-rose-700 focus:outline-none focus:ring-1 focus:ring-rose-500">
+          <div class="flex items-center justify-center gap-1">
+            <input type="number" min="0" max="50" step="0.5" value="${disc}" onchange="updateSimulationDisc(${idx}, this.value)" class="w-14 text-center border border-slate-300 rounded px-1 py-1 text-xs font-mono font-bold text-emerald-700 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+            <span class="text-xs font-bold text-slate-500">%</span>
+          </div>
+          ${strataInfo.nextTier ? `
+            <div onclick="upgradeItemToNextTier(${idx})" class="text-[9px] text-amber-700 font-bold mt-0.5 cursor-pointer hover:underline" title="Klik untuk upgrade otomatis ke ${strataInfo.nextTier.discPct}%">
+              ${strataInfo.hint}
+            </div>
+          ` : `
+            <div class="text-[9px] text-emerald-600 font-bold mt-0.5">Maks Tier (${strataInfo.currentTier.badge})</div>
+          `}
         </td>
         <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-950 bg-blue-50/40 whitespace-nowrap">
           Rp ${Math.round(subtotalModal).toLocaleString('id-ID')}
@@ -5828,7 +6254,9 @@ function renderSimulationSummaryAndTotals() {
         <td class="py-2.5 px-3 text-center font-mono font-extrabold text-blue-900">
           ${totalKtn.toLocaleString('id-ID')} Ktn
         </td>
-        <td class="py-2.5 px-3 text-center text-slate-400">—</td>
+        <td class="py-2.5 px-3 text-center font-mono font-bold text-emerald-800 text-[11px]">
+          Hemat Rp ${Math.round(totalHematDiskon).toLocaleString('id-ID')}
+        </td>
         <td class="py-2.5 px-3 text-right font-mono font-black text-blue-950 bg-blue-100/50 whitespace-nowrap">
           Rp ${Math.round(totalModal).toLocaleString('id-ID')}
         </td>
@@ -5870,8 +6298,8 @@ function renderSimulationSummaryAndTotals() {
         <div class="text-2xl font-black text-blue-900 font-mono">
           Rp ${(totalModal / 1000000).toFixed(2)} <span class="text-xs font-normal text-slate-500">Jt</span>
         </div>
-        <div class="mt-2 text-[11px] text-slate-500 font-mono">
-          Rp ${Math.round(totalModal).toLocaleString('id-ID')}
+        <div class="mt-2 text-[11px] text-emerald-700 font-semibold font-mono">
+          Hemat Diskon: Rp ${Math.round(totalHematDiskon).toLocaleString('id-ID')}
         </div>
       </div>
 
@@ -5913,10 +6341,10 @@ function renderSimulationSummaryAndTotals() {
         </div>
         <div>
           <h4 class="text-sm font-bold text-white flex items-center gap-2">
-            <span>Rekomendasi Penawaran Sales & Nilai Margin Toko ${outletLabel}</span>
+            <span>Rekomendasi Penawaran Sales & Nilai Tambah Strata Diskon ${outletLabel}</span>
           </h4>
           <p class="text-xs text-slate-200 mt-1 leading-relaxed">
-            Dengan modal pemesanan <strong>Rp ${Math.round(totalModal).toLocaleString('id-ID')}</strong> (total <strong>${totalKtn} Karton</strong>), pemilik toko berpotensi meraup omzet penjualan sebesar <strong>Rp ${Math.round(totalPotensi).toLocaleString('id-ID')}</strong> saat produk terjual habis di tingkat HET eceran. Toko mengantongi keuntungan kotor langsung sebesar <strong>Rp ${Math.round(totalLaba).toLocaleString('id-ID')}</strong> dengan tingkat margin keuntungan sebesar <strong>${overallMarginPct}%</strong>.
+            Dengan memanfaatkan strata diskon volume resmi, toko Bapak/Ibu mendapatkan potongan diskon langsung sebesar <strong>Rp ${Math.round(totalHematDiskon).toLocaleString('id-ID')}</strong>! Total modal belanja toko adalah <strong>Rp ${Math.round(totalModal).toLocaleString('id-ID')}</strong> (${totalKtn} Karton). Saat produk terjual di harga HET eceran resmi, toko berpotensi meraup omzet penjualan sebesar <strong>Rp ${Math.round(totalPotensi).toLocaleString('id-ID')}</strong> dengan keuntungan kotor langsung sebesar <strong>Rp ${Math.round(totalLaba).toLocaleString('id-ID')}</strong> (Margin: <strong>${overallMarginPct}%</strong>).
           </p>
         </div>
       </div>
@@ -5932,7 +6360,6 @@ function openAddSkuToSimulationModal() {
   const modalContent = document.getElementById('modal-content');
 
   modalTitle.textContent = 'Tambah Produk ke Simulasi Order';
-
   const { items } = window.pricelistState;
 
   modalContent.innerHTML = `
@@ -5943,17 +6370,27 @@ function openAddSkuToSimulationModal() {
       </div>
 
       <div class="max-h-80 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg" id="sim-modal-list">
-        ${items.slice(0, 50).map(it => `
-          <div class="p-2.5 flex items-center justify-between hover:bg-slate-50 transition">
-            <div>
-              <div class="font-bold text-xs text-slate-900">${it.item_name}</div>
-              <div class="text-[10px] text-slate-500 font-mono">${it.item_code} • ${it.principal} • Rp ${Math.round(it.price_carton_inc_ppn || 0).toLocaleString('id-ID')} / Ktn</div>
+        ${items.slice(0, 50).map(it => {
+          const cat = getItemStrataCategory(it);
+          return `
+            <div class="p-2.5 flex items-center justify-between hover:bg-slate-50 transition">
+              <div>
+                <div class="font-bold text-xs text-slate-900">${it.item_name}</div>
+                <div class="text-[10px] text-slate-500 font-mono mt-0.5">
+                  ${it.item_code} • ${it.principal} • Rp ${Math.round(it.price_carton_inc_ppn || 0).toLocaleString('id-ID')} / Ktn
+                </div>
+                <div class="mt-1">
+                  <span class="inline-flex px-1.5 py-0.2 rounded text-[9px] font-bold bg-${cat.color}-50 text-${cat.color}-800 border border-${cat.color}-200">
+                    Strata: ${cat.name}
+                  </span>
+                </div>
+              </div>
+              <button onclick="addToSimulation('${it.item_code}'); closeModal();" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition">
+                + Pilih
+              </button>
             </div>
-            <button onclick="addToSimulation('${it.item_code}'); closeModal();" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition">
-              + Pilih
-            </button>
-          </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
     </div>
   `;
@@ -5974,16 +6411,25 @@ function filterAddSkuModalList(query) {
     (i.principal || '').toLowerCase().includes(q)
   );
 
-  container.innerHTML = filtered.slice(0, 50).map(it => `
-    <div class="p-2.5 flex items-center justify-between hover:bg-slate-50 transition">
-      <div>
-        <div class="font-bold text-xs text-slate-900">${it.item_name}</div>
-        <div class="text-[10px] text-slate-500 font-mono">${it.item_code} • ${it.principal} • Rp ${Math.round(it.price_carton_inc_ppn || 0).toLocaleString('id-ID')} / Ktn</div>
+  container.innerHTML = filtered.slice(0, 50).map(it => {
+    const cat = getItemStrataCategory(it);
+    return `
+      <div class="p-2.5 flex items-center justify-between hover:bg-slate-50 transition">
+        <div>
+          <div class="font-bold text-xs text-slate-900">${it.item_name}</div>
+          <div class="text-[10px] text-slate-500 font-mono mt-0.5">
+            ${it.item_code} • ${it.principal} • Rp ${Math.round(it.price_carton_inc_ppn || 0).toLocaleString('id-ID')} / Ktn
+          </div>
+          <div class="mt-1">
+            <span class="inline-flex px-1.5 py-0.2 rounded text-[9px] font-bold bg-${cat.color}-50 text-${cat.color}-800 border border-${cat.color}-200">
+              Strata: ${cat.name}
+            </span>
+          </div>
+        </div>
+        <button onclick="addToSimulation('${it.item_code}'); closeModal();" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition">
+          + Pilih
+        </button>
       </div>
-      <button onclick="addToSimulation('${it.item_code}'); closeModal();" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition">
-        + Pilih
-      </button>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
-

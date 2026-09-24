@@ -21,6 +21,7 @@ const {
   rollbackImport
 } = require('../services/importEngine.js');
 const { getMovementAnalytics, exportMovementCsv } = require('../services/trendEngine.js');
+const { DISCOUNT_STRATA_RULES, classifyItem, getDiscountForQty } = require('../services/discountStrata.js');
 const { getAuditLogs, logAudit } = require('../middleware/audit.js');
 const { authenticateUser, getAuthUser, requireSuperAdmin } = require('../middleware/auth.js');
 const XLSX = require('xlsx');
@@ -2309,9 +2310,13 @@ router.get('/pricelist', (req, res) => {
           marginPct = Math.round(((retailVal - it.price_carton_inc_ppn) / retailVal) * 1000) / 10;
         }
       }
+      const strata = classifyItem(it);
       return {
         ...it,
-        retail_margin_pct: marginPct
+        retail_margin_pct: marginPct,
+        strata_category_id: strata ? strata.id : null,
+        strata_category_name: strata ? strata.name : null,
+        strata_color: strata ? strata.color : 'slate'
       };
     });
 
@@ -2327,6 +2332,22 @@ router.get('/pricelist', (req, res) => {
       total: items.length,
       principals,
       items
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/pricelist/strata', (req, res) => {
+  try {
+    const { category, qty } = req.query;
+    if (category && qty !== undefined) {
+      const calc = getDiscountForQty(category, qty);
+      return res.json({ success: true, ...calc });
+    }
+    res.json({
+      success: true,
+      rules: DISCOUNT_STRATA_RULES
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
