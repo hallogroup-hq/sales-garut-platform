@@ -3009,6 +3009,151 @@ function renderTrendView() {
       `;
     })()}
 
+    <!-- Dedicated Card: Movement Total DSO Garut (Line Chart & Tabel Angka Bulanan) -->
+    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
+      <div class="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b border-slate-100 gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">TOTAL DSO GARUT</span>
+            <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">DUAL-AXIS LINE CHART</span>
+          </div>
+          <h2 class="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2 mt-1">
+            <i data-lucide="activity" class="w-4 h-4 text-blue-600"></i>
+            <span>Movement Total DSO: Volume (KTN) & Outlet Aktif (OA)</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Pergerakan total volume penjualan (karton) dan penetrasi outlet aktif unik bulanan DSO Garut</p>
+        </div>
+
+        <!-- Badges summary -->
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="bg-blue-50 border border-blue-200/60 px-3 py-1.5 rounded-lg text-left">
+            <div class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider">Total Volume</div>
+            <div class="text-xs md:text-sm font-extrabold text-blue-900 font-mono">
+              ${(data.dsoMovement?.totals?.totalVolume || summary.totalQty || 0).toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-500">KTN</span>
+            </div>
+          </div>
+          <div class="bg-emerald-50 border border-emerald-200/60 px-3 py-1.5 rounded-lg text-left">
+            <div class="text-[10px] text-emerald-600 font-semibold uppercase tracking-wider">Rata-rata OA</div>
+            <div class="text-xs md:text-sm font-extrabold text-emerald-900 font-mono">
+              ${(data.dsoMovement?.totals?.avgOa || summary.avgMonthlyOa || 0).toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-500">Toko/bln</span>
+            </div>
+          </div>
+          <div class="bg-indigo-50 border border-indigo-200/60 px-3 py-1.5 rounded-lg text-left">
+            <div class="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider">Total Omzet</div>
+            <div class="text-xs md:text-sm font-extrabold text-indigo-900 font-mono">
+              Rp ${(((data.dsoMovement?.totals?.totalValue || summary.totalValue || 0)) / 1000000000).toFixed(2)} <span class="text-[10px] font-normal text-slate-500">M</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Line Chart Total DSO -->
+      <div class="mt-4 relative" style="min-height: 290px;">
+        <canvas id="trendDsoCanvas"></canvas>
+      </div>
+
+      <!-- Tabel Kecil: Angka Bulanan Movement Total DSO -->
+      <div class="mt-5 pt-4 border-t border-slate-100">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
+          <h3 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            <i data-lucide="table" class="w-3.5 h-3.5 text-blue-600"></i>
+            <span>Tabel Ringkasan Angka Movement Bulanan Total DSO</span>
+          </h3>
+          <span class="text-[11px] text-slate-400">Rincian per bulan volume, target, gap, OA, dan omzet</span>
+        </div>
+
+        <div class="overflow-x-auto scrollbar-thin rounded-lg border border-slate-200">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 select-none">
+              <tr>
+                <th class="py-2.5 px-3 text-center w-10">No</th>
+                <th class="py-2.5 px-3">Periode</th>
+                <th class="py-2.5 px-3 text-right">Volume (KTN)</th>
+                <th class="py-2.5 px-3 text-right">MoM Vol (%)</th>
+                <th class="py-2.5 px-3 text-right">Target (KTN)</th>
+                <th class="py-2.5 px-3 text-right">Pencapaian</th>
+                <th class="py-2.5 px-3 text-right text-emerald-800 bg-emerald-50/50">Outlet Aktif (OA)</th>
+                <th class="py-2.5 px-3 text-right">MoM OA (%)</th>
+                <th class="py-2.5 px-3 text-right">Nilai Omzet (Rp Netto)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+              ${(data.dsoMovement?.monthlyTable || []).map((m, idx) => {
+                const momVolBadge = m.momVolPct !== null
+                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momVolPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momVolPct >= 0 ? '▲ +' : '▼ '}${m.momVolPct}%</span>`
+                  : `<span class="text-slate-300">—</span>`;
+
+                const momOaBadge = m.momOaPct !== null
+                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momOaPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momOaPct >= 0 ? '▲ +' : '▼ '}${m.momOaPct}%</span>`
+                  : `<span class="text-slate-300">—</span>`;
+
+                const achvBadge = m.achvPct !== null
+                  ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono ${m.achvPct >= 100 ? 'bg-emerald-100 text-emerald-800' : m.achvPct >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}">${m.achvPct}%</span>`
+                  : `<span class="text-slate-300">—</span>`;
+
+                const isCurrentMonth = m.year === 2026 && m.month === 9;
+
+                return `
+                  <tr class="hover:bg-slate-50/80 transition ${isCurrentMonth ? 'bg-blue-50/30' : ''}">
+                    <td class="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">${idx + 1}</td>
+                    <td class="py-2 px-3 font-bold text-slate-900 whitespace-nowrap">
+                      ${m.label}
+                      ${isCurrentMonth ? '<span class="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-extrabold rounded">MTD</span>' : ''}
+                    </td>
+                    <td class="py-2 px-3 text-right font-mono font-bold text-blue-900">
+                      ${m.volumeCartons.toLocaleString('id-ID')}
+                    </td>
+                    <td class="py-2 px-3 text-right">
+                      ${momVolBadge}
+                    </td>
+                    <td class="py-2 px-3 text-right font-mono text-slate-600">
+                      ${m.targetCartons > 0 ? m.targetCartons.toLocaleString('id-ID') : '<span class="text-slate-300">—</span>'}
+                    </td>
+                    <td class="py-2 px-3 text-right">
+                      ${achvBadge}
+                    </td>
+                    <td class="py-2 px-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/30">
+                      ${m.activeOutlets.toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-400">Toko</span>
+                    </td>
+                    <td class="py-2 px-3 text-right">
+                      ${momOaBadge}
+                    </td>
+                    <td class="py-2 px-3 text-right font-mono text-slate-800 whitespace-nowrap">
+                      ${m.volumeValue >= 1000000000 ? 'Rp ' + (m.volumeValue / 1000000000).toFixed(2) + ' M' : 'Rp ' + (m.volumeValue / 1000000).toFixed(1) + ' Jt'}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+            <tfoot class="bg-slate-100 text-slate-800 font-bold border-t-2 border-slate-300">
+              <tr>
+                <td colspan="2" class="py-2.5 px-3 font-extrabold text-slate-900 text-center uppercase tracking-wider text-[11px]">
+                  TOTAL / RATA-RATA
+                </td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-950">
+                  ${(data.dsoMovement?.totals?.totalVolume || 0).toLocaleString('id-ID')}
+                </td>
+                <td class="py-2.5 px-3 text-right text-slate-400">—</td>
+                <td class="py-2.5 px-3 text-right font-mono text-slate-700">
+                  ${(data.dsoMovement?.totals?.totalTarget || 0).toLocaleString('id-ID')}
+                </td>
+                <td class="py-2.5 px-3 text-right">
+                  ${data.dsoMovement?.totals?.achvPct !== null ? `<span class="px-2 py-0.5 bg-blue-100 text-blue-900 rounded font-mono text-[10px] font-bold">${data.dsoMovement.totals.achvPct}%</span>` : '—'}
+                </td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-900 bg-emerald-100/50">
+                  ${(data.dsoMovement?.totals?.avgOa || 0).toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-600">Avg/bln</span>
+                </td>
+                <td class="py-2.5 px-3 text-right text-slate-400">—</td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-slate-900 whitespace-nowrap">
+                  Rp ${(((data.dsoMovement?.totals?.totalValue || 0)) / 1000000000).toFixed(2)} M
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- Control Toolbar (Dimensions, Metrics, Period) -->
     <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-5 space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -3238,6 +3383,10 @@ function initTrendCharts() {
   const { metric, chartType } = window.trendState;
 
   // Destroy previous instances
+  if (window.trendDsoChartInstance) {
+    window.trendDsoChartInstance.destroy();
+    window.trendDsoChartInstance = null;
+  }
   if (window.trendChartInstance) {
     window.trendChartInstance.destroy();
     window.trendChartInstance = null;
@@ -3245,6 +3394,136 @@ function initTrendCharts() {
   if (window.trendOaChartInstance) {
     window.trendOaChartInstance.destroy();
     window.trendOaChartInstance = null;
+  }
+
+  // 0. DSO Total Movement Chart (Dual-Axis: Volume KTN & Outlet Aktif OA)
+  const ctxDso = document.getElementById('trendDsoCanvas');
+  if (ctxDso && data.dsoMovement) {
+    const dsoDatasets = [
+      {
+        type: 'line',
+        label: 'Volume Penjualan (KTN)',
+        data: data.dsoMovement.volumeSeries,
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4.5,
+        pointHoverRadius: 7,
+        pointBackgroundColor: '#2563eb',
+        yAxisID: 'y'
+      },
+      {
+        type: 'line',
+        label: 'Outlet Aktif (OA Toko)',
+        data: data.dsoMovement.oaSeries,
+        borderColor: '#059669',
+        backgroundColor: 'rgba(5, 150, 105, 0.08)',
+        borderWidth: 3,
+        fill: false,
+        tension: 0.3,
+        pointRadius: 4.5,
+        pointHoverRadius: 7,
+        pointBackgroundColor: '#059669',
+        yAxisID: 'y1'
+      }
+    ];
+
+    if (data.dsoMovement.targetSeries && data.dsoMovement.targetSeries.some(t => t > 0)) {
+      dsoDatasets.push({
+        type: 'line',
+        label: 'Target Volume (KTN)',
+        data: data.dsoMovement.targetSeries,
+        borderColor: '#dc2626',
+        borderWidth: 2,
+        borderDash: [5, 5],
+        fill: false,
+        tension: 0.1,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#dc2626',
+        yAxisID: 'y'
+      });
+    }
+
+    window.trendDsoChartInstance = new Chart(ctxDso, {
+      type: 'line',
+      data: {
+        labels: data.dsoMovement.labels,
+        datasets: dsoDatasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              boxWidth: 14,
+              font: { size: 11, family: 'Plus Jakarta Sans', weight: 'bold' }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const label = context.dataset.label || '';
+                const val = context.parsed.y;
+                if (context.dataset.yAxisID === 'y1') {
+                  return `${label}: ${val.toLocaleString('id-ID')} Toko`;
+                }
+                return `${label}: ${val.toLocaleString('id-ID')} KTN`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: 11, weight: 'bold' } }
+          },
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: {
+              display: true,
+              text: 'Volume (Karton)',
+              font: { size: 11, weight: 'bold', family: 'Plus Jakarta Sans' },
+              color: '#2563eb'
+            },
+            ticks: {
+              font: { size: 11 },
+              callback: function(val) {
+                return val.toLocaleString('id-ID');
+              }
+            }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            title: {
+              display: true,
+              text: 'Outlet Aktif (Toko Unik)',
+              font: { size: 11, weight: 'bold', family: 'Plus Jakarta Sans' },
+              color: '#059669'
+            },
+            ticks: {
+              font: { size: 11 },
+              callback: function(val) {
+                return val.toLocaleString('id-ID');
+              }
+            }
+          }
+        }
+      }
+    });
   }
 
   // 1. Movement Chart

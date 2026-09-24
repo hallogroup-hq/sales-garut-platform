@@ -56,6 +56,12 @@ test('M10-3: Trend Engine Analytics by Dimension & Metric', async (t) => {
   assert.ok(smRes.chart.series.length > 0, 'Must have chart series');
   assert.ok(smRes.summary.totalQty > 0, 'Total Qty must be > 0');
   assert.ok(smRes.matrix.length > 0, 'Matrix rows must exist');
+  assert.ok(smRes.dsoMovement, 'Must return dsoMovement');
+  assert.equal(smRes.dsoMovement.volumeSeries.length, 9, 'Must have 9 monthly volume entries');
+  assert.equal(smRes.dsoMovement.oaSeries.length, 9, 'Must have 9 monthly OA entries');
+  assert.equal(smRes.dsoMovement.monthlyTable.length, 9, 'Must have 9 monthly table entries');
+  assert.ok(smRes.dsoMovement.totals.totalVolume > 0, 'Total volume must be > 0');
+  assert.ok(smRes.dsoMovement.totals.avgOa > 0, 'Average OA must be > 0');
 
   // Principal by Value
   const prRes = getMovementAnalytics({ dimension: 'principal', metric: 'value', periodRange: '2026' });

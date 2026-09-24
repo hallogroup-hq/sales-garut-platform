@@ -459,6 +459,118 @@ function getMovementAnalytics(options = {}) {
   // YoY & Full Year Comparison
   const yoyComparison = calculateYoYComparison(db, options);
 
+  // Dedicated Total DSO Movement (Volume KTN, Net Value, OA, Target, MoM)
+  const dsoMonthlyQty = {};
+  const dsoMonthlyVal = {};
+  periodKeys.forEach(pk => {
+    dsoMonthlyQty[pk] = 0;
+    dsoMonthlyVal[pk] = 0;
+  });
+
+  rows.forEach(r => {
+    if (r.period_key && dsoMonthlyQty[r.period_key] !== undefined) {
+      dsoMonthlyQty[r.period_key] += r.total_qty;
+      dsoMonthlyVal[r.period_key] += r.total_val;
+    }
+  });
+
+  // Query branch targets for 2026
+  const branchTargetMap = {};
+  if (periodRange !== '2025') {
+    let btWhere = ['t.year = 2026'];
+    let btParams = [];
+    let btJoin = '';
+
+    if (options.spvId) {
+      btJoin = 'LEFT JOIN org_salesman s ON t.salesman_id = s.salesman_id';
+      btWhere.push('s.spv_id = ?');
+      btParams.push(options.spvId);
+    }
+    if (options.salesGroup) {
+      if (!btJoin) btJoin = 'LEFT JOIN org_salesman s ON t.salesman_id = s.salesman_id';
+      const isScm = options.salesGroup.toUpperCase() === 'SCM' || options.salesGroup.toUpperCase() === 'SMC';
+      if (isScm) {
+        btWhere.push("s.sales_group IN ('SCM', 'SMC')");
+      } else {
+        btWhere.push('s.sales_group = ?');
+        btParams.push(options.salesGroup);
+      }
+    }
+    if (options.salesmanId) {
+      btWhere.push('t.salesman_id = ?');
+      btParams.push(options.salesmanId);
+    }
+
+    const btSql = `
+      SELECT t.month, SUM(t.target_cartons) as tgt
+      FROM fact_quantity_target t
+      ${btJoin}
+      WHERE ${btWhere.join(' AND ')}
+      GROUP BY t.month
+    `;
+    const btRows = db.query(btSql, btParams);
+    btRows.forEach(r => {
+      branchTargetMap[r.month] = r.tgt || 0;
+    });
+  }
+
+  let prevDsoVol = null;
+  let prevDsoOa = null;
+  const dsoMonthlyTable = timeline.map(t => {
+    const pk = t.key;
+    const vol = Math.round((dsoMonthlyQty[pk] || 0) * 100) / 100;
+    const val = Math.round(dsoMonthlyVal[pk] || 0);
+    const oa = branchOaMap[pk] || 0;
+    const tgt = (t.year === 2026 && branchTargetMap[t.month]) ? Math.round(branchTargetMap[t.month] * 100) / 100 : 0;
+    const achvPct = tgt > 0 ? Math.round((vol / tgt) * 1000) / 10 : null;
+
+    let momVolPct = null;
+    if (prevDsoVol !== null && prevDsoVol > 0) {
+      momVolPct = Math.round(((vol - prevDsoVol) / prevDsoVol) * 1000) / 10;
+    }
+    let momOaPct = null;
+    if (prevDsoOa !== null && prevDsoOa > 0) {
+      momOaPct = Math.round(((oa - prevDsoOa) / prevDsoOa) * 1000) / 10;
+    }
+
+    prevDsoVol = vol;
+    prevDsoOa = oa;
+
+    return {
+      periodKey: pk,
+      label: t.label,
+      year: t.year,
+      month: t.month,
+      volumeCartons: vol,
+      volumeValue: val,
+      activeOutlets: oa,
+      targetCartons: tgt,
+      achvPct,
+      momVolPct,
+      momOaPct
+    };
+  });
+
+  const totalDsoVolume = Math.round(grandTotalQty * 100) / 100;
+  const totalDsoTarget = Math.round(dsoMonthlyTable.reduce((acc, m) => acc + (m.targetCartons || 0), 0) * 100) / 100;
+  const overallDsoAchvPct = totalDsoTarget > 0 ? Math.round((totalDsoVolume / totalDsoTarget) * 1000) / 10 : null;
+  const totalDsoValue = Math.round(grandTotalVal);
+
+  const dsoMovement = {
+    labels: timeline.map(t => t.label),
+    volumeSeries: dsoMonthlyTable.map(m => m.volumeCartons),
+    oaSeries: dsoMonthlyTable.map(m => m.activeOutlets),
+    targetSeries: dsoMonthlyTable.map(m => m.targetCartons),
+    monthlyTable: dsoMonthlyTable,
+    totals: {
+      totalVolume: totalDsoVolume,
+      totalTarget: totalDsoTarget,
+      achvPct: overallDsoAchvPct,
+      avgOa: avgMonthlyOa,
+      totalValue: totalDsoValue
+    }
+  };
+
   return {
     dimension,
     metric,
@@ -472,6 +584,7 @@ function getMovementAnalytics(options = {}) {
       prevMonthVal: Math.round(prevMonthVal * 100) / 100,
       momGrowthPct
     },
+    dsoMovement,
     yearOverYearComparison: yoyComparison,
     chart: {
       labels: timeline.map(t => t.label),
