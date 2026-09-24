@@ -9,7 +9,8 @@
           "sales_garut.db",
           "backend/public/**",
           "backend/src/db/schema.sql",
-          "TARGET KUANTITI SALES.xlsx"
+          "TARGET KUANTITI SALES.xlsx",
+          "PRICELIST.xlsx"
         ]
       }
     }

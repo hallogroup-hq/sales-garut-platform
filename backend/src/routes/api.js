@@ -2268,4 +2268,154 @@ router.get('/analytics/movement/export', (req, res) => {
   }
 });
 
+// ==========================================
+// 11. PRICELIST & SIMULATION
+// ==========================================
+router.get('/pricelist', (req, res) => {
+  try {
+    const db = getDb();
+    const { principal, search } = req.query;
+
+    let where = [];
+    let params = [];
+
+    if (principal && principal !== 'ALL') {
+      where.push('principal = ?');
+      params.push(principal);
+    }
+
+    if (search) {
+      where.push('(item_code LIKE ? OR item_name LIKE ? OR brand LIKE ?)');
+      const term = `%${search}%`;
+      params.push(term, term, term);
+    }
+
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const rawItems = db.query(`
+      SELECT *
+      FROM dim_pricelist
+      ${whereSql}
+      ORDER BY principal ASC, item_name ASC
+    `, params);
+
+    const items = rawItems.map(it => {
+      let marginPct = null;
+      if (it.price_carton_inc_ppn > 0) {
+        if (it.het_pcs_inc_ppn > 0 && it.pcs_per_ktn > 0) {
+          const retailVal = it.het_pcs_inc_ppn * it.pcs_per_ktn;
+          marginPct = Math.round(((retailVal - it.price_carton_inc_ppn) / retailVal) * 1000) / 10;
+        } else if (it.het_inner_inc_ppn > 0 && it.isi_per_ktn > 0) {
+          const retailVal = it.het_inner_inc_ppn * it.isi_per_ktn;
+          marginPct = Math.round(((retailVal - it.price_carton_inc_ppn) / retailVal) * 1000) / 10;
+        }
+      }
+      return {
+        ...it,
+        retail_margin_pct: marginPct
+      };
+    });
+
+    const principals = db.query(`
+      SELECT principal, count(*) as count
+      FROM dim_pricelist
+      GROUP BY principal
+      ORDER BY count DESC
+    `);
+
+    res.json({
+      success: true,
+      total: items.length,
+      principals,
+      items
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/pricelist/export', (req, res) => {
+  try {
+    const db = getDb();
+    const { principal, search } = req.query;
+
+    let where = [];
+    let params = [];
+
+    if (principal && principal !== 'ALL') {
+      where.push('principal = ?');
+      params.push(principal);
+    }
+
+    if (search) {
+      where.push('(item_code LIKE ? OR item_name LIKE ? OR brand LIKE ?)');
+      const term = `%${search}%`;
+      params.push(term, term, term);
+    }
+
+    const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const items = db.query(`
+      SELECT *
+      FROM dim_pricelist
+      ${whereSql}
+      ORDER BY principal ASC, item_name ASC
+    `, params);
+
+    const headers = [
+      'Principal', 'Item Code', 'Item Description', 'Brand',
+      'Isi per Ktn', 'Satuan', 'Pcs per Ktn', 'Pcs per Inner',
+      'PL Karton Inc PPN', 'PL Karton Exc PPN',
+      'HET Inner Inc PPN', 'HET Inner Exc PPN',
+      'HET Pcs Inc PPN', 'HET Pcs Exc PPN',
+      'Retail Margin %'
+    ];
+
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = [headers.join(',')];
+    items.forEach(it => {
+      let marginPct = '';
+      if (it.price_carton_inc_ppn > 0) {
+        if (it.het_pcs_inc_ppn > 0 && it.pcs_per_ktn > 0) {
+          const retailVal = it.het_pcs_inc_ppn * it.pcs_per_ktn;
+          marginPct = (Math.round(((retailVal - it.price_carton_inc_ppn) / retailVal) * 1000) / 10) + '%';
+        } else if (it.het_inner_inc_ppn > 0 && it.isi_per_ktn > 0) {
+          const retailVal = it.het_inner_inc_ppn * it.isi_per_ktn;
+          marginPct = (Math.round(((retailVal - it.price_carton_inc_ppn) / retailVal) * 1000) / 10) + '%';
+        }
+      }
+
+      rows.push([
+        escapeCsv(it.principal),
+        escapeCsv(it.item_code),
+        escapeCsv(it.item_name),
+        escapeCsv(it.brand),
+        escapeCsv(it.isi_per_ktn),
+        escapeCsv(it.satuan_inner),
+        escapeCsv(it.pcs_per_ktn),
+        escapeCsv(it.pcs_per_inner),
+        escapeCsv(it.price_carton_inc_ppn),
+        escapeCsv(it.price_carton_exc_ppn),
+        escapeCsv(it.het_inner_inc_ppn),
+        escapeCsv(it.het_inner_exc_ppn),
+        escapeCsv(it.het_pcs_inc_ppn),
+        escapeCsv(it.het_pcs_exc_ppn),
+        escapeCsv(marginPct)
+      ].join(','));
+    });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="PRICELIST_GARUT_${Date.now()}.csv"`);
+    res.send(rows.join('\r\n'));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

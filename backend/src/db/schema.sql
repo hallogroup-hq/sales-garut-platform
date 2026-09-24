@@ -118,6 +118,29 @@ CREATE TABLE IF NOT EXISTS dim_product (
     is_active BOOLEAN DEFAULT 1
 );
 
+-- 4b. Master Pricelist & Packaging Conversions
+CREATE TABLE IF NOT EXISTS dim_pricelist (
+    item_code VARCHAR(50) PRIMARY KEY,
+    item_name VARCHAR(150) NOT NULL,
+    principal VARCHAR(100) NOT NULL,
+    brand VARCHAR(100),
+    group_sku VARCHAR(100),
+    isi_per_ktn NUMERIC(10, 2),
+    satuan_inner VARCHAR(50),
+    pcs_per_ktn NUMERIC(10, 2),
+    pcs_per_inner NUMERIC(10, 2),
+    price_carton_inc_ppn NUMERIC(15, 2),
+    price_carton_exc_ppn NUMERIC(15, 2),
+    het_inner_inc_ppn NUMERIC(15, 2),
+    het_inner_exc_ppn NUMERIC(15, 2),
+    het_pcs_inc_ppn NUMERIC(15, 2),
+    het_pcs_exc_ppn NUMERIC(15, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pricelist_principal ON dim_pricelist(principal);
+CREATE INDEX IF NOT EXISTS idx_pricelist_item_code ON dim_pricelist(item_code);
+
 -- 5. Import Batch & Audit Infrastructure
 CREATE TABLE IF NOT EXISTS import_batch (
     batch_id VARCHAR(50) PRIMARY KEY,

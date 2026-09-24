@@ -396,6 +396,82 @@ function seedInitialData() {
     console.warn('Notice seeding fact_distinct_active_outlet:', err.message);
   }
 
+  // Seed dim_pricelist from PRICELIST.xlsx if empty
+  try {
+    const plCount = db.query('SELECT count(*) as c FROM dim_pricelist')[0]?.c || 0;
+    if (plCount === 0) {
+      const fs = require('fs');
+      const path = require('path');
+      const xlsx = require('xlsx');
+
+      let plPath = path.resolve(__dirname, '../../../PRICELIST.xlsx');
+      if (!fs.existsSync(plPath)) {
+        plPath = path.resolve(__dirname, '../../PRICELIST.xlsx');
+      }
+      if (!fs.existsSync(plPath) && fs.existsSync('D:\\Downloads\\PRICELIST.xlsx')) {
+        plPath = 'D:\\Downloads\\PRICELIST.xlsx';
+      }
+
+      if (fs.existsSync(plPath)) {
+        const wb = xlsx.readFile(plPath);
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const data = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+
+        const insertPricelistSql = `
+          INSERT OR REPLACE INTO dim_pricelist (
+            item_code, item_name, principal, brand, group_sku,
+            isi_per_ktn, satuan_inner, pcs_per_ktn, pcs_per_inner,
+            price_carton_inc_ppn, price_carton_exc_ppn,
+            het_inner_inc_ppn, het_inner_exc_ppn,
+            het_pcs_inc_ppn, het_pcs_exc_ppn,
+            updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        `;
+
+        for (let i = 4; i < data.length; i++) {
+          const r = data[i];
+          if (!r || !r[1]) continue;
+
+          const principal = String(r[0] || '').trim();
+          const itemCode = String(r[1]).trim();
+          const itemName = String(r[2] || itemCode).trim();
+          const isiPerKtn = parseFloat(r[3]) || null;
+          const satInner = r[4] ? String(r[4]).trim() : null;
+          const pcsPerKtn = parseFloat(r[5]) || (isiPerKtn && r[7] ? isiPerKtn * parseFloat(r[7]) : null);
+          const pcsPerInner = parseFloat(r[7]) || null;
+
+          const priceKtnInc = parseFloat(r[9]) || null;
+          const priceKtnExc = parseFloat(r[10]) || null;
+          const hetInnerInc = parseFloat(r[11]) || null;
+          const hetInnerExc = parseFloat(r[12]) || null;
+          const hetPcsInc = parseFloat(r[13]) || null;
+          const hetPcsExc = parseFloat(r[14]) || null;
+
+          let brand = 'GENERAL';
+          let groupSku = 'GENERAL';
+          const n = itemName.toUpperCase();
+          if (n.startsWith('CAF')) { brand = 'CAFFINO'; groupSku = 'CAFFINO'; }
+          else if (n.startsWith('5DAYS')) { brand = '5DAYS'; groupSku = '5DAYS'; }
+          else if (n.includes('ESL') || n.includes('MILKLIFE') || n.includes('UHT')) { brand = 'MILKLIFE'; groupSku = 'MILKLIFE'; }
+          else if (n.includes("FOX'S") || n.includes('FOXS') || n.includes("FOX’S")) { brand = "FOX'S"; groupSku = "FOX'S"; }
+          else if (n.includes('GADJAH') || n.includes('KTG')) { brand = 'KOPI TUBRUK GADJAH'; groupSku = 'GADJAH'; }
+          else if (n.includes('DELI')) { brand = 'DELI'; groupSku = 'DELI'; }
+          else if (n.includes('SARIMELATI') || n.includes('SARIWANGI') || principal === 'UNILEVER INDONESIA') { brand = 'SARIWANGI'; groupSku = 'TEA'; }
+
+          db.run(insertPricelistSql, [
+            itemCode, itemName, principal, brand, groupSku,
+            isiPerKtn, satInner, pcsPerKtn, pcsPerInner,
+            priceKtnInc, priceKtnExc,
+            hetInnerInc, hetInnerExc,
+            hetPcsInc, hetPcsExc
+          ]);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Notice seeding dim_pricelist:', err.message);
+  }
+
   console.log('Seeding completed successfully!');
 }
 
