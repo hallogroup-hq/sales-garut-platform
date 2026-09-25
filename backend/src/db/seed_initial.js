@@ -113,7 +113,7 @@ async function seedInitialDataAsync(db) {
   // 8. Business Calendar
   console.log('Seeding Business Calendar...');
   await db.run(`INSERT INTO business_calendar (year, month, total_hk, as_of_hke, monitoring_date) VALUES (2026, 5, 25, 8, '2026-05-30') ON CONFLICT DO NOTHING`);
-  await db.run(`INSERT INTO business_calendar (year, month, total_hk, as_of_hke, monitoring_date) VALUES (2026, 9, 25, 8, '2026-09-08') ON CONFLICT DO NOTHING`);
+  await db.run(`INSERT INTO business_calendar (year, month, total_hk, as_of_hke, monitoring_date) VALUES (2026, 9, 25, 20, '2026-09-25') ON CONFLICT DO UPDATE SET total_hk=25, as_of_hke=20, monitoring_date='2026-09-25'`);
 
   // 9. Business Settings
   console.log('Seeding Business Settings...');
@@ -259,7 +259,7 @@ function seedInitialData() {
   }
 
   db.run("INSERT OR IGNORE INTO business_calendar (year, month, total_hk, as_of_hke, monitoring_date) VALUES (2026, 5, 25, 8, '2026-05-30')");
-  db.run("INSERT OR IGNORE INTO business_calendar (year, month, total_hk, as_of_hke, monitoring_date) VALUES (2026, 9, 25, 8, '2026-09-08')");
+  db.run("INSERT OR REPLACE INTO business_calendar (year, month, total_hk, as_of_hke, monitoring_date) VALUES (2026, 9, 25, 20, '2026-09-25')");
 
   const settings = [
     { key: 'dormant_days_threshold', val: '60', desc: 'Ambang batas hari tanpa order untuk status Dormant (default 60 hari)' },

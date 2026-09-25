@@ -10,7 +10,7 @@ function buildFilterConditions(filters = {}) {
   const paramsOutlet = [];
 
   const year = parseInt(filters.year || 2026, 10);
-  const month = parseInt(filters.month || 5, 10);
+  const month = parseInt(filters.month || 9, 10);
 
   // Month & Year filter for transactions
   const monthStr = String(month).padStart(2, '0');
@@ -116,7 +116,7 @@ function buildFilterConditions(filters = {}) {
 function getExecutiveSummary(filters = {}) {
   const db = getDb();
   const f = buildFilterConditions(filters);
-  const cal = getCalendarPace(f.year, f.month);
+  const cal = getCalendarPace(f.year, f.month, filters.asOfDate);
 
   // 1. Actual Sales Aggregation
   const aggCheck = db.query(
@@ -395,7 +395,7 @@ function getExecutiveSummary(filters = {}) {
 function getTopSalesmen(filters = {}, limit = 50) {
   const db = getDb();
   const f = buildFilterConditions(filters);
-  const cal = getCalendarPace(f.year, f.month);
+  const cal = getCalendarPace(f.year, f.month, filters.asOfDate);
 
   const aggCheck = db.query(
     'SELECT COUNT(*) as c FROM agg_monthly_sales_movement WHERE year = ? AND month = ?',

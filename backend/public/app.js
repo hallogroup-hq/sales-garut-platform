@@ -7,7 +7,7 @@
 let currentTab = 'beranda';
 let globalFilters = {
   year: 2026,
-  month: 5,
+  month: 9,
   spvId: '',
   salesmanId: '',
   salesGroup: '',
@@ -182,6 +182,8 @@ function openChangePasswordQuick() {
 
 // Application Boot
 document.addEventListener('DOMContentLoaded', () => {
+  updateHeaderDate();
+  setInterval(updateHeaderDate, 30000);
   checkAuthModal();
   if (window.currentUser) {
     initApp();
@@ -251,10 +253,19 @@ function toggleSidebar(forceState) {
   }
 }
 
+function getTodayLocalDateString() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function getFilterQuery() {
   const params = new URLSearchParams();
   params.append('year', globalFilters.year);
   params.append('month', globalFilters.month);
+  params.append('asOfDate', getTodayLocalDateString());
   if (globalFilters.spvId) params.append('spvId', globalFilters.spvId);
   if (globalFilters.salesmanId) params.append('salesmanId', globalFilters.salesmanId);
   if (globalFilters.salesGroup) params.append('salesGroup', globalFilters.salesGroup);
@@ -264,23 +275,23 @@ function getFilterQuery() {
   return params.toString();
 }
 
-function updateHeaderDate(cal) {
-  const el = document.getElementById('header-date');
-  if (!el) return;
+function formatHeaderDateNow() {
   const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
   const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
   const now = new Date();
+  const dayName = dayNames[now.getDay()] || '';
+  const day = now.getDate();
+  const monthName = monthNames[now.getMonth() + 1] || '';
+  const year = now.getFullYear();
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} WIB`;
-  
-  if (cal && cal.isFullMonth) {
-    el.textContent = `Periode Selesai: ${monthNames[cal.month]} ${cal.year} (Full Month) | ${timeStr}`;
-  } else if (cal && cal.monitoringDate) {
-    const d = new Date(cal.monitoringDate);
-    const dayName = dayNames[d.getDay()] || '';
-    el.textContent = `${dayName ? dayName + ', ' : ''}${d.getDate()} ${monthNames[cal.month]} ${cal.year} | ${timeStr}`;
-  } else {
-    el.textContent = `Periode: ${monthNames[globalFilters.month]} ${globalFilters.year} | ${timeStr}`;
-  }
+  return `${dayName}, ${day} ${monthName} ${year} | ${timeStr}`;
+}
+
+function updateHeaderDate(cal) {
+  const el = document.getElementById('header-date');
+  if (!el) return;
+  // Tanggal di atas dibuat menjadi tgl hari ini saat URL dibuka (hari actual hari ini)
+  el.textContent = formatHeaderDateNow();
 }
 
 async function loadFilterOptions() {
@@ -395,7 +406,7 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  document.getElementById('filter-period').value = '2026-05';
+  document.getElementById('filter-period').value = '2026-09';
   if (document.getElementById('filter-spv')) document.getElementById('filter-spv').value = '';
   if (document.getElementById('filter-salesman')) document.getElementById('filter-salesman').value = '';
   if (document.getElementById('filter-sales-group')) document.getElementById('filter-sales-group').value = '';
@@ -827,18 +838,18 @@ async function renderBeranda() {
                   BULAN SELESAI (FULL MONTH)
                 </span>
               ` : `
-                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${s.achievementPct >= (cal.timegonePct || 71.4) ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : (s.achievementPct >= (cal.timegonePct || 71.4) - 15 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40')}">
-                  ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 71.4) ? 'ON PACE (Ahead Timerate)' : (s.achievementPct >= (cal.timegonePct || 71.4) - 15 ? 'NEEDS ATTENTION' : 'BEHIND PACE')) : 'STANDBY'}
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${s.achievementPct >= (cal.timegonePct || 80.0) ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : (s.achievementPct >= (cal.timegonePct || 80.0) - 15 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40')}">
+                  ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 80.0) ? 'ON PACE (Ahead Timerate)' : (s.achievementPct >= (cal.timegonePct || 80.0) - 15 ? 'NEEDS ATTENTION' : 'BEHIND PACE')) : 'STANDBY'}
                 </span>
               `}
             </div>
             <p class="text-base font-extrabold text-white mt-0.5">
               ${cal.isFullMonth ? `
-                Realisasi Penuh: <span class="text-emerald-400">${cal.monFriTotalHk || 21}</span> / ${cal.monFriTotalHk || 21} HK 
+                Realisasi Penuh: <span class="text-emerald-400">${cal.monFriTotalHk || cal.totalHk || 25}</span> / ${cal.monFriTotalHk || cal.totalHk || 25} HK 
                 <span class="text-slate-400 text-xs font-normal">(Bulan Telah Ditutup / Full Month)</span>
               ` : `
-                HKE Berjalan: <span class="text-emerald-400">${cal.monFriAsOfHke || 15}</span> / ${cal.monFriTotalHk || 21} HK 
-                <span class="text-slate-400 text-xs font-normal">(Sisa ${cal.monFriRemainingHk || 6} Hari Kerja)</span>
+                HKE Berjalan: <span class="text-emerald-400">${cal.monFriAsOfHke !== undefined ? cal.monFriAsOfHke : (cal.asOfHke || 20)}</span> / ${cal.monFriTotalHk || cal.totalHk || 25} HK 
+                <span class="text-slate-400 text-xs font-normal">(Sisa ${cal.monFriRemainingHk !== undefined ? cal.monFriRemainingHk : (cal.remainingHk || 5)} Hari Kerja • Siklus ${cal.totalWeeks || 5} Minggu)</span>
               `}
             </p>
           </div>
@@ -848,12 +859,12 @@ async function renderBeranda() {
           <!-- Timegone -->
           <div>
             <span class="text-slate-400 text-[10px] block">Timegone (Timerate)</span>
-            <span class="font-extrabold ${cal.isFullMonth ? 'text-blue-300' : 'text-amber-300'} text-sm">${cal.isFullMonth ? '100.0%' : (cal.timegonePct || 71.4) + '%'}</span>
+            <span class="font-extrabold ${cal.isFullMonth ? 'text-blue-300' : 'text-amber-300'} text-sm">${cal.isFullMonth ? '100.0%' : (cal.timegonePct || 80.0) + '%'}</span>
           </div>
           <!-- Capaian MTD -->
           <div>
             <span class="text-slate-400 text-[10px] block">${cal.isFullMonth ? 'Capaian Target Final' : 'Capaian Target MTD'}</span>
-            <span class="font-extrabold ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 71.4) ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-400'} text-sm">${s.hasTarget && s.achievementPct !== null ? s.achievementPct + '%' + (cal.isFullMonth ? ' (Final)' : '') : 'N/A'}</span>
+            <span class="font-extrabold ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 80.0) ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-400'} text-sm">${s.hasTarget && s.achievementPct !== null ? s.achievementPct + '%' + (cal.isFullMonth ? ' (Final)' : '') : 'N/A'}</span>
           </div>
           <!-- GAP Bulanan -->
           <div>
@@ -863,7 +874,7 @@ async function renderBeranda() {
           <!-- GAP Harian -->
           <div>
             <span class="text-slate-400 text-[10px] block">GAP Harian (Sisa HK)</span>
-            <span class="font-extrabold ${cal.isFullMonth ? 'text-slate-300' : 'text-emerald-400'} text-sm">${cal.isFullMonth ? '0 KTN/hr (Selesai)' : (s.gapDailyMonFri !== null && s.hasTarget ? s.gapDailyMonFri.toLocaleString('id-ID') + ' KTN/hr' : 'N/A')}</span>
+            <span class="font-extrabold ${cal.isFullMonth ? 'text-slate-300' : 'text-emerald-400'} text-sm">${cal.isFullMonth ? '0 KTN/hr (Selesai)' : (s.gapDailyMonFri !== null && s.hasTarget ? s.gapDailyMonFri.toLocaleString('id-ID') + ' KTN/hr' : (s.gapDaily !== null && s.hasTarget ? s.gapDaily.toLocaleString('id-ID') + ' KTN/hr' : 'N/A'))}</span>
           </div>
         </div>
       </div>
