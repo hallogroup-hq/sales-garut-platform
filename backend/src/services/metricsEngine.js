@@ -70,10 +70,26 @@ function buildFilterConditions(filters = {}) {
   if (filters.principal) {
     whereTx.push(`p.principal = ?`);
     paramsTx.push(filters.principal);
+    if (!filters.groupSku && !filters.brand && !filters.subbrand) {
+      whereTgt.push(`t.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE principal = ?)`);
+      paramsTgt.push(filters.principal);
+    }
   }
   if (filters.brand) {
     whereTx.push(`p.brand = ?`);
     paramsTx.push(filters.brand);
+    if (!filters.groupSku && !filters.subbrand) {
+      whereTgt.push(`t.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE brand = ?)`);
+      paramsTgt.push(filters.brand);
+    }
+  }
+  if (filters.subbrand) {
+    whereTx.push(`p.subbrand = ?`);
+    paramsTx.push(filters.subbrand);
+    if (!filters.groupSku) {
+      whereTgt.push(`t.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE subbrand = ?)`);
+      paramsTgt.push(filters.subbrand);
+    }
   }
   if (filters.groupSku) {
     whereTx.push(`p.group_sku = ?`);
@@ -104,6 +120,9 @@ function buildFilterConditions(filters = {}) {
     month,
     startDate,
     endDate,
+    whereTx,
+    whereTgt,
+    whereOutlet,
     whereTxSql: whereTx.length ? 'WHERE ' + whereTx.join(' AND ') : '',
     paramsTx,
     whereTgtSql: whereTgt.length ? 'WHERE ' + whereTgt.join(' AND ') : '',

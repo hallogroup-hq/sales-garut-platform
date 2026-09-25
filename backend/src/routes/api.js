@@ -21,6 +21,7 @@ const {
   rollbackImport
 } = require('../services/importEngine.js');
 const { getMovementAnalytics, exportMovementCsv } = require('../services/trendEngine.js');
+const { getTotalPerformanceSummary, exportPerformanceCsv } = require('../services/performanceEngine.js');
 const { DISCOUNT_STRATA_RULES, classifyItem, getDiscountForQty } = require('../services/discountStrata.js');
 const { getAuditLogs, logAudit } = require('../middleware/audit.js');
 const { authenticateUser, getAuthUser, requireSuperAdmin } = require('../middleware/auth.js');
@@ -151,6 +152,7 @@ router.get('/filters/options', (req, res) => {
     { id: 'SAVORIA_OTHERS', name: 'SAVORIA (OTHERS)' }
   ];
   const groupSkus = db.query('SELECT DISTINCT group_sku FROM dim_product WHERE group_sku IS NOT NULL ORDER BY group_sku').map(r => r.group_sku);
+  const subbrands = db.query('SELECT DISTINCT subbrand FROM dim_product WHERE subbrand IS NOT NULL ORDER BY subbrand').map(r => r.subbrand);
 
   res.json({
     periods,
@@ -160,6 +162,7 @@ router.get('/filters/options', (req, res) => {
     groupSkus,
     principals,
     brands,
+    subbrands,
     kecamatans,
     rayons
   });
@@ -2261,6 +2264,28 @@ router.get('/analytics/movement/export', (req, res) => {
   try {
     const csv = exportMovementCsv(req.query);
     const filename = `sales_movement_${req.query.dimension || 'salesman'}_${Date.now()}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/analytics/total-performance', (req, res) => {
+  try {
+    const data = getTotalPerformanceSummary(req.query);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/analytics/total-performance/export', (req, res) => {
+  try {
+    const view = req.query.view || 'dso';
+    const csv = exportPerformanceCsv(req.query, view);
+    const filename = `total_performance_${view}_${Date.now()}.csv`;
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);

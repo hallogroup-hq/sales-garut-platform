@@ -106,6 +106,16 @@ function getMovementAnalytics(options = {}) {
     params.push(options.brand);
   }
 
+  if (options.subbrand) {
+    whereClauses.push('a.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE subbrand = ?)');
+    params.push(options.subbrand);
+  }
+
+  if (options.groupSku) {
+    whereClauses.push('a.group_sku = ?');
+    params.push(options.groupSku);
+  }
+
   const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
   // Dimension expression
@@ -184,20 +194,44 @@ function getMovementAnalytics(options = {}) {
     headerParams.push(options.brand);
   }
 
+  if (options.subbrand) {
+    headerWhere.push('p.subbrand = ?');
+    headerParams.push(options.subbrand);
+  }
+
+  if (options.groupSku) {
+    headerWhere.push('p.group_sku = ?');
+    headerParams.push(options.groupSku);
+  }
+
+  if (options.rayonId) {
+    headerWhere.push('o.current_rayon_id = ?');
+    headerParams.push(options.rayonId);
+  }
+
+  if (options.kecamatanId) {
+    headerWhere.push('o.kecamatan_id = ?');
+    headerParams.push(options.kecamatanId);
+  }
+
   const headerWhereSql = headerWhere.length > 0 ? `WHERE ${headerWhere.join(' AND ')}` : '';
 
   // 1. Branch / overall scope single-counted distinct active outlets per month
+  const hasSpecificFilter = Boolean(options.brand || options.principal || options.subbrand || options.groupSku || options.salesmanId || options.spvId || options.salesGroup || options.rayonId || options.kecamatanId);
   const branchOaMap = {};
-  try {
-    const dsoOaRows = db.query(`
-      SELECT period_key, distinct_active_outlets
-      FROM fact_distinct_active_outlet
-      WHERE salesman_id = 'DSO' AND group_sku = 'ALL' AND month IS NOT NULL
-    `);
-    dsoOaRows.forEach(r => {
-      branchOaMap[r.period_key] = r.distinct_active_outlets;
-    });
-  } catch (e) {}
+
+  if (!hasSpecificFilter) {
+    try {
+      const dsoOaRows = db.query(`
+        SELECT period_key, distinct_active_outlets
+        FROM fact_distinct_active_outlet
+        WHERE salesman_id = 'DSO' AND group_sku = 'ALL' AND month IS NOT NULL
+      `);
+      dsoOaRows.forEach(r => {
+        branchOaMap[r.period_key] = r.distinct_active_outlets;
+      });
+    } catch (e) {}
+  }
 
   const branchOaSql = `
     SELECT
@@ -207,12 +241,13 @@ function getMovementAnalytics(options = {}) {
     LEFT JOIN org_salesman s ON h.current_owner_salesman_id = s.salesman_id
     LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
     LEFT JOIN dim_product p ON l.item_code = p.item_code
+    LEFT JOIN dim_outlet o ON h.outlet_id = o.outlet_id
     ${headerWhereSql}
     GROUP BY period_key
   `;
   const branchOaRows = db.query(branchOaSql, headerParams);
   branchOaRows.forEach(r => {
-    if (!branchOaMap[r.period_key]) {
+    if (hasSpecificFilter || !branchOaMap[r.period_key]) {
       branchOaMap[r.period_key] = r.distinct_oa;
     }
   });
@@ -499,6 +534,19 @@ function getMovementAnalytics(options = {}) {
     if (options.salesmanId) {
       btWhere.push('t.salesman_id = ?');
       btParams.push(options.salesmanId);
+    }
+    if (options.groupSku) {
+      btWhere.push('t.group_sku = ?');
+      btParams.push(options.groupSku);
+    } else if (options.brand) {
+      btWhere.push('t.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE brand = ?)');
+      btParams.push(options.brand);
+    } else if (options.principal) {
+      btWhere.push('t.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE principal = ?)');
+      btParams.push(options.principal);
+    } else if (options.subbrand) {
+      btWhere.push('t.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE subbrand = ?)');
+      btParams.push(options.subbrand);
     }
 
     const btSql = `

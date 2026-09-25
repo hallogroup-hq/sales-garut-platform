@@ -11,7 +11,10 @@ let globalFilters = {
   spvId: '',
   salesmanId: '',
   salesGroup: '',
+  rayonId: '',
+  principal: '',
   brand: '',
+  subbrand: '',
   groupSku: '',
   kecamatanId: ''
 };
@@ -227,6 +230,7 @@ function navigate(tab) {
   }
   else if (tab === 'penjualan') renderPenjualan();
   else if (tab === 'trend') renderTrend();
+  else if (tab === 'performance') renderPerformance();
   else if (tab === 'outlet') renderOutlet();
   else if (tab === 'salesman') renderSalesman();
   else if (tab === 'program') renderProgram();
@@ -269,7 +273,10 @@ function getFilterQuery() {
   if (globalFilters.spvId) params.append('spvId', globalFilters.spvId);
   if (globalFilters.salesmanId) params.append('salesmanId', globalFilters.salesmanId);
   if (globalFilters.salesGroup) params.append('salesGroup', globalFilters.salesGroup);
+  if (globalFilters.rayonId) params.append('rayonId', globalFilters.rayonId);
+  if (globalFilters.principal) params.append('principal', globalFilters.principal);
   if (globalFilters.brand) params.append('brand', globalFilters.brand);
+  if (globalFilters.subbrand) params.append('subbrand', globalFilters.subbrand);
   if (globalFilters.groupSku) params.append('groupSku', globalFilters.groupSku);
   if (globalFilters.kecamatanId) params.append('kecamatanId', globalFilters.kecamatanId);
   return params.toString();
@@ -328,15 +335,39 @@ async function loadFilterOptions() {
       salesSelect.innerHTML = '<option value="">Semua Salesman</option>' + data.salesmen.map(s => `<option value="${s.salesman_id}">${s.name}</option>`).join('');
     }
 
+    // Populate Rayon
+    const rayonSelect = document.getElementById('filter-rayon');
+    if (rayonSelect && data.rayons) {
+      rayonSelect.innerHTML = '<option value="">Semua Rayon</option>' + data.rayons.map(r => `<option value="${r.rayon_id}">${r.code || r.name}</option>`).join('');
+    }
+
+    // Populate Principal
+    const princSelect = document.getElementById('filter-principal');
+    if (princSelect && data.principals) {
+      princSelect.innerHTML = '<option value="">Semua Principal</option>' + data.principals.map(p => `<option value="${p}">${p}</option>`).join('');
+    }
+
     // Populate Brand
     const brandSelect = document.getElementById('filter-brand');
-    if (brandSelect) {
+    if (brandSelect && data.brands) {
       brandSelect.innerHTML = '<option value="">Semua Brand</option>' + data.brands.map(b => `<option value="${b}">${b}</option>`).join('');
+    }
+
+    // Populate Subbrand
+    const subbrandSelect = document.getElementById('filter-subbrand');
+    if (subbrandSelect && data.subbrands) {
+      subbrandSelect.innerHTML = '<option value="">Semua Subbrand</option>' + data.subbrands.map(s => `<option value="${s}">${s}</option>`).join('');
+    }
+
+    // Populate Group SKU
+    const groupSkuSelect = document.getElementById('filter-group-sku');
+    if (groupSkuSelect && data.groupSkus) {
+      groupSkuSelect.innerHTML = '<option value="">Semua Group SKU</option>' + data.groupSkus.map(g => `<option value="${g}">${g}</option>`).join('');
     }
 
     // Populate Kecamatan
     const kecSelect = document.getElementById('filter-kecamatan');
-    if (kecSelect) {
+    if (kecSelect && data.kecamatans) {
       kecSelect.innerHTML = '<option value="">Semua Kecamatan</option>' + data.kecamatans.map(k => `<option value="${k.kecamatan_id}">${k.name}</option>`).join('');
     }
   } catch (e) {
@@ -371,7 +402,11 @@ function updateMobileFilterSummary() {
   const spvEl = document.getElementById('filter-spv');
   const slsEl = document.getElementById('filter-salesman');
   const grpEl = document.getElementById('filter-sales-group');
+  const rynEl = document.getElementById('filter-rayon');
+  const prnEl = document.getElementById('filter-principal');
   const brdEl = document.getElementById('filter-brand');
+  const sbdEl = document.getElementById('filter-subbrand');
+  const gskEl = document.getElementById('filter-group-sku');
   const kecEl = document.getElementById('filter-kecamatan');
 
   const parts = [];
@@ -379,7 +414,11 @@ function updateMobileFilterSummary() {
   if (spvEl && spvEl.value) parts.push(spvEl.options[spvEl.selectedIndex].text);
   if (grpEl && grpEl.value) parts.push(grpEl.options[grpEl.selectedIndex].text);
   if (slsEl && slsEl.value) parts.push(slsEl.options[slsEl.selectedIndex].text);
+  if (rynEl && rynEl.value) parts.push(rynEl.options[rynEl.selectedIndex].text);
+  if (prnEl && prnEl.value) parts.push(prnEl.options[prnEl.selectedIndex].text);
   if (brdEl && brdEl.value) parts.push(brdEl.options[brdEl.selectedIndex].text);
+  if (sbdEl && sbdEl.value) parts.push(sbdEl.options[sbdEl.selectedIndex].text);
+  if (gskEl && gskEl.value) parts.push(gskEl.options[gskEl.selectedIndex].text);
   if (kecEl && kecEl.value) parts.push(kecEl.options[kecEl.selectedIndex].text);
 
   if (parts.length === 1) parts.push('Semua SPV');
@@ -394,7 +433,11 @@ function applyFilters() {
   globalFilters.salesmanId = document.getElementById('filter-salesman') ? document.getElementById('filter-salesman').value : '';
   const grpEl = document.getElementById('filter-sales-group');
   globalFilters.salesGroup = grpEl ? grpEl.value : '';
+  globalFilters.rayonId = document.getElementById('filter-rayon') ? document.getElementById('filter-rayon').value : '';
+  globalFilters.principal = document.getElementById('filter-principal') ? document.getElementById('filter-principal').value : '';
   globalFilters.brand = document.getElementById('filter-brand') ? document.getElementById('filter-brand').value : '';
+  globalFilters.subbrand = document.getElementById('filter-subbrand') ? document.getElementById('filter-subbrand').value : '';
+  globalFilters.groupSku = document.getElementById('filter-group-sku') ? document.getElementById('filter-group-sku').value : '';
   globalFilters.kecamatanId = document.getElementById('filter-kecamatan') ? document.getElementById('filter-kecamatan').value : '';
 
   updateMobileFilterSummary();
@@ -410,10 +453,19 @@ function resetFilters() {
   if (document.getElementById('filter-spv')) document.getElementById('filter-spv').value = '';
   if (document.getElementById('filter-salesman')) document.getElementById('filter-salesman').value = '';
   if (document.getElementById('filter-sales-group')) document.getElementById('filter-sales-group').value = '';
+  if (document.getElementById('filter-rayon')) document.getElementById('filter-rayon').value = '';
+  if (document.getElementById('filter-principal')) document.getElementById('filter-principal').value = '';
   if (document.getElementById('filter-brand')) document.getElementById('filter-brand').value = '';
+  if (document.getElementById('filter-subbrand')) document.getElementById('filter-subbrand').value = '';
+  if (document.getElementById('filter-group-sku')) document.getElementById('filter-group-sku').value = '';
   if (document.getElementById('filter-kecamatan')) document.getElementById('filter-kecamatan').value = '';
   globalFilters.salesGroup = '';
+  globalFilters.rayonId = '';
+  globalFilters.principal = '';
+  globalFilters.brand = '';
+  globalFilters.subbrand = '';
   globalFilters.groupSku = '';
+  globalFilters.kecamatanId = '';
   updateMobileFilterSummary();
   if (window.innerWidth < 1024) {
     toggleMobileFilter(false);
@@ -876,6 +928,29 @@ async function renderBeranda() {
             <span class="text-slate-400 text-[10px] block">GAP Harian (Sisa HK)</span>
             <span class="font-extrabold ${cal.isFullMonth ? 'text-slate-300' : 'text-emerald-400'} text-sm">${cal.isFullMonth ? '0 KTN/hr (Selesai)' : (s.gapDailyMonFri !== null && s.hasTarget ? s.gapDailyMonFri.toLocaleString('id-ID') + ' KTN/hr' : (s.gapDaily !== null && s.hasTarget ? s.gapDaily.toLocaleString('id-ID') + ' KTN/hr' : 'N/A'))}</span>
           </div>
+        </div>
+      </div>
+
+      <!-- Total Performance Quick Banner & CTA -->
+      <div class="bg-gradient-to-r from-blue-900 to-indigo-950 p-4 sm:p-5 rounded-2xl border border-blue-800/80 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+          <div class="w-11 h-11 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
+            <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-300">Total Performance Intelligence</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-white/10 text-slate-200">1-Page Deep Dive</span>
+            </div>
+            <h3 class="text-sm sm:text-base font-bold text-white mt-0.5">Analisis Total Performa DSO, Kinerja Salesman & Kontribusi Sub-brand</h3>
+            <p class="text-xs text-slate-300 mt-0.5">Rincian terpadu target vs aktual, peringkat tim sales, dan pergerakan varian SKU di seluruh Garut.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 w-full md:w-auto justify-end shrink-0">
+          <button onclick="navigate('performance')" class="w-full md:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2">
+            <span>Buka Summary Performance</span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </button>
         </div>
       </div>
 
@@ -2730,15 +2805,21 @@ async function renderTrend() {
   const main = document.getElementById('main-content');
   try {
     const { dimension, metric, periodRange } = window.trendState;
-    const spvId = globalFilters.spvId || '';
-    const salesGroup = globalFilters.salesGroup || '';
 
     const query = new URLSearchParams({
       dimension,
       metric,
       periodRange,
-      spvId,
-      salesGroup
+      spvId: globalFilters.spvId || '',
+      salesGroup: globalFilters.salesGroup || '',
+      salesmanId: globalFilters.salesmanId || '',
+      rayonId: globalFilters.rayonId || '',
+      principal: globalFilters.principal || '',
+      brand: globalFilters.brand || '',
+      subbrand: globalFilters.subbrand || '',
+      groupSku: globalFilters.groupSku || '',
+      kecamatanId: globalFilters.kecamatanId || '',
+      asOfDate: getTodayLocalDateString()
     });
 
     const res = await fetch(`/api/analytics/movement?${query.toString()}`);
@@ -2789,9 +2870,20 @@ function sortTrendMatrix(col) {
 
 function exportTrendCsv() {
   const { dimension, metric, periodRange } = window.trendState;
-  const spvId = globalFilters.spvId || '';
-  const salesGroup = globalFilters.salesGroup || '';
-  const query = new URLSearchParams({ dimension, metric, periodRange, spvId, salesGroup });
+  const query = new URLSearchParams({
+    dimension,
+    metric,
+    periodRange,
+    spvId: globalFilters.spvId || '',
+    salesGroup: globalFilters.salesGroup || '',
+    salesmanId: globalFilters.salesmanId || '',
+    rayonId: globalFilters.rayonId || '',
+    principal: globalFilters.principal || '',
+    brand: globalFilters.brand || '',
+    subbrand: globalFilters.subbrand || '',
+    groupSku: globalFilters.groupSku || '',
+    kecamatanId: globalFilters.kecamatanId || ''
+  });
   window.location.href = `/api/analytics/movement/export?${query.toString()}`;
 }
 
@@ -3684,6 +3776,829 @@ function initTrendCharts() {
             ticks: {
               callback: function(val) { return val.toLocaleString('id-ID'); }
             }
+          }
+        }
+      }
+    });
+  }
+}
+
+// ==============================================================
+// 4b. SUMMARY & TOTAL PERFORMANCE ANALYTICS (DSO, SALESMAN, SUBBRAND)
+// ==============================================================
+window.performanceState = {
+  activeView: 'dso', // 'dso', 'salesman', 'subbrand'
+  searchTerm: '',
+  salesmanSortCol: 'actualCartons',
+  salesmanSortDir: 'desc',
+  subbrandSortCol: 'actualCartons',
+  subbrandSortDir: 'desc',
+  filterPrincipal: '',
+  filterBrand: ''
+};
+
+window.perfChartInstance = null;
+window.perfMixChartInstance = null;
+
+async function renderPerformance() {
+  const main = document.getElementById('main-content');
+  try {
+    const res = await fetch(`/api/analytics/total-performance?${getFilterQuery()}`);
+    if (!res.ok) throw new Error('Gagal memuat data Total Performance');
+    const data = await res.json();
+    window.performanceData = data;
+
+    renderPerformanceView();
+  } catch (err) {
+    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat Summary Performance: ${err.message}</div>`;
+  }
+}
+
+function switchPerformanceView(view) {
+  window.performanceState.activeView = view;
+  window.performanceState.searchTerm = '';
+  renderPerformanceView();
+}
+
+function exportPerformanceCsvAction() {
+  const view = window.performanceState.activeView;
+  window.location.href = `/api/analytics/total-performance/export?${getFilterQuery()}&view=${view}`;
+}
+
+function handlePerformanceSearch(e) {
+  window.performanceState.searchTerm = (e.target.value || '').toLowerCase();
+  renderPerformanceView();
+}
+
+function sortPerformanceSalesman(col) {
+  if (window.performanceState.salesmanSortCol === col) {
+    window.performanceState.salesmanSortDir = window.performanceState.salesmanSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    window.performanceState.salesmanSortCol = col;
+    window.performanceState.salesmanSortDir = 'desc';
+  }
+  renderPerformanceView();
+}
+
+function sortPerformanceSubbrand(col) {
+  if (window.performanceState.subbrandSortCol === col) {
+    window.performanceState.subbrandSortDir = window.performanceState.subbrandSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    window.performanceState.subbrandSortCol = col;
+    window.performanceState.subbrandSortDir = 'desc';
+  }
+  renderPerformanceView();
+}
+
+function renderPerformanceView() {
+  const main = document.getElementById('main-content');
+  const data = window.performanceData;
+  if (!data) return;
+
+  const { activeView, searchTerm, salesmanSortCol, salesmanSortDir, subbrandSortCol, subbrandSortDir } = window.performanceState;
+  const kpis = data.kpis || {};
+  const cal = kpis.calendar || {};
+
+  // Build active filter tags
+  const activeTags = [];
+  if (globalFilters.year && globalFilters.month) activeTags.push(`Periode: ${kpis.month === 9 ? 'September' : 'Bulan ' + kpis.month} ${kpis.year}`);
+  if (globalFilters.spvId) activeTags.push(`SPV: ${globalFilters.spvId}`);
+  if (globalFilters.salesGroup) activeTags.push(`Group: ${globalFilters.salesGroup}`);
+  if (globalFilters.salesmanId) activeTags.push(`Salesman: ${globalFilters.salesmanId}`);
+  if (globalFilters.rayonId) activeTags.push(`Rayon: ${globalFilters.rayonId}`);
+  if (globalFilters.principal) activeTags.push(`Principal: ${globalFilters.principal}`);
+  if (globalFilters.brand) activeTags.push(`Brand: ${globalFilters.brand}`);
+  if (globalFilters.subbrand) activeTags.push(`Subbrand: ${globalFilters.subbrand}`);
+  if (globalFilters.groupSku) activeTags.push(`Group SKU: ${globalFilters.groupSku}`);
+  if (globalFilters.kecamatanId) activeTags.push(`Kecamatan: ${globalFilters.kecamatanId}`);
+
+  let contentHtml = '';
+
+  if (activeView === 'dso') {
+    // -------------------------------------------------------------
+    // TAB 1: TOTAL DSO GARUT
+    // -------------------------------------------------------------
+    const dsoMonthly = data.dsoMonthly || [];
+    const brandMix = data.brandMix || [];
+
+    contentHtml = `
+      <!-- 6 High-Impact KPI Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
+        <!-- 1. Target KTN -->
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between text-slate-500 mb-1">
+            <span class="text-[11px] font-semibold uppercase">Target KTN</span>
+            <i data-lucide="target" class="w-3.5 h-3.5 text-blue-500"></i>
+          </div>
+          <p class="text-base sm:text-lg font-bold text-slate-800 font-mono">${(kpis.targetCartons || 0).toLocaleString('id-ID')}</p>
+          <p class="text-[10px] text-slate-500 font-medium mt-0.5">Rp ${((kpis.targetValue || 0) / 1000000).toFixed(1)} Jt</p>
+        </div>
+
+        <!-- 2. Actual KTN -->
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between text-slate-500 mb-1">
+            <span class="text-[11px] font-semibold uppercase">Realisasi KTN</span>
+            <i data-lucide="package-check" class="w-3.5 h-3.5 text-emerald-500"></i>
+          </div>
+          <p class="text-base sm:text-lg font-bold text-blue-900 font-mono">${(kpis.actualCartons || 0).toLocaleString('id-ID')}</p>
+          <span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${kpis.achievementPct >= (cal.timegonePct || 80) ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'} mt-0.5">
+            ${kpis.achievementPct !== null ? kpis.achievementPct + '% Capaian' : 'N/A'}
+          </span>
+        </div>
+
+        <!-- 3. GAP Target -->
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between text-slate-500 mb-1">
+            <span class="text-[11px] font-semibold uppercase">Sisa GAP Target</span>
+            <i data-lucide="trending-down" class="w-3.5 h-3.5 text-rose-500"></i>
+          </div>
+          <p class="text-base sm:text-lg font-bold text-rose-600 font-mono">${(kpis.remainingTarget || 0).toLocaleString('id-ID')}</p>
+          <p class="text-[10px] text-slate-500 font-medium mt-0.5">${(kpis.gapDaily || 0).toLocaleString('id-ID')} KTN/hr</p>
+        </div>
+
+        <!-- 4. Omzet Netto -->
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between text-slate-500 mb-1">
+            <span class="text-[11px] font-semibold uppercase">Nilai Omzet Netto</span>
+            <i data-lucide="banknote" class="w-3.5 h-3.5 text-indigo-500"></i>
+          </div>
+          <p class="text-base sm:text-lg font-bold text-slate-800 font-mono">Rp ${((kpis.salesNetto || 0) / 1000000).toFixed(1)} Jt</p>
+          <p class="text-[10px] text-slate-400 mt-0.5">DPP: Rp ${((kpis.salesDpp || 0) / 1000000).toFixed(1)} Jt</p>
+        </div>
+
+        <!-- 5. Outlet Aktif MTD -->
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between text-slate-500 mb-1">
+            <span class="text-[11px] font-semibold uppercase">Outlet Aktif (OA)</span>
+            <i data-lucide="store" class="w-3.5 h-3.5 text-teal-500"></i>
+          </div>
+          <p class="text-base sm:text-lg font-bold text-emerald-800 font-mono">${(kpis.activeOutletsMtd || 0).toLocaleString('id-ID')} <span class="text-xs font-normal text-slate-400">Toko</span></p>
+          <p class="text-[10px] text-slate-500 font-medium mt-0.5">Coverage: <strong class="text-emerald-700">${kpis.coveragePct}%</strong> / ${(kpis.registeredOutlets || 0).toLocaleString('id-ID')} CL</p>
+        </div>
+
+        <!-- 6. Pace Operasional -->
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between text-slate-500 mb-1">
+            <span class="text-[11px] font-semibold uppercase">Pace Operasional</span>
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-amber-500"></i>
+          </div>
+          <p class="text-base sm:text-lg font-bold text-slate-800 font-mono">${cal.monFriAsOfHke || cal.asOfHke || 20} / ${cal.monFriTotalHk || cal.totalHk || 25} HK</p>
+          <p class="text-[10px] font-medium mt-0.5 text-amber-700">Timegone: ${(cal.timegonePct || 80)}% (Sisa ${cal.monFriRemainingHk || cal.remainingHk || 5} HK)</p>
+        </div>
+      </div>
+
+      <!-- Dual-Axis Line Chart: Target vs Realisasi Karton & Outlet Aktif -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">TOTAL DSO GARUT</span>
+              <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">TREND 2026</span>
+            </div>
+            <h3 class="text-sm font-bold text-slate-800 mt-1 flex items-center gap-2">
+              <i data-lucide="line-chart" class="w-4 h-4 text-blue-600"></i>
+              <span>Grafik Pergerakan Bulanan: Target vs Realisasi (KTN) & Outlet Aktif (OA)</span>
+            </h3>
+          </div>
+          <div class="text-xs text-slate-400">
+            Data aktual Jan – Sep 2026 DSO Garut
+          </div>
+        </div>
+
+        <div class="mt-4 relative" style="min-height: 280px;">
+          <canvas id="perfDsoCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Tabel Rincian Bulanan Total DSO -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2 mb-3">
+          <h3 class="text-xs font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="table" class="w-4 h-4 text-emerald-600"></i>
+            <span>Tabel Ringkasan Angka Bulanan Total DSO (Tahun 2026)</span>
+          </h3>
+          <span class="text-xs text-slate-400">Menampilkan target, realisasi, pencapaian %, pertumbuhan MoM, OA, dan omzet</span>
+        </div>
+
+        <div class="overflow-x-auto scrollbar-thin rounded-lg border border-slate-200">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 select-none">
+              <tr>
+                <th class="py-2.5 px-3 text-center w-10">No</th>
+                <th class="py-2.5 px-3">Periode</th>
+                <th class="py-2.5 px-3 text-right">Target (KTN)</th>
+                <th class="py-2.5 px-3 text-right">Realisasi (KTN)</th>
+                <th class="py-2.5 px-3 text-right">Capaian (%)</th>
+                <th class="py-2.5 px-3 text-right">MoM Vol (%)</th>
+                <th class="py-2.5 px-3 text-right text-emerald-800 bg-emerald-50/50">Outlet Aktif (OA)</th>
+                <th class="py-2.5 px-3 text-right">MoM OA (%)</th>
+                <th class="py-2.5 px-3 text-right">Nilai Omzet (Rp Netto)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+              ${dsoMonthly.map((m, idx) => {
+                const momVolBadge = m.momVolPct !== null
+                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momVolPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momVolPct >= 0 ? '▲ +' : '▼ '}${m.momVolPct}%</span>`
+                  : `<span class="text-slate-300">—</span>`;
+
+                const momOaBadge = m.momOaPct !== null
+                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momOaPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momOaPct >= 0 ? '▲ +' : '▼ '}${m.momOaPct}%</span>`
+                  : `<span class="text-slate-300">—</span>`;
+
+                const achvBadge = m.achievementPct !== null
+                  ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono ${m.achievementPct >= 100 ? 'bg-emerald-100 text-emerald-800' : m.achievementPct >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}">${m.achievementPct}%</span>`
+                  : `<span class="text-slate-300">—</span>`;
+
+                return `
+                  <tr class="hover:bg-slate-50/80 transition ${m.isCurrentMonth ? 'bg-blue-50/30 font-bold' : ''}">
+                    <td class="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">${idx + 1}</td>
+                    <td class="py-2 px-3 whitespace-nowrap text-slate-900">
+                      ${m.monthLabel} 2026
+                      ${m.isCurrentMonth ? '<span class="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-extrabold rounded">Bulan Berjalan</span>' : ''}
+                    </td>
+                    <td class="py-2 px-3 text-right font-mono text-slate-600">
+                      ${m.targetCartons > 0 ? m.targetCartons.toLocaleString('id-ID') : '—'}
+                    </td>
+                    <td class="py-2 px-3 text-right font-mono font-bold text-blue-900">
+                      ${m.actualCartons.toLocaleString('id-ID')}
+                    </td>
+                    <td class="py-2 px-3 text-right">
+                      ${achvBadge}
+                    </td>
+                    <td class="py-2 px-3 text-right">
+                      ${momVolBadge}
+                    </td>
+                    <td class="py-2 px-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/30">
+                      ${m.activeOutlets.toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-400">Toko</span>
+                    </td>
+                    <td class="py-2 px-3 text-right">
+                      ${momOaBadge}
+                    </td>
+                    <td class="py-2 px-3 text-right font-mono text-slate-800 whitespace-nowrap">
+                      ${m.salesNetto >= 1000000000 ? 'Rp ' + (m.salesNetto / 1000000000).toFixed(2) + ' M' : 'Rp ' + (m.salesNetto / 1000000).toFixed(1) + ' Jt'}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+            <tfoot class="bg-slate-100 text-slate-800 font-bold border-t-2 border-slate-300">
+              <tr>
+                <td colspan="2" class="py-2.5 px-3 text-center uppercase tracking-wider text-[11px] font-extrabold">TOTAL 2026</td>
+                <td class="py-2.5 px-3 text-right font-mono">${dsoMonthly.reduce((a, b) => a + (b.targetCartons || 0), 0).toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-950">${dsoMonthly.reduce((a, b) => a + (b.actualCartons || 0), 0).toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-right text-slate-400">—</td>
+                <td class="py-2.5 px-3 text-right text-slate-400">—</td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-900 bg-emerald-100/50">
+                  ${Math.round(dsoMonthly.reduce((a, b) => a + (b.activeOutlets || 0), 0) / (dsoMonthly.length || 1)).toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-500">Avg/bln</span>
+                </td>
+                <td class="py-2.5 px-3 text-right text-slate-400">—</td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold whitespace-nowrap">
+                  Rp ${(dsoMonthly.reduce((a, b) => a + (b.salesNetto || 0), 0) / 1000000000).toFixed(2)} M
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    `;
+  } else if (activeView === 'salesman') {
+    // -------------------------------------------------------------
+    // TAB 2: BY SALESMAN
+    // -------------------------------------------------------------
+    let salesmen = (data.bySalesman || []).slice();
+
+    if (searchTerm) {
+      salesmen = salesmen.filter(s =>
+        s.salesmanName.toLowerCase().includes(searchTerm) ||
+        s.spvName.toLowerCase().includes(searchTerm) ||
+        s.salesGroup.toLowerCase().includes(searchTerm) ||
+        s.salesmanType.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    salesmen = sortDataRows(salesmen, salesmanSortCol, salesmanSortDir);
+
+    const totalTgt = salesmen.reduce((acc, s) => acc + (s.targetCartons || 0), 0);
+    const totalAct = salesmen.reduce((acc, s) => acc + (s.actualCartons || 0), 0);
+    const totalNet = salesmen.reduce((acc, s) => acc + (s.salesNetto || 0), 0);
+    const totalOa = salesmen.reduce((acc, s) => acc + (s.activeOutlets || 0), 0);
+    const totalCl = salesmen.reduce((acc, s) => acc + (s.registeredOutlets || 0), 0);
+    const avgAchv = totalTgt > 0 ? Math.round((totalAct / totalTgt) * 1000) / 10 : 0;
+
+    contentHtml = `
+      <!-- Salesman Performance Overview Bar -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Salesman Aktif</span>
+          <span class="text-base sm:text-lg font-bold text-slate-900 font-mono">${salesmen.length} Personel</span>
+          <span class="text-[10px] text-slate-400 block mt-0.5">DSO Garut</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Realisasi Salesman</span>
+          <span class="text-base sm:text-lg font-bold text-blue-900 font-mono">${totalAct.toLocaleString('id-ID')} KTN</span>
+          <span class="text-[10px] text-emerald-600 font-semibold block mt-0.5">${avgAchv}% Rata-rata Capaian</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Target Tim</span>
+          <span class="text-base sm:text-lg font-bold text-slate-800 font-mono">${totalTgt.toLocaleString('id-ID')} KTN</span>
+          <span class="text-[10px] text-rose-500 font-medium block mt-0.5">Sisa GAP: ${Math.max(0, totalTgt - totalAct).toLocaleString('id-ID')} KTN</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Outlet Dilayani</span>
+          <span class="text-base sm:text-lg font-bold text-emerald-800 font-mono">${totalOa.toLocaleString('id-ID')} OA</span>
+          <span class="text-[10px] text-slate-500 block mt-0.5">dari ${totalCl.toLocaleString('id-ID')} Registered CL</span>
+        </div>
+      </div>
+
+      <!-- Chart: Salesman Target vs Actual -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+          <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="bar-chart" class="w-4 h-4 text-blue-600"></i>
+            <span>Grafik Perbandingan Realisasi vs Target per Salesman (KTN)</span>
+          </h3>
+          <span class="text-xs text-slate-400">Diurutkan berdasarkan ranking volume penjualan</span>
+        </div>
+
+        <div class="mt-4 relative" style="min-height: 290px;">
+          <canvas id="perfSalesmanCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Table: Salesman Details -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
+          <div>
+            <h3 class="text-xs font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="users" class="w-4 h-4 text-emerald-600"></i>
+              <span>Rincian Lengkap Produktivitas Tim Salesman</span>
+            </h3>
+            <p class="text-[11px] text-slate-400 mt-0.5">Klik pada header kolom untuk mengurutkan data (Sort)</p>
+          </div>
+
+          <!-- Search Box -->
+          <div class="w-full sm:w-64 relative">
+            <input type="text" oninput="handlePerformanceSearch(event)" value="${searchTerm}" placeholder="Cari nama salesman / SPV..." class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto scrollbar-thin rounded-lg border border-slate-200 mt-3">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 select-none">
+              <tr>
+                <th class="py-2.5 px-3 text-center w-10">No</th>
+                <th onclick="sortPerformanceSalesman('salesmanName')" class="py-2.5 px-3 cursor-pointer hover:bg-slate-100 transition">Salesman <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th onclick="sortPerformanceSalesman('spvName')" class="py-2.5 px-3 cursor-pointer hover:bg-slate-100 transition">SPV <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th class="py-2.5 px-3">Tipe</th>
+                <th class="py-2.5 px-3">Group</th>
+                <th onclick="sortPerformanceSalesman('targetCartons')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition">Target (KTN) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th onclick="sortPerformanceSalesman('actualCartons')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition text-blue-900">Aktual (KTN) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th onclick="sortPerformanceSalesman('achievementPct')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition">Capaian (%) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th class="py-2.5 px-3 text-right">GAP (KTN)</th>
+                <th class="py-2.5 px-3 text-right">GAP/hr</th>
+                <th onclick="sortPerformanceSalesman('activeOutlets')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition text-emerald-800 bg-emerald-50/50">OA (Toko) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th class="py-2.5 px-3 text-right">Coverage</th>
+                <th class="py-2.5 px-3 text-center">Status Pace</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+              ${salesmen.map((s, idx) => {
+                const achvClass = s.achievementPct >= 80 ? 'bg-emerald-100 text-emerald-800' : s.achievementPct >= 60 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800';
+                const paceBadge = s.paceStatus === 'ON_TRACK'
+                  ? `<span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold">ON TRACK</span>`
+                  : s.paceStatus === 'NEEDS_ATTENTION'
+                  ? `<span class="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-bold">ATTENTION</span>`
+                  : `<span class="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded text-[10px] font-bold">BEHIND</span>`;
+
+                return `
+                  <tr class="hover:bg-slate-50/80 transition">
+                    <td class="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">${idx + 1}</td>
+                    <td class="py-2.5 px-3 whitespace-nowrap">
+                      <div class="font-bold text-slate-900">${s.salesmanName}</div>
+                      <div class="text-[10px] text-slate-400 font-mono">ID: ${s.salesmanId}</div>
+                    </td>
+                    <td class="py-2.5 px-3 whitespace-nowrap text-slate-700">${s.spvName}</td>
+                    <td class="py-2.5 px-3 whitespace-nowrap">
+                      <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-semibold">${s.salesmanType}</span>
+                    </td>
+                    <td class="py-2.5 px-3 whitespace-nowrap text-[11px] text-slate-600">${s.salesGroup}</td>
+                    <td class="py-2.5 px-3 text-right font-mono text-slate-600">${s.targetCartons > 0 ? s.targetCartons.toLocaleString('id-ID') : '—'}</td>
+                    <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-900">${s.actualCartons.toLocaleString('id-ID')}</td>
+                    <td class="py-2.5 px-3 text-right">
+                      ${s.achievementPct !== null ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono ${achvClass}">${s.achievementPct}%</span>` : '—'}
+                    </td>
+                    <td class="py-2.5 px-3 text-right font-mono text-rose-600">${s.gapCartons > 0 ? s.gapCartons.toLocaleString('id-ID') : '0'}</td>
+                    <td class="py-2.5 px-3 text-right font-mono text-slate-500 text-[11px]">${s.gapDaily > 0 ? s.gapDaily.toLocaleString('id-ID') : '0'}</td>
+                    <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/30">${s.activeOutlets} <span class="text-[10px] font-normal text-slate-400">/ ${s.registeredOutlets}</span></td>
+                    <td class="py-2.5 px-3 text-right font-mono text-slate-700">${s.coveragePct}%</td>
+                    <td class="py-2.5 px-3 text-center">${paceBadge}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+            <tfoot class="bg-slate-100 text-slate-800 font-bold border-t-2 border-slate-300">
+              <tr>
+                <td colspan="5" class="py-2.5 px-3 text-center uppercase tracking-wider text-[11px] font-extrabold">TOTAL TIM SALES</td>
+                <td class="py-2.5 px-3 text-right font-mono">${totalTgt.toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-950">${totalAct.toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-right font-mono font-bold">${avgAchv}%</td>
+                <td class="py-2.5 px-3 text-right font-mono text-rose-600">${Math.max(0, totalTgt - totalAct).toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-right text-slate-400">—</td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-900 bg-emerald-100/50">${totalOa.toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-right font-mono">${totalCl > 0 ? Math.round((totalOa / totalCl) * 1000) / 10 : 0}%</td>
+                <td class="py-2.5 px-3 text-center text-slate-400">—</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    `;
+  } else {
+    // -------------------------------------------------------------
+    // TAB 3: BY SUB-BRAND
+    // -------------------------------------------------------------
+    let subbrands = (data.bySubbrand || []).slice();
+
+    if (searchTerm) {
+      subbrands = subbrands.filter(b =>
+        b.subbrand.toLowerCase().includes(searchTerm) ||
+        b.brand.toLowerCase().includes(searchTerm) ||
+        b.principal.toLowerCase().includes(searchTerm) ||
+        b.groupSku.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    subbrands = sortDataRows(subbrands, subbrandSortCol, subbrandSortDir);
+
+    const totalSubVol = subbrands.reduce((acc, b) => acc + (b.actualCartons || 0), 0);
+    const totalSubNet = subbrands.reduce((acc, b) => acc + (b.salesNetto || 0), 0);
+    const totalSubInv = subbrands.reduce((acc, b) => acc + (b.invoiceCount || 0), 0);
+
+    contentHtml = `
+      <!-- Sub-brand Performance Overview Bar -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Ragam Sub-brand</span>
+          <span class="text-base sm:text-lg font-bold text-slate-900 font-mono">${subbrands.length} Varian</span>
+          <span class="text-[10px] text-slate-400 block mt-0.5">Memiliki transaksi aktif</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Volume Terjual</span>
+          <span class="text-base sm:text-lg font-bold text-blue-900 font-mono">${totalSubVol.toLocaleString('id-ID')} KTN</span>
+          <span class="text-[10px] text-slate-400 block mt-0.5">Karton riil terjual</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Omzet Bersih</span>
+          <span class="text-base sm:text-lg font-bold text-indigo-900 font-mono">Rp ${(totalSubNet / 1000000).toFixed(1)} Jt</span>
+          <span class="text-[10px] text-slate-400 block mt-0.5">Netto Inc PPN</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Transaksi Faktur</span>
+          <span class="text-base sm:text-lg font-bold text-emerald-800 font-mono">${totalSubInv.toLocaleString('id-ID')} Faktur</span>
+          <span class="text-[10px] text-slate-400 block mt-0.5">Penetrasi pasar Garut</span>
+        </div>
+      </div>
+
+      <!-- Chart: Top Sub-brands -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+          <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-600"></i>
+            <span>Grafik Ranking Sub-brand Terlaris di Wilayah Garut (KTN)</span>
+          </h3>
+          <span class="text-xs text-slate-400">Top varian produk paling diminati outlet</span>
+        </div>
+
+        <div class="mt-4 relative" style="min-height: 290px;">
+          <canvas id="perfSubbrandCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Table: Sub-brand Details -->
+      <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
+          <div>
+            <h3 class="text-xs font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="boxes" class="w-4 h-4 text-indigo-600"></i>
+              <span>Rincian Penjualan & Kontribusi per Sub-brand</span>
+            </h3>
+            <p class="text-[11px] text-slate-400 mt-0.5">Klik pada header kolom untuk mengurutkan (Sort)</p>
+          </div>
+
+          <!-- Search Box -->
+          <div class="w-full sm:w-64 relative">
+            <input type="text" oninput="handlePerformanceSearch(event)" value="${searchTerm}" placeholder="Cari nama sub-brand / brand..." class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto scrollbar-thin rounded-lg border border-slate-200 mt-3">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 select-none">
+              <tr>
+                <th class="py-2.5 px-3 text-center w-10">No</th>
+                <th onclick="sortPerformanceSubbrand('subbrand')" class="py-2.5 px-3 cursor-pointer hover:bg-slate-100 transition">Sub-brand <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th onclick="sortPerformanceSubbrand('brand')" class="py-2.5 px-3 cursor-pointer hover:bg-slate-100 transition">Brand <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th class="py-2.5 px-3">Principal</th>
+                <th class="py-2.5 px-3">Group SKU</th>
+                <th onclick="sortPerformanceSubbrand('actualCartons')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition text-blue-900">Volume (KTN) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th onclick="sortPerformanceSubbrand('salesNetto')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition">Omzet Netto (Rp) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th onclick="sortPerformanceSubbrand('contributionPct')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition">Share (%) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th onclick="sortPerformanceSubbrand('activeOutlets')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition text-emerald-800 bg-emerald-50/50">OA Pembeli <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th class="py-2.5 px-3 text-right">Faktur</th>
+                <th class="py-2.5 px-3 text-right">Rata-rata/KTN</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+              ${subbrands.map((b, idx) => `
+                <tr class="hover:bg-slate-50/80 transition">
+                  <td class="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">${idx + 1}</td>
+                  <td class="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">${b.subbrand}</td>
+                  <td class="py-2.5 px-3 whitespace-nowrap text-slate-700">${b.brand}</td>
+                  <td class="py-2.5 px-3 whitespace-nowrap text-[11px] text-slate-500">${b.principal}</td>
+                  <td class="py-2.5 px-3 whitespace-nowrap"><span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-semibold">${b.groupSku}</span></td>
+                  <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-900">${b.actualCartons.toLocaleString('id-ID')}</td>
+                  <td class="py-2.5 px-3 text-right font-mono text-slate-800 whitespace-nowrap">${b.salesNetto >= 1000000 ? 'Rp ' + (b.salesNetto / 1000000).toFixed(1) + ' Jt' : 'Rp ' + b.salesNetto.toLocaleString('id-ID')}</td>
+                  <td class="py-2.5 px-3 text-right font-mono font-bold text-indigo-700">${b.contributionPct}%</td>
+                  <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/30">${b.activeOutlets} <span class="text-[10px] font-normal text-slate-400">Toko</span></td>
+                  <td class="py-2.5 px-3 text-right font-mono text-slate-500">${b.invoiceCount}</td>
+                  <td class="py-2.5 px-3 text-right font-mono text-slate-600 text-[11px]">Rp ${b.avgPriceCarton.toLocaleString('id-ID')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+            <tfoot class="bg-slate-100 text-slate-800 font-bold border-t-2 border-slate-300">
+              <tr>
+                <td colspan="5" class="py-2.5 px-3 text-center uppercase tracking-wider text-[11px] font-extrabold">TOTAL SUB-BRAND</td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-950">${totalSubVol.toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold whitespace-nowrap">Rp ${(totalSubNet / 1000000).toFixed(1)} Jt</td>
+                <td class="py-2.5 px-3 text-right font-mono">100%</td>
+                <td class="py-2.5 px-3 text-right text-slate-400">—</td>
+                <td class="py-2.5 px-3 text-right font-mono">${totalSubInv.toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-right text-slate-400">—</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  main.innerHTML = `
+    <!-- Top Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">INTELLIGENCE PLATFORM</span>
+          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">SUMMARY PERFORMANCE</span>
+        </div>
+        <h2 class="text-xl font-bold text-slate-900 tracking-tight mt-1">Total Performance Analytics — DSO Garut</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Analisis angka performa komprehensif: Target vs Realisasi DSO, Produktivitas Salesman, dan Kontribusi Sub-brand</p>
+      </div>
+
+      <!-- Action Button: Export CSV -->
+      <div class="flex items-center gap-2">
+        <button onclick="exportPerformanceCsvAction()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span>Export CSV (${activeView.toUpperCase()})</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Filters Ribbon Tags -->
+    ${activeTags.length > 0 ? `
+      <div class="flex flex-wrap items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+        <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+          <i data-lucide="filter" class="w-3.5 h-3.5 text-blue-600"></i> Filter Aktif:
+        </span>
+        ${activeTags.map(tag => `<span class="px-2 py-0.5 bg-white border border-slate-200 text-slate-700 rounded-md font-medium text-[11px] shadow-2xs">${tag}</span>`).join('')}
+        <button onclick="resetFilters()" class="text-blue-600 hover:text-blue-800 text-[11px] font-semibold underline ml-2">Reset Semua</button>
+      </div>
+    ` : ''}
+
+    <!-- 3 View Mode Switcher Pills -->
+    <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold w-full sm:w-auto self-start border border-slate-200/60">
+      <button onclick="switchPerformanceView('dso')" class="flex-1 sm:flex-initial px-4 py-2 rounded-lg transition flex items-center justify-center gap-2 ${activeView === 'dso' ? 'bg-white text-blue-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+        <i data-lucide="building-2" class="w-4 h-4"></i>
+        <span>🏢 By Total DSO</span>
+      </button>
+      <button onclick="switchPerformanceView('salesman')" class="flex-1 sm:flex-initial px-4 py-2 rounded-lg transition flex items-center justify-center gap-2 ${activeView === 'salesman' ? 'bg-white text-blue-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+        <i data-lucide="users" class="w-4 h-4"></i>
+        <span>👤 By Salesman</span>
+      </button>
+      <button onclick="switchPerformanceView('subbrand')" class="flex-1 sm:flex-initial px-4 py-2 rounded-lg transition flex items-center justify-center gap-2 ${activeView === 'subbrand' ? 'bg-white text-blue-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+        <i data-lucide="boxes" class="w-4 h-4"></i>
+        <span>📦 By Sub-brand</span>
+      </button>
+    </div>
+
+    <!-- Main Content Area -->
+    ${contentHtml}
+  `;
+
+  lucide.createIcons();
+  initPerformanceCharts();
+}
+
+function initPerformanceCharts() {
+  const data = window.performanceData;
+  if (!data) return;
+
+  const { activeView } = window.performanceState;
+
+  if (window.perfChartInstance) {
+    window.perfChartInstance.destroy();
+    window.perfChartInstance = null;
+  }
+  if (window.perfMixChartInstance) {
+    window.perfMixChartInstance.destroy();
+    window.perfMixChartInstance = null;
+  }
+
+  if (activeView === 'dso') {
+    const ctx = document.getElementById('perfDsoCanvas');
+    if (!ctx) return;
+
+    const dsoMonthly = data.dsoMonthly || [];
+    const labels = dsoMonthly.map(m => m.monthLabel);
+    const targetData = dsoMonthly.map(m => m.targetCartons);
+    const actualData = dsoMonthly.map(m => m.actualCartons);
+    const oaData = dsoMonthly.map(m => m.activeOutlets);
+
+    window.perfChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            type: 'line',
+            label: 'Realisasi Volume (KTN)',
+            data: actualData,
+            borderColor: '#2563eb',
+            backgroundColor: 'rgba(37, 99, 235, 0.1)',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 5,
+            pointBackgroundColor: '#2563eb',
+            yAxisID: 'y'
+          },
+          {
+            type: 'line',
+            label: 'Target Volume (KTN)',
+            data: targetData,
+            borderColor: '#dc2626',
+            borderWidth: 2,
+            borderDash: [5, 5],
+            fill: false,
+            tension: 0.1,
+            pointRadius: 3.5,
+            pointBackgroundColor: '#dc2626',
+            yAxisID: 'y'
+          },
+          {
+            type: 'line',
+            label: 'Outlet Aktif (OA Toko)',
+            data: oaData,
+            borderColor: '#059669',
+            backgroundColor: 'rgba(5, 150, 105, 0.08)',
+            borderWidth: 2.5,
+            fill: false,
+            tension: 0.3,
+            pointRadius: 4.5,
+            pointBackgroundColor: '#059669',
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: { boxWidth: 14, font: { size: 11, family: 'Plus Jakarta Sans', weight: 'bold' } }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const label = context.dataset.label || '';
+                const val = context.parsed.y;
+                if (context.dataset.yAxisID === 'y1') return `${label}: ${val.toLocaleString('id-ID')} Toko`;
+                return `${label}: ${val.toLocaleString('id-ID')} KTN`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11, weight: 'bold' } } },
+          y: {
+            type: 'linear',
+            position: 'left',
+            title: { display: true, text: 'Volume (Karton)', font: { size: 11, weight: 'bold' }, color: '#2563eb' },
+            ticks: { callback: v => v.toLocaleString('id-ID') }
+          },
+          y1: {
+            type: 'linear',
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            title: { display: true, text: 'Outlet Aktif (OA Toko)', font: { size: 11, weight: 'bold' }, color: '#059669' },
+            ticks: { callback: v => v.toLocaleString('id-ID') }
+          }
+        }
+      }
+    });
+  } else if (activeView === 'salesman') {
+    const ctx = document.getElementById('perfSalesmanCanvas');
+    if (!ctx) return;
+
+    const salesmen = (data.bySalesman || []).slice(0, 12);
+    const labels = salesmen.map(s => s.salesmanName);
+    const actualData = salesmen.map(s => s.actualCartons);
+    const targetData = salesmen.map(s => s.targetCartons);
+
+    window.perfChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Aktual Penjualan (KTN)',
+            data: actualData,
+            backgroundColor: '#2563eb',
+            borderRadius: 6
+          },
+          {
+            label: 'Target (KTN)',
+            data: targetData,
+            backgroundColor: '#cbd5e1',
+            borderRadius: 6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: context => `${context.dataset.label}: ${context.parsed.y.toLocaleString('id-ID')} KTN`
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+          y: {
+            beginAtZero: true,
+            ticks: { callback: v => v.toLocaleString('id-ID') }
+          }
+        }
+      }
+    });
+  } else if (activeView === 'subbrand') {
+    const ctx = document.getElementById('perfSubbrandCanvas');
+    if (!ctx) return;
+
+    const subbrands = (data.bySubbrand || []).slice(0, 12);
+    const labels = subbrands.map(b => b.subbrand.length > 22 ? b.subbrand.substring(0, 20) + '...' : b.subbrand);
+    const volumeData = subbrands.map(b => b.actualCartons);
+
+    const colors = [
+      '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2',
+      '#4f46e5', '#16a34a', '#ea580c', '#9333ea', '#e11d48', '#0284c7'
+    ];
+
+    window.perfChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Volume Penjualan (KTN)',
+            data: volumeData,
+            backgroundColor: colors.slice(0, subbrands.length),
+            borderRadius: 6
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: context => `Volume: ${context.parsed.y.toLocaleString('id-ID')} KTN`
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+          y: {
+            beginAtZero: true,
+            ticks: { callback: v => v.toLocaleString('id-ID') }
           }
         }
       }

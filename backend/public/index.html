@@ -81,6 +81,13 @@
             <span class="text-[9px] bg-cyan-500/20 text-cyan-300 font-bold px-1.5 py-0.5 rounded">Baru</span>
           </span>
         </a>
+        <a href="#performance" onclick="navigate('performance'); toggleSidebar(false);" id="nav-performance" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
+          <i data-lucide="award" class="w-4 h-4 text-emerald-400"></i>
+          <span class="flex items-center gap-2">
+            <span>Summary Performance</span>
+            <span class="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">Total DSO</span>
+          </span>
+        </a>
         <a href="#outlet" onclick="navigate('outlet'); toggleSidebar(false);" id="nav-outlet" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
           <i data-lucide="store" class="w-4 h-4"></i>
           <span>Outlet & Area</span>
@@ -274,16 +281,48 @@
           </select>
         </div>
 
+        <!-- Rayon -->
+        <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
+          <span class="text-slate-500 font-medium">Rayon:</span>
+          <select id="filter-rayon" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[130px]">
+            <option value="">Semua Rayon</option>
+          </select>
+        </div>
+
+        <!-- Principal -->
+        <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
+          <span class="text-slate-500 font-medium">Principal:</span>
+          <select id="filter-principal" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[150px]">
+            <option value="">Semua Principal</option>
+          </select>
+        </div>
+
         <!-- Brand -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Brand:</span>
-          <select id="filter-brand" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
+          <select id="filter-brand" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[150px]">
             <option value="">Semua Brand</option>
             <option value="KOPI TUBRUK GADJAH">Kopi Tubruk Gadjah</option>
             <option value="5DAYS">5Days Croissant</option>
             <option value="MILK LIFE UHT">Milk Life UHT</option>
             <option value="CAFFINO">Caffino</option>
             <option value="FOX">Fox Confectionery</option>
+          </select>
+        </div>
+
+        <!-- Subbrand -->
+        <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
+          <span class="text-slate-500 font-medium">Subbrand:</span>
+          <select id="filter-subbrand" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[160px]">
+            <option value="">Semua Subbrand</option>
+          </select>
+        </div>
+
+        <!-- Group SKU -->
+        <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
+          <span class="text-slate-500 font-medium">Group SKU:</span>
+          <select id="filter-group-sku" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[130px]">
+            <option value="">Semua Group SKU</option>
           </select>
         </div>
 
