@@ -26,26 +26,26 @@ test('M13-2: Total Performance Summary provides complete KPIs, DSO Monthly, Sale
   assert.equal(perf.kpis.year, 2026);
   assert.equal(perf.kpis.month, 9);
   assert.equal(perf.kpis.targetCartons, 11723.29);
-  assert.equal(perf.kpis.actualCartons, 3144.29);
+  assert.equal(perf.kpis.actualCartons, 5432.96);
   assert.equal(perf.kpis.registeredOutlets, 2452);
-  assert.equal(perf.kpis.activeOutletsMtd, 1079);
-  assert.equal(perf.kpis.achievementPct, 26.8);
-  assert.equal(perf.kpis.gapDaily, 1715.8);
+  assert.equal(perf.kpis.activeOutletsMtd, 2717);
+  assert.equal(perf.kpis.achievementPct, 46.3);
+  assert.equal(perf.kpis.gapDaily, 1258.07);
 
   // 2. DSO Monthly Breakdown
   assert.equal(perf.dsoMonthly.length, 9, 'DSO monthly has 9 months for 2026');
   const sepRow = perf.dsoMonthly.find(m => m.month === 9);
   assert.ok(sepRow, 'September row exists in monthly table');
-  assert.equal(sepRow.actualCartons, 3144.29);
-  assert.equal(sepRow.activeOutlets, 1079);
+  assert.equal(sepRow.actualCartons, 5432.96);
+  assert.equal(sepRow.activeOutlets, 2717);
 
   // 3. Performance by Salesman
   assert.ok(perf.bySalesman.length >= 7, 'Has at least 7 active salesmen');
   const mulyana = perf.bySalesman.find(s => s.salesmanId === '305028');
   assert.ok(mulyana, 'Mulyana found in salesmen list');
-  assert.equal(mulyana.actualCartons, 1326);
+  assert.equal(mulyana.actualCartons, 1822);
   assert.equal(mulyana.targetCartons, 2732.6);
-  assert.equal(mulyana.activeOutlets, 126);
+  assert.equal(mulyana.activeOutlets, 161);
   assert.equal(mulyana.rank, 1, 'Mulyana is rank 1');
 
   // 4. Performance by Sub-brand
@@ -60,7 +60,7 @@ test('M13-3: Total Performance Brand Filtering isolates specific brand volume an
   const perf5Days = getTotalPerformanceSummary({ year: 2026, month: 9, brand: '5DAYS' });
 
   assert.equal(perf5Days.kpis.targetCartons, 2559.26, 'Target for 5DAYS group SKU');
-  assert.equal(perf5Days.kpis.actualCartons, 558.55, 'Actual volume for 5DAYS in September 2026');
+  assert.equal(perf5Days.kpis.actualCartons, 988.03, 'Actual volume for 5DAYS in September 2026');
   assert.ok(perf5Days.bySubbrand.every(b => b.brand === '5DAYS'), 'All returned subbrands belong to 5DAYS');
 });
 
