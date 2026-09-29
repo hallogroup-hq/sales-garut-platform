@@ -138,13 +138,7 @@ async function handleLoginSubmit(event) {
   }
 }
 
-function quickLogin(username, password) {
-  const u = document.getElementById('login-username');
-  const p = document.getElementById('login-password');
-  if (u) u.value = username;
-  if (p) p.value = password;
-  handleLoginSubmit();
-}
+
 
 function togglePasswordVisibility() {
   const p = document.getElementById('login-password');
@@ -263,6 +257,26 @@ function getTodayLocalDateString() {
   const m = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function highlightSearchMatch(text, query) {
+  if (!text) return '';
+  if (!query) return escapeHtml(text);
+  const escapedText = escapeHtml(text);
+  const escapedQuery = String(query).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (!escapedQuery) return escapedText;
+  const regex = new RegExp(`(${escapedQuery})`, 'gi');
+  return escapedText.replace(regex, '<mark class="bg-amber-100 text-amber-900 font-bold px-0.5 rounded">$1</mark>');
 }
 
 function getFilterQuery() {
@@ -1461,10 +1475,26 @@ async function renderOutlet() {
     const q = new URLSearchParams();
     if (globalFilters.salesmanId) q.append('salesmanId', globalFilters.salesmanId);
     if (globalFilters.kecamatanId) q.append('kecamatanId', globalFilters.kecamatanId);
+    if (globalFilters.rayonId) q.append('rayonId', globalFilters.rayonId);
+    if (globalFilters.spvId) q.append('spvId', globalFilters.spvId);
     if (outletStatusFilter && outletStatusFilter !== 'all') q.append('status', outletStatusFilter);
+    if (window.globalOutletSearch) q.append('search', window.globalOutletSearch);
 
     const res = await fetch(`/api/outlets?${q.toString()}`);
     const data = await res.json();
+
+    // Synchronize top header search input with active search term
+    const topSearchInput = document.getElementById('global-search');
+    if (topSearchInput && window.globalOutletSearch !== undefined) {
+      if (topSearchInput.value !== window.globalOutletSearch) {
+        topSearchInput.value = window.globalOutletSearch;
+      }
+      const clearBtn = document.getElementById('global-search-clear-btn');
+      if (clearBtn) {
+        if (window.globalOutletSearch) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+      }
+    }
 
     const sortIcon = (col) => {
       if (outletSortKey !== col) return `<span class="text-slate-300 ml-1 font-normal">⇅</span>`;
@@ -1512,9 +1542,41 @@ async function renderOutlet() {
       <!-- Outlets Grid / Directory -->
       <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="p-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          <h3 class="font-bold text-sm text-slate-800">Daftar Pelanggan (Customer Directory)</h3>
-          <div class="text-xs text-slate-500">Klik outlet untuk membuka lembar analisis lengkap <strong>Outlet 360</strong></div>
+          <div>
+            <h3 class="font-bold text-sm text-slate-800">Daftar Pelanggan (Customer Directory)</h3>
+            <div class="text-xs text-slate-500">Klik outlet untuk membuka lembar analisis lengkap <strong>Outlet 360</strong></div>
+          </div>
+
+          <!-- Inline Search Input in Customer Directory -->
+          <div class="flex items-center gap-2">
+            <div class="relative w-64 sm:w-72">
+              <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input
+                type="text"
+                id="table-outlet-search-input"
+                value="${escapeHtml(window.globalOutletSearch || '')}"
+                oninput="handleTableOutletSearch(event)"
+                placeholder="Cari toko / kode outlet..."
+                class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-8 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+              />
+              ${window.globalOutletSearch ? `
+                <button type="button" onclick="clearGlobalSearch()" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 transition" title="Hapus pencarian">
+                  <i data-lucide="x-circle" class="w-3.5 h-3.5"></i>
+                </button>
+              ` : ''}
+            </div>
+          </div>
         </div>
+
+        ${window.globalOutletSearch ? `
+          <div class="px-4 py-2 bg-blue-50/70 border-b border-blue-100 flex items-center justify-between text-xs text-blue-900">
+            <span>Hasil pencarian untuk: <strong class="text-blue-950 font-bold">"${escapeHtml(window.globalOutletSearch)}"</strong> (${data.filteredCount} outlet ditemukan)</span>
+            <button onclick="clearGlobalSearch()" class="text-blue-700 hover:text-blue-900 font-bold underline text-[11px] flex items-center gap-1">
+              <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+              <span>Reset Pencarian</span>
+            </button>
+          </div>
+        ` : ''}
 
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs">
@@ -1542,7 +1604,26 @@ async function renderOutlet() {
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 font-medium">
-              ${sortedOutlets.map(o => `
+              ${sortedOutlets.length === 0 ? `
+                <tr>
+                  <td colspan="19" class="py-12 text-center text-slate-500">
+                    <div class="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                      <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                        <i data-lucide="search-x" class="w-6 h-6"></i>
+                      </div>
+                      <p class="font-bold text-slate-800 text-sm">Tidak ada outlet yang sesuai</p>
+                      <p class="text-xs text-slate-500">
+                        ${window.globalOutletSearch ? `Tidak ditemukan outlet dengan kata kunci "${escapeHtml(window.globalOutletSearch)}".` : 'Tidak ada data outlet untuk filter yang dipilih.'}
+                      </p>
+                      ${window.globalOutletSearch ? `
+                        <button onclick="clearGlobalSearch()" class="mt-2 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                          Reset Pencarian
+                        </button>
+                      ` : ''}
+                    </div>
+                  </td>
+                </tr>
+              ` : sortedOutlets.map(o => `
                 <tr class="hover:bg-blue-50/50 transition cursor-pointer" onclick="openOutlet360('${o.outletId}')">
                   <td class="py-3 px-4">
                     <div class="flex items-center gap-2.5">
@@ -2798,18 +2879,21 @@ window.trendState = {
   chartType: 'bar',      // 'bar', 'line'
   searchTerm: '',
   sortCol: 'total',
-  sortDir: 'desc'
+  sortDir: 'desc',
+  outletId: '',
+  outletName: ''
 };
 
 async function renderTrend() {
   const main = document.getElementById('main-content');
   try {
-    const { dimension, metric, periodRange } = window.trendState;
+    const { dimension, metric, periodRange, outletId } = window.trendState;
 
     const query = new URLSearchParams({
       dimension,
       metric,
       periodRange,
+      outletId: outletId || '',
       spvId: globalFilters.spvId || '',
       salesGroup: globalFilters.salesGroup || '',
       salesmanId: globalFilters.salesmanId || '',
@@ -2869,11 +2953,12 @@ function sortTrendMatrix(col) {
 }
 
 function exportTrendCsv() {
-  const { dimension, metric, periodRange } = window.trendState;
+  const { dimension, metric, periodRange, outletId } = window.trendState;
   const query = new URLSearchParams({
     dimension,
     metric,
     periodRange,
+    outletId: outletId || '',
     spvId: globalFilters.spvId || '',
     salesGroup: globalFilters.salesGroup || '',
     salesmanId: globalFilters.salesmanId || '',
@@ -3121,19 +3206,86 @@ function renderTrendView() {
       `;
     })()}
 
-    <!-- Dedicated Card: Movement Total DSO Garut (Line Chart & Tabel Angka Bulanan) -->
+    <!-- Dedicated Outlet Trend Search Bar & Suggestion Dropdown -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <i data-lucide="store" class="w-4 h-4 text-blue-600"></i>
+            <h3 class="text-xs font-bold text-slate-800">Cari & Analisis Trend Toko / Outlet</h3>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-0.5">Ketik kode atau nama outlet untuk menganalisis histori penjualan & omzet toko spesifik.</p>
+        </div>
+
+        <div class="relative w-full sm:w-80 md:w-96">
+          <div class="relative flex items-center">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 text-slate-400"></i>
+            <input
+              type="text"
+              id="trend-outlet-search-input"
+              autocomplete="off"
+              placeholder="Cari nama toko / kode outlet..."
+              value="${escapeHtml(window.trendState.outletName || '')}"
+              oninput="handleTrendOutletInput(event)"
+              onfocus="handleTrendOutletFocus(event)"
+              class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+            />
+            ${window.trendState.outletId ? `
+              <button type="button" onclick="clearTrendOutlet()" class="absolute right-2.5 text-slate-400 hover:text-rose-600 transition" title="Hapus Filter Toko">
+                <i data-lucide="x-circle" class="w-4 h-4"></i>
+              </button>
+            ` : ''}
+          </div>
+
+          <!-- Dropdown Suggestions Container -->
+          <div id="trend-outlet-suggestions" class="hidden absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl max-h-72 overflow-y-auto z-50 divide-y divide-slate-100 text-xs">
+          </div>
+        </div>
+      </div>
+
+      ${data.dsoMovement?.isOutletScope ? `
+        <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-bold text-[10px] uppercase">Trend Outlet Aktif</span>
+            <span class="text-xs font-bold text-slate-900">${data.dsoMovement.outletInfo.name}</span>
+            <span class="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Kode: ${data.dsoMovement.outletInfo.code}</span>
+            ${data.dsoMovement.outletInfo.rayonCode ? `<span class="text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">Rayon: ${data.dsoMovement.outletInfo.rayonCode}</span>` : ''}
+            ${data.dsoMovement.outletInfo.salesmanName ? `<span class="text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">Salesman: ${data.dsoMovement.outletInfo.salesmanName}</span>` : ''}
+            ${data.dsoMovement.outletInfo.clusterTier ? `<span class="text-[11px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Cluster: ${data.dsoMovement.outletInfo.clusterTier}</span>` : ''}
+          </div>
+          <button type="button" onclick="clearTrendOutlet()" class="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition shadow-sm">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            <span>Kembali ke Total DSO</span>
+          </button>
+        </div>
+      ` : ''}
+    </div>
+
+    <!-- Dedicated Card: Movement (Store Trend OR Total DSO) -->
     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
       <div class="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b border-slate-100 gap-3">
         <div>
           <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">TOTAL DSO GARUT</span>
+            <span class="px-2 py-0.5 ${data.dsoMovement?.isOutletScope ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'} text-[10px] font-bold rounded">
+              ${data.dsoMovement?.isOutletScope ? 'TREND TOKO: ' + escapeHtml(data.dsoMovement.outletInfo.name) : 'TOTAL DSO GARUT'}
+            </span>
             <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">DUAL-AXIS LINE CHART</span>
           </div>
           <h2 class="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2 mt-1">
             <i data-lucide="activity" class="w-4 h-4 text-blue-600"></i>
-            <span>Movement Total DSO: Volume (KTN) & Outlet Aktif (OA)</span>
+            <span>
+              ${data.dsoMovement?.isOutletScope 
+                ? 'Movement Toko: ' + escapeHtml(data.dsoMovement.outletInfo.name) + (globalFilters.groupSku ? ' • Group SKU: ' + globalFilters.groupSku : '') + (globalFilters.brand ? ' • Brand: ' + globalFilters.brand : '')
+                : 'Movement Total DSO: Volume (KTN) & Outlet Aktif (OA)' + (globalFilters.groupSku ? ' • Group SKU: ' + globalFilters.groupSku : '') + (globalFilters.brand ? ' • Brand: ' + globalFilters.brand : '')
+              }
+            </span>
           </h2>
-          <p class="text-xs text-slate-500 mt-0.5">Pergerakan total volume penjualan (karton) dan penetrasi outlet aktif unik bulanan DSO Garut</p>
+          <p class="text-xs text-slate-500 mt-0.5">
+            ${data.dsoMovement?.isOutletScope 
+              ? 'Pergerakan volume penjualan (karton) dan nilai omzet bulanan toko ' + escapeHtml(data.dsoMovement.outletInfo.name)
+              : 'Pergerakan total volume penjualan (karton) dan penetrasi outlet aktif unik bulanan DSO Garut'
+            }
+          </p>
         </div>
 
         <!-- Badges summary -->
@@ -3145,15 +3297,23 @@ function renderTrendView() {
             </div>
           </div>
           <div class="bg-emerald-50 border border-emerald-200/60 px-3 py-1.5 rounded-lg text-left">
-            <div class="text-[10px] text-emerald-600 font-semibold uppercase tracking-wider">Rata-rata OA</div>
+            <div class="text-[10px] text-emerald-600 font-semibold uppercase tracking-wider">
+              ${data.dsoMovement?.isOutletScope ? 'Total Frekuensi Order' : 'Rata-rata OA'}
+            </div>
             <div class="text-xs md:text-sm font-extrabold text-emerald-900 font-mono">
-              ${(data.dsoMovement?.totals?.avgOa || summary.avgMonthlyOa || 0).toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-500">Toko/bln</span>
+              ${data.dsoMovement?.isOutletScope 
+                ? (data.dsoMovement.totals.totalInvoices || 0).toLocaleString('id-ID') + ' <span class="text-[10px] font-normal text-slate-500">Order</span>'
+                : (data.dsoMovement?.totals?.avgOa || summary.avgMonthlyOa || 0).toLocaleString('id-ID') + ' <span class="text-[10px] font-normal text-slate-500">Toko/bln</span>'
+              }
             </div>
           </div>
           <div class="bg-indigo-50 border border-indigo-200/60 px-3 py-1.5 rounded-lg text-left">
             <div class="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider">Total Omzet</div>
             <div class="text-xs md:text-sm font-extrabold text-indigo-900 font-mono">
-              Rp ${(((data.dsoMovement?.totals?.totalValue || summary.totalValue || 0)) / 1000000000).toFixed(2)} <span class="text-[10px] font-normal text-slate-500">M</span>
+              ${(data.dsoMovement?.totals?.totalValue || summary.totalValue || 0) >= 1000000000 
+                ? 'Rp ' + (((data.dsoMovement?.totals?.totalValue || summary.totalValue || 0)) / 1000000000).toFixed(2) + ' <span class="text-[10px] font-normal text-slate-500">M</span>'
+                : 'Rp ' + (((data.dsoMovement?.totals?.totalValue || summary.totalValue || 0)) / 1000000).toFixed(1) + ' <span class="text-[10px] font-normal text-slate-500">Jt</span>'
+              }
             </div>
           </div>
         </div>
@@ -3169,9 +3329,19 @@ function renderTrendView() {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
           <h3 class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
             <i data-lucide="table" class="w-3.5 h-3.5 text-blue-600"></i>
-            <span>Tabel Ringkasan Angka Movement Bulanan Total DSO</span>
+            <span>
+              ${data.dsoMovement?.isOutletScope 
+                ? 'Tabel Ringkasan Angka Movement Bulanan: ' + escapeHtml(data.dsoMovement.outletInfo.name)
+                : 'Tabel Ringkasan Angka Movement Bulanan Total DSO'
+              }
+            </span>
           </h3>
-          <span class="text-[11px] text-slate-400">Rincian per bulan volume, target, gap, OA, dan omzet</span>
+          <span class="text-[11px] text-slate-400">
+            ${data.dsoMovement?.isOutletScope 
+              ? 'Rincian per bulan volume, frekuensi transaksi, dan omzet toko'
+              : 'Rincian per bulan volume, target, gap, OA, dan omzet'
+            }
+          </span>
         </div>
 
         <div class="overflow-x-auto scrollbar-thin rounded-lg border border-slate-200">
@@ -3182,11 +3352,17 @@ function renderTrendView() {
                 <th class="py-2.5 px-3">Periode</th>
                 <th class="py-2.5 px-3 text-right">Volume (KTN)</th>
                 <th class="py-2.5 px-3 text-right">MoM Vol (%)</th>
-                <th class="py-2.5 px-3 text-right">Target (KTN)</th>
-                <th class="py-2.5 px-3 text-right">Pencapaian</th>
-                <th class="py-2.5 px-3 text-right text-emerald-800 bg-emerald-50/50">Outlet Aktif (OA)</th>
-                <th class="py-2.5 px-3 text-right">MoM OA (%)</th>
-                <th class="py-2.5 px-3 text-right">Nilai Omzet (Rp Netto)</th>
+                ${data.dsoMovement?.isOutletScope ? `
+                  <th class="py-2.5 px-3 text-right">Frekuensi Order</th>
+                  <th class="py-2.5 px-3 text-right">Nilai Omzet (Rp Netto)</th>
+                  <th class="py-2.5 px-3 text-right text-emerald-800 bg-emerald-50/50">MoM Omzet (%)</th>
+                ` : `
+                  <th class="py-2.5 px-3 text-right">Target (KTN)</th>
+                  <th class="py-2.5 px-3 text-right">Pencapaian</th>
+                  <th class="py-2.5 px-3 text-right text-emerald-800 bg-emerald-50/50">Outlet Aktif (OA)</th>
+                  <th class="py-2.5 px-3 text-right">MoM OA (%)</th>
+                  <th class="py-2.5 px-3 text-right">Nilai Omzet (Rp Netto)</th>
+                `}
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
@@ -3195,6 +3371,39 @@ function renderTrendView() {
                   ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momVolPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momVolPct >= 0 ? '▲ +' : '▼ '}${m.momVolPct}%</span>`
                   : `<span class="text-slate-300">—</span>`;
 
+                const isCurrentMonth = m.year === 2026 && m.month === 9;
+
+                if (data.dsoMovement?.isOutletScope) {
+                  const momValBadge = m.momValPct !== null
+                    ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momValPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momValPct >= 0 ? '▲ +' : '▼ '}${m.momValPct}%</span>`
+                    : `<span class="text-slate-300">—</span>`;
+
+                  return `
+                    <tr class="hover:bg-slate-50/80 transition ${isCurrentMonth ? 'bg-blue-50/30' : ''}">
+                      <td class="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">${idx + 1}</td>
+                      <td class="py-2 px-3 font-bold text-slate-900 whitespace-nowrap">
+                        ${m.label}
+                        ${isCurrentMonth ? '<span class="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-[9px] font-extrabold rounded">MTD</span>' : ''}
+                      </td>
+                      <td class="py-2 px-3 text-right font-mono font-bold text-blue-900">
+                        ${m.volumeCartons.toLocaleString('id-ID')}
+                      </td>
+                      <td class="py-2 px-3 text-right">
+                        ${momVolBadge}
+                      </td>
+                      <td class="py-2 px-3 text-right font-mono text-slate-700">
+                        ${m.totalInvoices || 0} Invoice
+                      </td>
+                      <td class="py-2 px-3 text-right font-mono text-slate-800 font-bold whitespace-nowrap">
+                        Rp ${m.volumeValue.toLocaleString('id-ID')}
+                      </td>
+                      <td class="py-2 px-3 text-right font-mono bg-emerald-50/20">
+                        ${momValBadge}
+                      </td>
+                    </tr>
+                  `;
+                }
+
                 const momOaBadge = m.momOaPct !== null
                   ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momOaPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momOaPct >= 0 ? '▲ +' : '▼ '}${m.momOaPct}%</span>`
                   : `<span class="text-slate-300">—</span>`;
@@ -3202,8 +3411,6 @@ function renderTrendView() {
                 const achvBadge = m.achvPct !== null
                   ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono ${m.achvPct >= 100 ? 'bg-emerald-100 text-emerald-800' : m.achvPct >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}">${m.achvPct}%</span>`
                   : `<span class="text-slate-300">—</span>`;
-
-                const isCurrentMonth = m.year === 2026 && m.month === 9;
 
                 return `
                   <tr class="hover:bg-slate-50/80 transition ${isCurrentMonth ? 'bg-blue-50/30' : ''}">
@@ -3246,19 +3453,29 @@ function renderTrendView() {
                   ${(data.dsoMovement?.totals?.totalVolume || 0).toLocaleString('id-ID')}
                 </td>
                 <td class="py-2.5 px-3 text-right text-slate-400">—</td>
-                <td class="py-2.5 px-3 text-right font-mono text-slate-700">
-                  ${(data.dsoMovement?.totals?.totalTarget || 0).toLocaleString('id-ID')}
-                </td>
-                <td class="py-2.5 px-3 text-right">
-                  ${data.dsoMovement?.totals?.achvPct !== null ? `<span class="px-2 py-0.5 bg-blue-100 text-blue-900 rounded font-mono text-[10px] font-bold">${data.dsoMovement.totals.achvPct}%</span>` : '—'}
-                </td>
-                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-900 bg-emerald-100/50">
-                  ${(data.dsoMovement?.totals?.avgOa || 0).toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-600">Avg/bln</span>
-                </td>
-                <td class="py-2.5 px-3 text-right text-slate-400">—</td>
-                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-slate-900 whitespace-nowrap">
-                  Rp ${(((data.dsoMovement?.totals?.totalValue || 0)) / 1000000000).toFixed(2)} M
-                </td>
+                ${data.dsoMovement?.isOutletScope ? `
+                  <td class="py-2.5 px-3 text-right font-mono text-slate-700">
+                    ${(data.dsoMovement?.totals?.totalInvoices || 0).toLocaleString('id-ID')} Inv
+                  </td>
+                  <td class="py-2.5 px-3 text-right font-mono font-extrabold text-slate-900 whitespace-nowrap">
+                    Rp ${(data.dsoMovement?.totals?.totalValue || 0).toLocaleString('id-ID')}
+                  </td>
+                  <td class="py-2.5 px-3 text-right text-slate-400">—</td>
+                ` : `
+                  <td class="py-2.5 px-3 text-right font-mono text-slate-700">
+                    ${(data.dsoMovement?.totals?.totalTarget || 0).toLocaleString('id-ID')}
+                  </td>
+                  <td class="py-2.5 px-3 text-right">
+                    ${data.dsoMovement?.totals?.achvPct !== null ? `<span class="px-2 py-0.5 bg-blue-100 text-blue-900 rounded font-mono text-[10px] font-bold">${data.dsoMovement.totals.achvPct}%</span>` : '—'}
+                  </td>
+                  <td class="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-900 bg-emerald-100/50">
+                    ${(data.dsoMovement?.totals?.avgOa || 0).toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-600">Avg/bln</span>
+                  </td>
+                  <td class="py-2.5 px-3 text-right text-slate-400">—</td>
+                  <td class="py-2.5 px-3 text-right font-mono font-extrabold text-slate-900 whitespace-nowrap">
+                    Rp ${(((data.dsoMovement?.totals?.totalValue || 0)) / 1000000000).toFixed(2)} M
+                  </td>
+                `}
               </tr>
             </tfoot>
           </table>
@@ -3508,55 +3725,91 @@ function initTrendCharts() {
     window.trendOaChartInstance = null;
   }
 
-  // 0. DSO Total Movement Chart (Dual-Axis: Volume KTN & Outlet Aktif OA)
+  // 0. DSO Total Movement Chart (Dual-Axis: Volume KTN & Outlet Aktif OA OR Omzet Toko)
   const ctxDso = document.getElementById('trendDsoCanvas');
   if (ctxDso && data.dsoMovement) {
-    const dsoDatasets = [
-      {
-        type: 'line',
-        label: 'Volume Penjualan (KTN)',
-        data: data.dsoMovement.volumeSeries,
-        borderColor: '#2563eb',
-        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-        borderWidth: 3,
-        fill: true,
-        tension: 0.3,
-        pointRadius: 4.5,
-        pointHoverRadius: 7,
-        pointBackgroundColor: '#2563eb',
-        yAxisID: 'y'
-      },
-      {
-        type: 'line',
-        label: 'Outlet Aktif (OA Toko)',
-        data: data.dsoMovement.oaSeries,
-        borderColor: '#059669',
-        backgroundColor: 'rgba(5, 150, 105, 0.08)',
-        borderWidth: 3,
-        fill: false,
-        tension: 0.3,
-        pointRadius: 4.5,
-        pointHoverRadius: 7,
-        pointBackgroundColor: '#059669',
-        yAxisID: 'y1'
-      }
-    ];
+    const isOutletScope = !!data.dsoMovement.isOutletScope;
+    let dsoDatasets = [];
 
-    if (data.dsoMovement.targetSeries && data.dsoMovement.targetSeries.some(t => t > 0)) {
-      dsoDatasets.push({
-        type: 'line',
-        label: 'Target Volume (KTN)',
-        data: data.dsoMovement.targetSeries,
-        borderColor: '#dc2626',
-        borderWidth: 2,
-        borderDash: [5, 5],
-        fill: false,
-        tension: 0.1,
-        pointRadius: 3,
-        pointHoverRadius: 6,
-        pointBackgroundColor: '#dc2626',
-        yAxisID: 'y'
-      });
+    if (isOutletScope) {
+      dsoDatasets = [
+        {
+          type: 'line',
+          label: 'Volume Toko (KTN)',
+          data: data.dsoMovement.volumeSeries,
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37, 99, 235, 0.12)',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          pointBackgroundColor: '#2563eb',
+          yAxisID: 'y'
+        },
+        {
+          type: 'line',
+          label: 'Nilai Omzet Toko (Rp Netto)',
+          data: data.dsoMovement.valSeries,
+          borderColor: '#059669',
+          backgroundColor: 'rgba(5, 150, 105, 0.08)',
+          borderWidth: 3,
+          fill: false,
+          tension: 0.3,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          pointBackgroundColor: '#059669',
+          yAxisID: 'y1'
+        }
+      ];
+    } else {
+      dsoDatasets = [
+        {
+          type: 'line',
+          label: 'Volume Penjualan (KTN)',
+          data: data.dsoMovement.volumeSeries,
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37, 99, 235, 0.1)',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4.5,
+          pointHoverRadius: 7,
+          pointBackgroundColor: '#2563eb',
+          yAxisID: 'y'
+        },
+        {
+          type: 'line',
+          label: 'Outlet Aktif (OA Toko)',
+          data: data.dsoMovement.oaSeries,
+          borderColor: '#059669',
+          backgroundColor: 'rgba(5, 150, 105, 0.08)',
+          borderWidth: 3,
+          fill: false,
+          tension: 0.3,
+          pointRadius: 4.5,
+          pointHoverRadius: 7,
+          pointBackgroundColor: '#059669',
+          yAxisID: 'y1'
+        }
+      ];
+
+      if (data.dsoMovement.targetSeries && data.dsoMovement.targetSeries.some(t => t > 0)) {
+        dsoDatasets.push({
+          type: 'line',
+          label: 'Target Volume (KTN)',
+          data: data.dsoMovement.targetSeries,
+          borderColor: '#dc2626',
+          borderWidth: 2,
+          borderDash: [5, 5],
+          fill: false,
+          tension: 0.1,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#dc2626',
+          yAxisID: 'y'
+        });
+      }
     }
 
     window.trendDsoChartInstance = new Chart(ctxDso, {
@@ -3586,6 +3839,9 @@ function initTrendCharts() {
                 const label = context.dataset.label || '';
                 const val = context.parsed.y;
                 if (context.dataset.yAxisID === 'y1') {
+                  if (isOutletScope) {
+                    return `${label}: Rp ${Math.round(val).toLocaleString('id-ID')}`;
+                  }
                   return `${label}: ${val.toLocaleString('id-ID')} Toko`;
                 }
                 return `${label}: ${val.toLocaleString('id-ID')} KTN`;
@@ -3604,7 +3860,7 @@ function initTrendCharts() {
             position: 'left',
             title: {
               display: true,
-              text: 'Volume (Karton)',
+              text: isOutletScope ? 'Volume Toko (Karton)' : 'Volume (Karton)',
               font: { size: 11, weight: 'bold', family: 'Plus Jakarta Sans' },
               color: '#2563eb'
             },
@@ -3622,13 +3878,18 @@ function initTrendCharts() {
             grid: { drawOnChartArea: false },
             title: {
               display: true,
-              text: 'Outlet Aktif (Toko Unik)',
+              text: isOutletScope ? 'Nilai Omzet (Rp Netto)' : 'Outlet Aktif (Toko Unik)',
               font: { size: 11, weight: 'bold', family: 'Plus Jakarta Sans' },
               color: '#059669'
             },
             ticks: {
               font: { size: 11 },
               callback: function(val) {
+                if (isOutletScope) {
+                  if (Math.abs(val) >= 1000000000) return (val / 1000000000).toFixed(1) + 'M';
+                  if (Math.abs(val) >= 1000000) return (val / 1000000).toFixed(0) + 'Jt';
+                  return 'Rp ' + val.toLocaleString('id-ID');
+                }
                 return val.toLocaleString('id-ID');
               }
             }
@@ -3782,6 +4043,122 @@ function initTrendCharts() {
     });
   }
 }
+
+// -------------------------------------------------------------
+// Trend Toko Autocomplete & Outlet Movement Handlers
+// -------------------------------------------------------------
+let trendOutletDebounceTimer = null;
+
+async function handleTrendOutletInput(e) {
+  const val = (e && e.target ? e.target.value : '').trim();
+  const dropdown = document.getElementById('trend-outlet-suggestions');
+  if (!dropdown) return;
+
+  if (val.length < 2) {
+    dropdown.innerHTML = '';
+    dropdown.classList.add('hidden');
+    return;
+  }
+
+  clearTimeout(trendOutletDebounceTimer);
+  trendOutletDebounceTimer = setTimeout(async () => {
+    try {
+      dropdown.innerHTML = `
+        <div class="p-3 text-center text-slate-400">
+          <i data-lucide="loader-2" class="w-4 h-4 animate-spin inline mr-1 text-blue-600"></i> Mencari outlet...
+        </div>
+      `;
+      dropdown.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+
+      const res = await fetch(`/api/outlets/search-suggestions?q=${encodeURIComponent(val)}`);
+      if (!res.ok) throw new Error('Gagal mengambil saran');
+      const data = await res.json();
+      const suggestions = data.suggestions || [];
+
+      if (suggestions.length === 0) {
+        dropdown.innerHTML = `
+          <div class="p-4 text-center text-slate-500">
+            <p class="font-bold text-slate-700">Outlet tidak ditemukan</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Tidak ada outlet yang cocok dengan "${escapeHtml(val)}"</p>
+          </div>
+        `;
+        return;
+      }
+
+      dropdown.innerHTML = suggestions.map(s => {
+        const highlightedName = highlightSearchMatch(s.outlet_name, val);
+        const highlightedCode = highlightSearchMatch(s.outlet_code, val);
+
+        return `
+          <div
+            onclick="selectTrendOutlet('${s.outlet_id}', '${escapeHtml(s.outlet_name).replace(/'/g, "\\'")}', '${escapeHtml(s.outlet_code).replace(/'/g, "\\'")}')"
+            class="p-2.5 hover:bg-blue-50/80 cursor-pointer transition flex items-center justify-between gap-2"
+          >
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-bold text-slate-800 text-xs">${highlightedName}</span>
+                <span class="px-1.5 py-0.5 bg-slate-100 text-slate-600 font-mono text-[10px] rounded">Kode: ${highlightedCode}</span>
+                ${s.rayon_code ? `<span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-semibold rounded">${escapeHtml(s.rayon_code)}</span>` : ''}
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2 truncate">
+                ${s.salesman_name ? `<span>Sales: <strong class="text-slate-600 font-normal">${escapeHtml(s.salesman_name)}</strong></span>` : ''}
+                ${s.kecamatan ? `<span>• Kec: ${escapeHtml(s.kecamatan)}</span>` : ''}
+                ${s.cluster_tier ? `<span class="px-1 bg-amber-50 text-amber-700 rounded">${escapeHtml(s.cluster_tier)}</span>` : ''}
+              </div>
+            </div>
+            <div class="shrink-0 text-right">
+              <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white rounded text-[11px] font-bold transition">
+                <span>Pilih</span>
+                <i data-lucide="chevron-right" class="w-3 h-3"></i>
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('');
+      dropdown.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    } catch (err) {
+      dropdown.innerHTML = `<div class="p-3 text-rose-500 text-center">Gagal memuat saran: ${err.message}</div>`;
+    }
+  }, 200);
+}
+
+function handleTrendOutletFocus(e) {
+  const val = (e && e.target ? e.target.value : '').trim();
+  if (val.length >= 2) {
+    handleTrendOutletInput(e);
+  }
+}
+
+function selectTrendOutlet(outletId, outletName, outletCode) {
+  window.trendState.outletId = outletId;
+  window.trendState.outletName = outletName;
+  const dropdown = document.getElementById('trend-outlet-suggestions');
+  if (dropdown) dropdown.classList.add('hidden');
+  renderTrend();
+}
+
+function clearTrendOutlet() {
+  window.trendState.outletId = '';
+  window.trendState.outletName = '';
+  const input = document.getElementById('trend-outlet-search-input');
+  if (input) input.value = '';
+  const dropdown = document.getElementById('trend-outlet-suggestions');
+  if (dropdown) dropdown.classList.add('hidden');
+  renderTrend();
+}
+
+// Close trend outlet suggestions on outside click
+document.addEventListener('click', (e) => {
+  const dropdown = document.getElementById('trend-outlet-suggestions');
+  const input = document.getElementById('trend-outlet-search-input');
+  if (dropdown && !dropdown.classList.contains('hidden')) {
+    if (input && (input === e.target || input.contains(e.target))) return;
+    if (dropdown.contains(e.target)) return;
+    dropdown.classList.add('hidden');
+  }
+});
 
 // ==============================================================
 // 4b. SUMMARY & TOTAL PERFORMANCE ANALYTICS (DSO, SALESMAN, SUBBRAND)
@@ -6203,14 +6580,71 @@ async function submitArBuckets(e) {
   }
 }
 
-// Helpers
-function handleGlobalSearch(event) {
-  if (event.key === 'Enter') {
-    const q = event.target.value.trim();
-    if (q) {
-      navigate('outlet');
-    }
+// Global Header & Outlet Directory Search Suite
+let globalSearchDebounceTimer = null;
+
+function submitGlobalSearch(query) {
+  let q = query;
+  if (q === undefined || q === null) {
+    const input = document.getElementById('global-search');
+    q = input ? input.value : '';
   }
+  q = (q || '').trim();
+  window.globalOutletSearch = q;
+
+  const topInput = document.getElementById('global-search');
+  if (topInput && topInput.value !== q) {
+    topInput.value = q;
+  }
+  const clearBtn = document.getElementById('global-search-clear-btn');
+  if (clearBtn) {
+    if (q) clearBtn.classList.remove('hidden');
+    else clearBtn.classList.add('hidden');
+  }
+
+  const tableInput = document.getElementById('table-outlet-search-input');
+  if (tableInput && tableInput.value !== q) {
+    tableInput.value = q;
+  }
+
+  if (currentTab !== 'outlet') {
+    window.location.hash = '#outlet';
+  } else {
+    renderOutlet();
+  }
+}
+
+function handleGlobalSearch(event) {
+  if (event && event.key === 'Enter') {
+    event.preventDefault();
+    submitGlobalSearch();
+  }
+}
+
+function handleGlobalSearchInput(event) {
+  const val = event && event.target ? event.target.value : '';
+  const clearBtn = document.getElementById('global-search-clear-btn');
+  if (clearBtn) {
+    if (val.trim()) clearBtn.classList.remove('hidden');
+    else clearBtn.classList.add('hidden');
+  }
+
+  clearTimeout(globalSearchDebounceTimer);
+  globalSearchDebounceTimer = setTimeout(() => {
+    submitGlobalSearch(val);
+  }, 350);
+}
+
+function clearGlobalSearch() {
+  submitGlobalSearch('');
+}
+
+function handleTableOutletSearch(event) {
+  const val = event && event.target ? event.target.value : '';
+  clearTimeout(globalSearchDebounceTimer);
+  globalSearchDebounceTimer = setTimeout(() => {
+    submitGlobalSearch(val);
+  }, 300);
 }
 
 function toggleAlertsMenu() {

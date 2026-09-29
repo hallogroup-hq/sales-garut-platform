@@ -155,9 +155,19 @@
           <i data-lucide="menu" class="w-5 h-5"></i>
         </button>
 
-        <div class="relative w-full max-w-[200px] sm:max-w-xs md:max-w-md">
-          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input type="text" id="global-search" onkeydown="handleGlobalSearch(event)" placeholder="Cari outlet nama/ID... (Enter)" class="w-full bg-slate-100/80 border border-slate-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+        <div class="relative w-full max-w-[240px] sm:max-w-xs md:max-w-md flex items-center">
+          <button type="button" onclick="submitGlobalSearch()" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition" title="Cari Outlet">
+            <i data-lucide="search" class="w-4 h-4"></i>
+          </button>
+          <input type="text" id="global-search" onkeydown="handleGlobalSearch(event)" oninput="handleGlobalSearchInput(event)" placeholder="Cari outlet nama/ID... (Ketik/Enter)" class="w-full bg-slate-100/80 border border-slate-200 rounded-lg pl-9 pr-16 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all">
+          <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <button type="button" id="global-search-clear-btn" onclick="clearGlobalSearch()" class="hidden text-slate-400 hover:text-slate-600 p-0.5 rounded" title="Hapus pencarian">
+              <i data-lucide="x" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" onclick="submitGlobalSearch()" class="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-bold shadow-sm transition">
+              Cari
+            </button>
+          </div>
         </div>
       </div>
 
@@ -411,45 +421,6 @@
           <i data-lucide="arrow-right" class="w-4 h-4"></i>
         </button>
       </form>
-
-      <!-- Quick Role Selector Buttons for Easy Testing -->
-      <div class="mt-6 pt-5 border-t border-slate-100">
-        <p class="text-[11px] font-bold text-slate-500 mb-2.5 text-center">Atau pilih cepat akun akses:</p>
-        <div class="grid grid-cols-1 gap-2">
-          <button type="button" onclick="quickLogin('Aghia Anggala', '12345')" class="p-2.5 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200 rounded-xl text-left flex items-center justify-between transition group">
-            <div class="flex items-center gap-2.5">
-              <div class="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-[11px]">AG</div>
-              <div>
-                <p class="text-xs font-bold text-emerald-950 leading-none">Aghia Anggala</p>
-                <p class="text-[10px] text-emerald-700 mt-0.5">Super User (Akses Penuh Edit & Upload)</p>
-              </div>
-            </div>
-            <span class="text-[10px] bg-emerald-200/80 text-emerald-800 font-bold px-2 py-0.5 rounded group-hover:bg-emerald-300">Pilih</span>
-          </button>
-
-          <button type="button" onclick="quickLogin('Supervisor', '12345')" class="p-2.5 bg-blue-50 hover:bg-blue-100/80 border border-blue-200 rounded-xl text-left flex items-center justify-between transition group">
-            <div class="flex items-center gap-2.5">
-              <div class="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-[11px]">SP</div>
-              <div>
-                <p class="text-xs font-bold text-blue-950 leading-none">Supervisor</p>
-                <p class="text-[10px] text-blue-700 mt-0.5">Viewer (Lihat Semua & Filter, Tanpa Edit)</p>
-              </div>
-            </div>
-            <span class="text-[10px] bg-blue-200/80 text-blue-800 font-bold px-2 py-0.5 rounded group-hover:bg-blue-300">Pilih</span>
-          </button>
-
-          <button type="button" onclick="quickLogin('Salesman', '12345')" class="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left flex items-center justify-between transition group">
-            <div class="flex items-center gap-2.5">
-              <div class="w-7 h-7 rounded-lg bg-slate-600 text-white flex items-center justify-center font-bold text-[11px]">SL</div>
-              <div>
-                <p class="text-xs font-bold text-slate-950 leading-none">Salesman / Others</p>
-                <p class="text-[10px] text-slate-600 mt-0.5">Viewer (Lihat Semua & Filter, Tanpa Edit)</p>
-              </div>
-            </div>
-            <span class="text-[10px] bg-slate-200 text-slate-800 font-bold px-2 py-0.5 rounded group-hover:bg-slate-300">Pilih</span>
-          </button>
-        </div>
-      </div>
     </div>
   </div>
 

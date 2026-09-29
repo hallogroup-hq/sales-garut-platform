@@ -69,6 +69,10 @@ function getMovementAnalytics(options = {}) {
   const timeline = generateTimeline(periodRange);
   const periodKeys = timeline.map(p => p.key);
 
+  if (options.outletId) {
+    return getOutletMovementAnalytics(db, options, timeline, periodKeys);
+  }
+
   // Build filters
   let whereClauses = [];
   let params = [];
@@ -112,8 +116,18 @@ function getMovementAnalytics(options = {}) {
   }
 
   if (options.groupSku) {
-    whereClauses.push('a.group_sku = ?');
-    params.push(options.groupSku);
+    whereClauses.push('(a.group_sku = ? OR a.group_sku LIKE ?)');
+    params.push(options.groupSku, `%${options.groupSku}%`);
+  }
+
+  if (options.rayonId) {
+    whereClauses.push('a.salesman_id IN (SELECT DISTINCT current_salesman_id FROM dim_outlet WHERE current_rayon_id = ?)');
+    params.push(options.rayonId);
+  }
+
+  if (options.kecamatanId) {
+    whereClauses.push('a.salesman_id IN (SELECT DISTINCT current_salesman_id FROM dim_outlet WHERE kecamatan_id = ?)');
+    params.push(options.kecamatanId);
   }
 
   const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
@@ -648,6 +662,432 @@ function getMovementAnalytics(options = {}) {
   };
 }
 
+function getOutletMovementAnalytics(db, options = {}, timeline, periodKeys) {
+  const { outletId, periodRange = '2026', metric = 'qty', dimension = 'brand' } = options;
+
+  // 1. Resolve outlet metadata
+  const outletRow = db.query(`
+    SELECT
+      o.outlet_id,
+      o.canonical_name,
+      o.address_text,
+      o.cluster_tier,
+      s.name AS salesman_name,
+      COALESCE(r.code, o.current_rayon_id) AS rayon_code,
+      k.name AS kecamatan_name,
+      (SELECT GROUP_CONCAT(source_customer_code, ', ') FROM outlet_alias WHERE outlet_id = o.outlet_id) AS aliases
+    FROM dim_outlet o
+    LEFT JOIN org_salesman s ON o.current_salesman_id = s.salesman_id
+    LEFT JOIN dim_rayon r ON o.current_rayon_id = r.rayon_id
+    LEFT JOIN dim_kecamatan k ON o.kecamatan_id = k.kecamatan_id
+    WHERE o.outlet_id = ? OR o.outlet_id IN (SELECT outlet_id FROM outlet_alias WHERE source_customer_code = ?)
+    ORDER BY o.is_active_cl DESC
+    LIMIT 1
+  `, [outletId, outletId])[0];
+
+  const outletInfo = {
+    id: outletRow?.outlet_id || outletId,
+    outletId: outletRow?.outlet_id || outletId,
+    name: outletRow?.canonical_name || outletId,
+    code: outletRow?.aliases ? outletRow.aliases.split(',')[0].trim() : (outletRow?.outlet_id || outletId),
+    salesmanName: outletRow?.salesman_name || '—',
+    rayonCode: outletRow?.rayon_code || '—',
+    kecamatanName: outletRow?.kecamatan_name || '—',
+    clusterTier: outletRow?.cluster_tier || '—',
+    addressText: outletRow?.address_text || '—'
+  };
+
+  // 2. Query monthly transactions for this outlet with active filters
+  let whereClauses = [
+    `(h.outlet_id = ? 
+      OR h.outlet_id IN (SELECT source_customer_code FROM outlet_alias WHERE outlet_id = ?) 
+      OR h.outlet_id IN (SELECT outlet_id FROM outlet_alias WHERE source_customer_code = ?))`
+  ];
+  let params = [outletId, outletId, outletId];
+
+  if (periodRange === '2026') {
+    whereClauses.push('(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= 9)');
+  } else if (periodRange === '2025') {
+    whereClauses.push('COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025');
+  } else {
+    whereClauses.push('(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025 OR (COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= 9))');
+  }
+
+  if (options.principal) {
+    whereClauses.push('p.principal = ?');
+    params.push(options.principal);
+  }
+  if (options.brand) {
+    whereClauses.push('p.brand = ?');
+    params.push(options.brand);
+  }
+  if (options.subbrand) {
+    whereClauses.push('p.subbrand = ?');
+    params.push(options.subbrand);
+  }
+  if (options.groupSku) {
+    whereClauses.push('(p.group_sku = ? OR p.group_sku LIKE ?)');
+    params.push(options.groupSku, `%${options.groupSku}%`);
+  }
+
+  const whereSql = 'WHERE ' + whereClauses.join(' AND ');
+
+  const monthlySql = `
+    SELECT
+      printf('%04d-%02d', COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)), COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT))) AS period_key,
+      COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) AS year,
+      COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) AS month,
+      ROUND(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 2) AS net_cartons,
+      ROUND(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 2) AS net_value,
+      COUNT(DISTINCT h.document_number) AS total_invoices
+    FROM fact_sales_header h
+    JOIN fact_sales_line l ON h.document_number = l.document_number
+    JOIN dim_product p ON l.item_code = p.item_code
+    ${whereSql}
+    GROUP BY period_key, year, month
+    ORDER BY period_key ASC
+  `;
+
+  const monthlyRows = db.query(monthlySql, params);
+
+  const outletMonthlyQty = {};
+  const outletMonthlyVal = {};
+  const outletMonthlyInv = {};
+  periodKeys.forEach(pk => {
+    outletMonthlyQty[pk] = 0;
+    outletMonthlyVal[pk] = 0;
+    outletMonthlyInv[pk] = 0;
+  });
+
+  let grandTotalQty = 0;
+  let grandTotalVal = 0;
+  let grandTotalInv = 0;
+
+  monthlyRows.forEach(r => {
+    if (outletMonthlyQty[r.period_key] !== undefined) {
+      outletMonthlyQty[r.period_key] = r.net_cartons;
+      outletMonthlyVal[r.period_key] = r.net_value;
+      outletMonthlyInv[r.period_key] = r.total_invoices;
+    }
+    grandTotalQty += r.net_cartons;
+    grandTotalVal += r.net_value;
+    grandTotalInv += r.total_invoices;
+  });
+
+  let prevVol = null;
+  let prevVal = null;
+  const outletMonthlyTable = timeline.map(t => {
+    const pk = t.key;
+    const vol = Math.round((outletMonthlyQty[pk] || 0) * 100) / 100;
+    const val = Math.round(outletMonthlyVal[pk] || 0);
+    const inv = outletMonthlyInv[pk] || 0;
+
+    let momVolPct = null;
+    if (prevVol !== null && prevVol > 0) {
+      momVolPct = Math.round(((vol - prevVol) / prevVol) * 1000) / 10;
+    }
+    let momValPct = null;
+    if (prevVal !== null && prevVal > 0) {
+      momValPct = Math.round(((val - prevVal) / prevVal) * 1000) / 10;
+    }
+
+    prevVol = vol;
+    prevVal = val;
+
+    return {
+      periodKey: pk,
+      label: t.label,
+      year: t.year,
+      month: t.month,
+      volumeCartons: vol,
+      volumeValue: val,
+      activeOutlets: vol > 0 ? 1 : 0,
+      targetCartons: 0,
+      achvPct: null,
+      momVolPct,
+      momValPct,
+      totalInvoices: inv
+    };
+  });
+
+  // 3. Breakdown for chart series & matrix by dimension
+  let dimCol = 'p.brand';
+  let dimLabelCol = 'p.brand';
+  if (dimension === 'principal') {
+    dimCol = 'p.principal';
+    dimLabelCol = 'p.principal';
+  } else if (dimension === 'salesman' || dimension === 'group_sku' || dimension === 'category') {
+    dimCol = 'p.group_sku';
+    dimLabelCol = 'p.group_sku';
+  }
+
+  const breakdownSql = `
+    SELECT
+      COALESCE(${dimCol}, 'OTHERS') AS entity_id,
+      COALESCE(${dimLabelCol}, 'OTHERS') AS entity_name,
+      printf('%04d-%02d', COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)), COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT))) AS period_key,
+      ROUND(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 2) AS net_cartons,
+      ROUND(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 2) AS net_value,
+      COUNT(DISTINCT h.document_number) AS total_invoices
+    FROM fact_sales_header h
+    JOIN fact_sales_line l ON h.document_number = l.document_number
+    JOIN dim_product p ON l.item_code = p.item_code
+    ${whereSql}
+    GROUP BY entity_id, entity_name, period_key
+    ORDER BY net_cartons DESC
+  `;
+
+  const breakdownRows = db.query(breakdownSql, params);
+  const entityData = {};
+  breakdownRows.forEach(r => {
+    const eId = r.entity_id || 'UNKNOWN';
+    if (!entityData[eId]) {
+      entityData[eId] = {
+        id: eId,
+        name: r.entity_name || eId,
+        periods: {},
+        totalQty: 0,
+        totalVal: 0,
+        totalInv: 0
+      };
+      periodKeys.forEach(pk => {
+        entityData[eId].periods[pk] = 0;
+      });
+    }
+    const metricVal = metric === 'value' ? r.net_value : r.net_cartons;
+    entityData[eId].periods[r.period_key] = metricVal;
+    entityData[eId].totalQty += r.net_cartons;
+    entityData[eId].totalVal += r.net_value;
+    entityData[eId].totalInv += r.total_invoices;
+  });
+
+  const sortedEntities = Object.values(entityData).sort((a, b) => {
+    const aVal = metric === 'value' ? a.totalVal : a.totalQty;
+    const bVal = metric === 'value' ? b.totalVal : b.totalQty;
+    return bVal - aVal;
+  });
+
+  const topEntities = sortedEntities.slice(0, 8);
+  const otherEntities = sortedEntities.slice(8);
+
+  const chartSeries = topEntities.map((e, idx) => ({
+    id: e.id,
+    name: e.name,
+    color: PALETTE[idx % PALETTE.length],
+    data: periodKeys.map(pk => Math.round((e.periods[pk] || 0) * 100) / 100)
+  }));
+
+  if (otherEntities.length > 0) {
+    const otherData = periodKeys.map(pk => {
+      const sum = otherEntities.reduce((acc, e) => acc + (e.periods[pk] || 0), 0);
+      return Math.round(sum * 100) / 100;
+    });
+    chartSeries.push({
+      id: 'OTHERS',
+      name: `Lainnya (${otherEntities.length})`,
+      color: PALETTE[8],
+      data: otherData
+    });
+  }
+
+  const lastKey = periodKeys[periodKeys.length - 1];
+  const prevKey = periodKeys.length > 1 ? periodKeys[periodKeys.length - 2] : null;
+  const currentMonthVal = outletMonthlyQty[lastKey] || 0;
+  const prevMonthVal = prevKey ? (outletMonthlyQty[prevKey] || 0) : 0;
+  const momGrowthPct = prevMonthVal > 0
+    ? Math.round(((currentMonthVal - prevMonthVal) / prevMonthVal) * 1000) / 10
+    : 0;
+
+  const matrix = sortedEntities.map(e => {
+    const primaryTotal = metric === 'value' ? e.totalVal : e.totalQty;
+    const lastVal = e.periods[lastKey] || 0;
+    const prevVal = prevKey ? (e.periods[prevKey] || 0) : 0;
+    const momPct = prevVal > 0 ? Math.round(((lastVal - prevVal) / prevVal) * 1000) / 10 : null;
+
+    const rowPeriods = {};
+    periodKeys.forEach(pk => {
+      rowPeriods[pk] = Math.round((e.periods[pk] || 0) * 100) / 100;
+    });
+
+    return {
+      id: e.id,
+      name: e.name,
+      periods: rowPeriods,
+      total: Math.round(primaryTotal * 100) / 100,
+      totalQty: Math.round(e.totalQty * 100) / 100,
+      totalVal: Math.round(e.totalVal),
+      targetCartons: 0,
+      achvPct: null,
+      momPct
+    };
+  });
+
+  // Calculate YoY for this specific store
+  const yoyComparison = calculateOutletYoY(db, outletId, options);
+
+  const dsoMovement = {
+    isOutletScope: true,
+    outletInfo,
+    labels: timeline.map(t => t.label),
+    volumeSeries: timeline.map(t => Math.round((outletMonthlyQty[t.key] || 0) * 100) / 100),
+    valSeries: timeline.map(t => Math.round(outletMonthlyVal[t.key] || 0)),
+    oaSeries: timeline.map(t => ((outletMonthlyQty[t.key] || 0) > 0 ? 1 : 0)),
+    targetSeries: timeline.map(() => 0),
+    monthlyTable: outletMonthlyTable,
+    totals: {
+      totalVolume: Math.round(grandTotalQty * 100) / 100,
+      totalValue: Math.round(grandTotalVal),
+      totalInvoices: grandTotalInv,
+      avgMonthlyVol: Math.round((grandTotalQty / (timeline.length || 1)) * 100) / 100,
+      avgMonthlyVal: Math.round((grandTotalVal / (timeline.length || 1)))
+    }
+  };
+
+  return {
+    dimension,
+    metric,
+    periodRange,
+    timeline,
+    isOutletScope: true,
+    outletInfo,
+    summary: {
+      totalQty: Math.round(grandTotalQty * 100) / 100,
+      totalValue: Math.round(grandTotalVal),
+      avgMonthlyOa: grandTotalQty > 0 ? 1 : 0,
+      currentMonthVal: Math.round(currentMonthVal * 100) / 100,
+      prevMonthVal: Math.round(prevMonthVal * 100) / 100,
+      momGrowthPct
+    },
+    dsoMovement,
+    yearOverYearComparison: yoyComparison,
+    chart: {
+      labels: timeline.map(t => t.label),
+      series: chartSeries,
+      monthlyTotals: periodKeys.map(pk => Math.round((outletMonthlyQty[pk] || 0) * 100) / 100),
+      monthlyTargets: periodKeys.map(() => 0)
+    },
+    oaChart: {
+      labels: timeline.map(t => t.label),
+      series: []
+    },
+    matrix
+  };
+}
+
+function calculateOutletYoY(db, outletId, options = {}) {
+  let whereClauses = [
+    `(h.outlet_id = ? 
+      OR h.outlet_id IN (SELECT source_customer_code FROM outlet_alias WHERE outlet_id = ?) 
+      OR h.outlet_id IN (SELECT outlet_id FROM outlet_alias WHERE source_customer_code = ?))`
+  ];
+  let params = [outletId, outletId, outletId];
+
+  if (options.principal) {
+    whereClauses.push('p.principal = ?');
+    params.push(options.principal);
+  }
+  if (options.brand) {
+    whereClauses.push('p.brand = ?');
+    params.push(options.brand);
+  }
+  if (options.subbrand) {
+    whereClauses.push('p.subbrand = ?');
+    params.push(options.subbrand);
+  }
+  if (options.groupSku) {
+    whereClauses.push('(p.group_sku = ? OR p.group_sku LIKE ?)');
+    params.push(options.groupSku, `%${options.groupSku}%`);
+  }
+
+  const whereSql = 'WHERE ' + whereClauses.join(' AND ');
+
+  const asOfMonth = options.month ? parseInt(options.month, 10) : 9;
+
+  // 1. Full Year 2025
+  const fy2025 = db.query(`
+    SELECT
+      ROUND(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 2) as qty,
+      ROUND(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 2) as val
+    FROM fact_sales_header h
+    JOIN fact_sales_line l ON h.document_number = l.document_number
+    JOIN dim_product p ON l.item_code = p.item_code
+    ${whereSql} AND COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025
+  `, params)[0];
+
+  // 2. YTD 2026 (Month 1..asOfMonth)
+  const ytd2026 = db.query(`
+    SELECT
+      ROUND(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 2) as qty,
+      ROUND(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 2) as val
+    FROM fact_sales_header h
+    JOIN fact_sales_line l ON h.document_number = l.document_number
+    JOIN dim_product p ON l.item_code = p.item_code
+    ${whereSql} 
+    AND COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 
+    AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= ?
+  `, [...params, asOfMonth])[0];
+
+  // 3. YTD 2025 (Month 1..asOfMonth)
+  const ytd2025 = db.query(`
+    SELECT
+      ROUND(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 2) as qty,
+      ROUND(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 2) as val
+    FROM fact_sales_header h
+    JOIN fact_sales_line l ON h.document_number = l.document_number
+    JOIN dim_product p ON l.item_code = p.item_code
+    ${whereSql} 
+    AND COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025 
+    AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= ?
+  `, [...params, asOfMonth])[0];
+
+  const fy2025Qty = Math.round((fy2025?.qty || 0) * 100) / 100;
+  const fy2025Val = Math.round(fy2025?.val || 0);
+  const ytd2026Qty = Math.round((ytd2026?.qty || 0) * 100) / 100;
+  const ytd2026Val = Math.round(ytd2026?.val || 0);
+  const ytd2025Qty = Math.round((ytd2025?.qty || 0) * 100) / 100;
+  const ytd2025Val = Math.round(ytd2025?.val || 0);
+
+  const gapFyQty = Math.round((ytd2026Qty - fy2025Qty) * 100) / 100;
+  const gapFyVal = Math.round(ytd2026Val - fy2025Val);
+  const pctAchievedFyQty = fy2025Qty > 0 ? Math.round((ytd2026Qty / fy2025Qty) * 1000) / 10 : (ytd2026Qty > 0 ? 100 : 0);
+  const pctAchievedFyVal = fy2025Val > 0 ? Math.round((ytd2026Val / fy2025Val) * 1000) / 10 : (ytd2026Val > 0 ? 100 : 0);
+  const gapPctFyQty = fy2025Qty > 0 ? Math.round((gapFyQty / fy2025Qty) * 1000) / 10 : 0;
+  const gapPctFyVal = fy2025Val > 0 ? Math.round((gapFyVal / fy2025Val) * 1000) / 10 : 0;
+
+  const diffQty = Math.round((ytd2026Qty - ytd2025Qty) * 100) / 100;
+  const diffVal = Math.round(ytd2026Val - ytd2025Val);
+  const growthQtyPct = ytd2025Qty > 0 ? Math.round((diffQty / ytd2025Qty) * 1000) / 10 : 0;
+  const growthValPct = ytd2025Val > 0 ? Math.round((diffVal / ytd2025Val) * 1000) / 10 : 0;
+
+  return {
+    asOfMonth,
+    fullYear2025VsYtd2026: {
+      totalQty2025: fy2025Qty,
+      totalValue2025: fy2025Val,
+      totalQtyYtd2026: ytd2026Qty,
+      totalValueYtd2026: ytd2026Val,
+      gapQty: gapFyQty,
+      gapValue: gapFyVal,
+      achievedPctQty: pctAchievedFyQty,
+      achievedPctValue: pctAchievedFyVal,
+      gapPctQty: gapPctFyQty,
+      gapPctValue: gapPctFyVal
+    },
+    ytd2025VsYtd2026: {
+      asOfMonth,
+      ytdMonths: asOfMonth,
+      totalQtyYtd2025: ytd2025Qty,
+      totalValueYtd2025: ytd2025Val,
+      totalQtyYtd2026: ytd2026Qty,
+      totalValueYtd2026: ytd2026Val,
+      diffQty,
+      diffValue: diffVal,
+      growthPctQty: growthQtyPct,
+      growthPctValue: growthValPct
+    }
+  };
+}
+
 function calculateYoYComparison(db, options = {}) {
   let whereClauses = [];
   let params = [];
@@ -671,6 +1111,22 @@ function calculateYoYComparison(db, options = {}) {
   if (options.brand) {
     whereClauses.push('a.brand = ?');
     params.push(options.brand);
+  }
+  if (options.subbrand) {
+    whereClauses.push('a.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE subbrand = ?)');
+    params.push(options.subbrand);
+  }
+  if (options.groupSku) {
+    whereClauses.push('(a.group_sku = ? OR a.group_sku LIKE ?)');
+    params.push(options.groupSku, `%${options.groupSku}%`);
+  }
+  if (options.rayonId) {
+    whereClauses.push('a.salesman_id IN (SELECT DISTINCT current_salesman_id FROM dim_outlet WHERE current_rayon_id = ?)');
+    params.push(options.rayonId);
+  }
+  if (options.kecamatanId) {
+    whereClauses.push('a.salesman_id IN (SELECT DISTINCT current_salesman_id FROM dim_outlet WHERE kecamatan_id = ?)');
+    params.push(options.kecamatanId);
   }
 
   const extraWhere = whereClauses.length > 0 ? ' AND ' + whereClauses.join(' AND ') : '';

@@ -946,6 +946,91 @@ router.get('/sales/performance', (req, res) => {
   }
 });
 
+// Outlet Search Suggestions (Autocomplete for Trend & Global Search)
+router.get('/outlets/search-suggestions', (req, res) => {
+  try {
+    const db = getDb();
+    const q = req.query.q ? req.query.q.trim() : '';
+    if (!q || q.length < 1) {
+      return res.json([]);
+    }
+    const searchTerm = `%${q}%`;
+    const prefixTerm = `${q}%`;
+
+    const sql = `
+      SELECT DISTINCT
+        o.outlet_id,
+        o.canonical_name,
+        COALESCE(
+          (SELECT source_customer_code FROM outlet_alias WHERE outlet_id = o.outlet_id LIMIT 1),
+          o.outlet_id
+        ) AS outlet_code,
+        s.name AS salesman_name,
+        COALESCE(r.code, o.current_rayon_id) AS rayon_code,
+        k.name AS kecamatan_name,
+        o.cluster_tier,
+        o.is_active_cl
+      FROM dim_outlet o
+      LEFT JOIN org_salesman s ON o.current_salesman_id = s.salesman_id
+      LEFT JOIN dim_rayon r ON o.current_rayon_id = r.rayon_id
+      LEFT JOIN dim_kecamatan k ON o.kecamatan_id = k.kecamatan_id
+      WHERE (
+        o.canonical_name LIKE ?
+        OR o.outlet_id LIKE ?
+        OR o.outlet_id IN (SELECT outlet_id FROM outlet_alias WHERE source_customer_code LIKE ?)
+        OR o.outlet_id IN (SELECT source_customer_code FROM outlet_alias WHERE outlet_id LIKE ?)
+      )
+      ORDER BY
+        o.is_active_cl DESC,
+        CASE WHEN o.canonical_name LIKE ? THEN 1 WHEN o.canonical_name LIKE ? THEN 2 ELSE 3 END,
+        o.canonical_name ASC
+      LIMIT 25
+    `;
+
+    const rows = db.query(sql, [searchTerm, searchTerm, searchTerm, searchTerm, prefixTerm, searchTerm]);
+
+    const seen = new Set();
+    const deduped = [];
+    for (const r of rows) {
+      const key = `${r.canonical_name}_${r.outlet_code}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push({
+          outletId: r.outlet_id,
+          canonicalName: r.canonical_name,
+          code: r.outlet_code,
+          salesmanName: r.salesman_name,
+          rayonCode: r.rayon_code,
+          kecamatanName: r.kecamatan_name,
+          clusterTier: r.cluster_tier
+        });
+      }
+      if (deduped.length >= 15) break;
+    }
+
+    res.json({
+      suggestions: deduped.map(d => ({
+        outlet_id: d.outletId,
+        outletId: d.outletId,
+        outlet_name: d.canonicalName,
+        canonicalName: d.canonicalName,
+        outlet_code: d.code,
+        code: d.code,
+        salesman_name: d.salesmanName,
+        salesmanName: d.salesmanName,
+        rayon_code: d.rayonCode,
+        rayonCode: d.rayonCode,
+        kecamatan: d.kecamatanName,
+        kecamatanName: d.kecamatanName,
+        cluster_tier: d.clusterTier,
+        clusterTier: d.clusterTier
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Outlet 360 & Customer Directory
 router.get('/outlets', (req, res) => {
   try {
@@ -954,6 +1039,8 @@ router.get('/outlets', (req, res) => {
     const cluster = req.query.cluster || null;
     const salesmanId = req.query.salesmanId || null;
     const kecamatanId = req.query.kecamatanId || null;
+    const rayonId = req.query.rayonId || null;
+    const spvId = req.query.spvId || null;
     const statusFilter = req.query.status || null; // 'active', 'inactive_mtd', 'dormant_60d', 'never_ordered', 'all'
     const page = parseInt(req.query.page || '1', 10);
     const limit = parseInt(req.query.limit || '100', 10);
@@ -987,6 +1074,14 @@ router.get('/outlets', (req, res) => {
     if (kecamatanId) {
       baseSql += ` AND o.kecamatan_id = ?`;
       params.push(kecamatanId);
+    }
+    if (rayonId) {
+      baseSql += ` AND (o.current_rayon_id = ? OR r.code = ?)`;
+      params.push(rayonId, rayonId);
+    }
+    if (spvId) {
+      baseSql += ` AND s.spv_id = ?`;
+      params.push(spvId);
     }
 
     const selectSql = `
