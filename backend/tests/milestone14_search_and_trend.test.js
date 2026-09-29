@@ -62,3 +62,49 @@ test('M14-3: Outlet-level movement analytics supports store trend and reactive g
   assert.ok(movDeli.dsoMovement.totals.totalVolume > 0, 'Filtered volume should be positive');
   assert.ok(movDeli.dsoMovement.totals.totalVolume <= initialVolume, 'Filtered DELI volume should be <= total volume');
 });
+
+test('M14-4: REST API GET /api/outlets accurately aggregates alias transactions and displays active status', async () => {
+  const port = 3997;
+  const srv = app.listen(port);
+  try {
+    const res = await fetch(`http://localhost:${port}/api/outlets?search=saepul`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.ok(Array.isArray(data.outlets), 'Should return outlets array');
+    const saepul = data.outlets.find(o => o.name === 'SAEPUL ROHMAN' && (o.rayon === 'R05' || o.kecamatan === 'Pangatikan'));
+    assert.ok(saepul, 'Should find SAEPUL ROHMAN in Pangatikan / R05');
+    assert.equal(saepul.status, 'Aktif', 'SAEPUL ROHMAN should have status Aktif');
+    assert.ok(saepul.totalYtdCartons > 200, `totalYtdCartons should be > 200 KTN (actual: ${saepul.totalYtdCartons})`);
+    assert.ok(saepul.monthlySales.m1 > 0, 'Month 1 (Jan) should be > 0');
+    assert.ok(saepul.monthlySales.m9 > 0, 'Month 9 (Sep) should be > 0');
+    assert.ok(saepul.lifetimeOrders >= 20, 'Lifetime orders should be >= 20');
+    assert.ok(saepul.lifetimeValueJt >= 18, 'Lifetime value should be >= 18 Jt');
+  } finally {
+    srv.close();
+  }
+});
+
+test('M14-5: REST API GET /api/outlets/:id/360 resolves both canonical and alias customer codes', async () => {
+  const port = 3996;
+  const srv = app.listen(port);
+  try {
+    // 1. Query by canonical outlet ID
+    const resCanonical = await fetch(`http://localhost:${port}/api/outlets/OUT_73176d4f-b7d5-481a-a84f-31902d861875/360`);
+    assert.equal(resCanonical.status, 200);
+    const dataCanonical = await resCanonical.json();
+    assert.equal(dataCanonical.identity.status, 'Aktif');
+    assert.ok(dataCanonical.summaryMetrics.totalCartons > 200);
+    assert.ok(dataCanonical.summaryMetrics.totalInvoices > 0);
+    assert.ok(dataCanonical.topSkus.length > 0);
+
+    // 2. Query by ERP customer code alias
+    const resAlias = await fetch(`http://localhost:${port}/api/outlets/G3050BF250425145021101/360`);
+    assert.equal(resAlias.status, 200);
+    const dataAlias = await resAlias.json();
+    assert.equal(dataAlias.identity.outletId, 'OUT_73176d4f-b7d5-481a-a84f-31902d861875');
+    assert.equal(dataAlias.identity.status, 'Aktif');
+    assert.ok(dataAlias.summaryMetrics.totalCartons > 200);
+  } finally {
+    srv.close();
+  }
+});

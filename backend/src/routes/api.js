@@ -1031,10 +1031,71 @@ router.get('/outlets/search-suggestions', (req, res) => {
   }
 });
 
+function ensureOutletSalesSummaryTable(db) {
+  try {
+    const tableExists = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='agg_outlet_sales_summary'")[0];
+    if (!tableExists) {
+      db.query(`
+        CREATE TABLE IF NOT EXISTS agg_outlet_sales_summary (
+          canonical_id VARCHAR(50) PRIMARY KEY,
+          last_order_date DATE,
+          lifetime_orders INTEGER,
+          lifetime_value NUMERIC(15, 2)
+        )
+      `);
+      db.query(`
+        INSERT INTO agg_outlet_sales_summary (canonical_id, last_order_date, lifetime_orders, lifetime_value)
+        SELECT 
+          COALESCE(a.outlet_id, h.outlet_id) AS canonical_id,
+          MAX(h.transaction_date) AS last_order_date,
+          COUNT(DISTINCT h.document_number) AS lifetime_orders,
+          COALESCE(SUM(l.sales_netto), 0) AS lifetime_value
+        FROM fact_sales_header h
+        LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+        LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
+        WHERE h.unit_type = 'Sales'
+        GROUP BY COALESCE(a.outlet_id, h.outlet_id)
+      `);
+    }
+  } catch (e) {
+    console.error('Failed to ensure agg_outlet_sales_summary:', e);
+  }
+}
+
+function refreshOutletSalesSummary(db) {
+  try {
+    db.query(`
+      CREATE TABLE IF NOT EXISTS agg_outlet_sales_summary (
+        canonical_id VARCHAR(50) PRIMARY KEY,
+        last_order_date DATE,
+        lifetime_orders INTEGER,
+        lifetime_value NUMERIC(15, 2)
+      )
+    `);
+    db.query(`DELETE FROM agg_outlet_sales_summary`);
+    db.query(`
+      INSERT INTO agg_outlet_sales_summary (canonical_id, last_order_date, lifetime_orders, lifetime_value)
+      SELECT 
+        COALESCE(a.outlet_id, h.outlet_id) AS canonical_id,
+        MAX(h.transaction_date) AS last_order_date,
+        COUNT(DISTINCT h.document_number) AS lifetime_orders,
+        COALESCE(SUM(l.sales_netto), 0) AS lifetime_value
+      FROM fact_sales_header h
+      LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+      LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
+      WHERE h.unit_type = 'Sales'
+      GROUP BY COALESCE(a.outlet_id, h.outlet_id)
+    `);
+  } catch (e) {
+    console.error('Failed to refresh agg_outlet_sales_summary:', e);
+  }
+}
+
 // Outlet 360 & Customer Directory
 router.get('/outlets', (req, res) => {
   try {
     const db = getDb();
+    ensureOutletSalesSummaryTable(db);
     const search = req.query.search ? `%${req.query.search.trim()}%` : null;
     const cluster = req.query.cluster || null;
     const salesmanId = req.query.salesmanId || null;
@@ -1055,13 +1116,14 @@ router.get('/outlets', (req, res) => {
       LEFT JOIN org_salesman s ON o.current_salesman_id = s.salesman_id
       LEFT JOIN dim_rayon r ON o.current_rayon_id = r.rayon_id
       LEFT JOIN dim_kecamatan k ON o.kecamatan_id = k.kecamatan_id
+      LEFT JOIN agg_outlet_sales_summary ss ON o.outlet_id = ss.canonical_id
       WHERE o.is_active_cl = 1
     `;
     const params = [];
 
     if (search) {
-      baseSql += ` AND (o.canonical_name LIKE ? OR o.outlet_id LIKE ? OR o.outlet_id IN (SELECT outlet_id FROM outlet_alias WHERE source_customer_code LIKE ?))`;
-      params.push(search, search, search);
+      baseSql += ` AND (o.canonical_name LIKE ? OR o.outlet_id LIKE ? OR o.outlet_id IN (SELECT outlet_id FROM outlet_alias WHERE source_customer_code LIKE ?) OR o.outlet_id IN (SELECT source_customer_code FROM outlet_alias WHERE outlet_id LIKE ?))`;
+      params.push(search, search, search, search);
     }
     if (cluster) {
       baseSql += ` AND o.cluster_tier = ?`;
@@ -1096,16 +1158,15 @@ router.get('/outlets', (req, res) => {
         s.name AS salesman_name,
         r.code AS rayon_code,
         k.name AS kecamatan_name,
-        (SELECT GROUP_CONCAT(source_customer_code, ', ') FROM outlet_alias WHERE outlet_id = o.outlet_id) AS aliases,
-        (SELECT MAX(transaction_date) FROM fact_sales_header WHERE outlet_id = o.outlet_id AND unit_type = 'Sales') AS last_order_date,
-        (SELECT COUNT(DISTINCT document_number) FROM fact_sales_header WHERE outlet_id = o.outlet_id AND unit_type = 'Sales') AS lifetime_orders,
-        (SELECT COALESCE(SUM(l.sales_netto), 0) FROM fact_sales_line l JOIN fact_sales_header h ON l.document_number = h.document_number WHERE h.outlet_id = o.outlet_id AND h.unit_type = 'Sales') AS lifetime_value
+        ss.last_order_date,
+        COALESCE(ss.lifetime_orders, 0) AS lifetime_orders,
+        COALESCE(ss.lifetime_value, 0) AS lifetime_value
       ${baseSql}
       ORDER BY o.canonical_name ASC
     `;
 
     const allRows = db.query(selectSql, params);
-    const today = new Date('2026-05-30'); // System reference date
+    const today = new Date(req.query.asOfDate || '2026-09-25');
 
     // Map each row to its 4 distinct customer states
     const enriched = allRows.map(r => {
@@ -1142,7 +1203,7 @@ router.get('/outlets', (req, res) => {
         salesmanName: r.salesman_name || 'Belum Di-assign',
         rayon: r.rayon_code || '-',
         kecamatan: r.kecamatan_name || '-',
-        aliases: r.aliases ? r.aliases.split(', ') : [],
+        aliases: [],
         lastOrderDate: r.last_order_date || null,
         daysSinceLastOrder,
         stateCode,
@@ -1173,6 +1234,40 @@ router.get('/outlets', (req, res) => {
     const pageOutletIds = paginatedItems.map(p => p.outletId);
     if (pageOutletIds.length > 0) {
       const placeholders = pageOutletIds.map(() => '?').join(',');
+
+      // 1. Fetch aliases for the page
+      const aliasRows = db.query(`
+        SELECT outlet_id, source_customer_code 
+        FROM outlet_alias 
+        WHERE outlet_id IN (${placeholders}) OR source_customer_code IN (${placeholders})
+      `, [...pageOutletIds, ...pageOutletIds]);
+
+      const codeToCanonical = {};
+      const aliasMap = {};
+      pageOutletIds.forEach(id => {
+        codeToCanonical[id] = id;
+        aliasMap[id] = [];
+      });
+      aliasRows.forEach(a => {
+        if (pageOutletIds.includes(a.outlet_id)) {
+          codeToCanonical[a.source_customer_code] = a.outlet_id;
+          aliasMap[a.outlet_id].push(a.source_customer_code);
+        }
+        if (pageOutletIds.includes(a.source_customer_code)) {
+          codeToCanonical[a.outlet_id] = a.source_customer_code;
+          if (!aliasMap[a.source_customer_code]) aliasMap[a.source_customer_code] = [];
+          aliasMap[a.source_customer_code].push(a.outlet_id);
+        }
+      });
+
+      paginatedItems.forEach(item => {
+        item.aliases = aliasMap[item.outletId] || [];
+      });
+
+      // 2. Fetch monthly sales for canonical and alias IDs
+      const allQueryCodes = Object.keys(codeToCanonical);
+      const queryPlaceholders = allQueryCodes.map(() => '?').join(',');
+
       const monthlyRows = db.query(`
         SELECT 
           h.outlet_id, 
@@ -1180,31 +1275,32 @@ router.get('/outlets', (req, res) => {
           COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS ctn
         FROM fact_sales_header h
         JOIN fact_sales_line l ON h.document_number = l.document_number
-        WHERE h.period_year = 2026 AND h.period_month <= 9 AND h.outlet_id IN (${placeholders})
+        WHERE h.period_year = 2026 AND h.period_month <= 9 AND h.outlet_id IN (${queryPlaceholders})
         GROUP BY h.outlet_id, h.period_month
-      `, pageOutletIds);
+      `, allQueryCodes);
 
       const monthlyMap = {};
       monthlyRows.forEach(mr => {
-        if (!monthlyMap[mr.outlet_id]) monthlyMap[mr.outlet_id] = {};
-        monthlyMap[mr.outlet_id][mr.period_month] = Math.max(Math.round(mr.ctn * 10) / 10, 0);
+        const canonicalId = codeToCanonical[mr.outlet_id] || mr.outlet_id;
+        if (!monthlyMap[canonicalId]) monthlyMap[canonicalId] = {};
+        monthlyMap[canonicalId][mr.period_month] = (monthlyMap[canonicalId][mr.period_month] || 0) + mr.ctn;
       });
 
       paginatedItems.forEach(item => {
         const m = monthlyMap[item.outletId] || {};
         item.monthlySales = {
-          m1: m[1] || 0,
-          m2: m[2] || 0,
-          m3: m[3] || 0,
-          m4: m[4] || 0,
-          m5: m[5] || 0,
-          m6: m[6] || 0,
-          m7: m[7] || 0,
-          m8: m[8] || 0,
-          m9: m[9] || 0
+          m1: Math.max(Math.round((m[1] || 0) * 10) / 10, 0),
+          m2: Math.max(Math.round((m[2] || 0) * 10) / 10, 0),
+          m3: Math.max(Math.round((m[3] || 0) * 10) / 10, 0),
+          m4: Math.max(Math.round((m[4] || 0) * 10) / 10, 0),
+          m5: Math.max(Math.round((m[5] || 0) * 10) / 10, 0),
+          m6: Math.max(Math.round((m[6] || 0) * 10) / 10, 0),
+          m7: Math.max(Math.round((m[7] || 0) * 10) / 10, 0),
+          m8: Math.max(Math.round((m[8] || 0) * 10) / 10, 0),
+          m9: Math.max(Math.round((m[9] || 0) * 10) / 10, 0)
         };
         const totalYtd = Object.values(item.monthlySales).reduce((a, b) => a + b, 0);
-        // Average last 3 months: 1 month before September (m9) is August (m8). L3M = m6, m7, m8
+        // Average last 3 months: m6, m7, m8
         const avgL3M = Math.round(((item.monthlySales.m6 + item.monthlySales.m7 + item.monthlySales.m8) / 3) * 10) / 10;
         // Average last 6 months: m3, m4, m5, m6, m7, m8
         const avgL6M = Math.round(((item.monthlySales.m3 + item.monthlySales.m4 + item.monthlySales.m5 + item.monthlySales.m6 + item.monthlySales.m7 + item.monthlySales.m8) / 6) * 10) / 10;
@@ -1235,7 +1331,7 @@ router.get('/outlets/:id/360', (req, res) => {
     const outletId = req.params.id;
 
     // Header info
-    const outlet = db.query(
+    let outlet = db.query(
       `SELECT
         o.*,
         s.name AS salesman_name,
@@ -1253,18 +1349,46 @@ router.get('/outlets/:id/360', (req, res) => {
       [outletId]
     )[0];
 
+    // If not found or if the matched outlet is inactive, check if outletId is an alias to an active canonical outlet
+    if (!outlet || !outlet.is_active_cl) {
+      const canonicalOutlet = db.query(
+        `SELECT
+          o.*,
+          s.name AS salesman_name,
+          spv.name AS spv_name,
+          r.code AS rayon_code,
+          k.name AS kecamatan_name,
+          p.name AS pasar_name
+         FROM dim_outlet o
+         JOIN outlet_alias a ON o.outlet_id = a.outlet_id
+         LEFT JOIN org_salesman s ON o.current_salesman_id = s.salesman_id
+         LEFT JOIN org_spv spv ON s.spv_id = spv.spv_id
+         LEFT JOIN dim_rayon r ON o.current_rayon_id = r.rayon_id
+         LEFT JOIN dim_kecamatan k ON o.kecamatan_id = k.kecamatan_id
+         LEFT JOIN dim_pasar p ON o.pasar_id = p.pasar_id
+         WHERE (a.source_customer_code = ? OR a.outlet_id = ?) AND o.is_active_cl = 1`,
+        [outletId, outletId]
+      )[0];
+      if (canonicalOutlet) {
+        outlet = canonicalOutlet;
+      }
+    }
+
     if (!outlet) return res.status(404).json({ error: 'Outlet tidak ditemukan' });
 
     // Source aliases
-    const aliases = db.query('SELECT * FROM outlet_alias WHERE outlet_id = ?', [outletId]);
+    const canonicalId = outlet.outlet_id;
+    const aliases = db.query('SELECT * FROM outlet_alias WHERE outlet_id = ? OR source_customer_code = ?', [canonicalId, canonicalId]);
+    const allCodes = Array.from(new Set([canonicalId, outletId, ...aliases.map(a => a.source_customer_code), ...aliases.map(a => a.outlet_id)]));
+    const codePlaceholders = allCodes.map(() => '?').join(',');
 
     // Last order & recency
     const lastOrderRow = db.query(
-      `SELECT MAX(transaction_date) as last_date FROM fact_sales_header WHERE outlet_id = ? AND unit_type = 'Sales'`,
-      [outletId]
+      `SELECT MAX(transaction_date) as last_date FROM fact_sales_header WHERE outlet_id IN (${codePlaceholders}) AND unit_type = 'Sales'`,
+      allCodes
     )[0];
-    const today = new Date('2026-05-30');
-    let daysSinceLastOrder = 5;
+    const today = new Date(req.query.asOfDate || '2026-09-25');
+    let daysSinceLastOrder = null;
     if (lastOrderRow && lastOrderRow.last_date) {
       const d = new Date(lastOrderRow.last_date);
       daysSinceLastOrder = Math.max(Math.floor((today - d) / (1000 * 60 * 60 * 24)), 0);
@@ -1279,8 +1403,8 @@ router.get('/outlets/:id/360', (req, res) => {
         COUNT(DISTINCT h.period_month) AS active_months
       FROM fact_sales_header h
       JOIN fact_sales_line l ON h.document_number = l.document_number
-      WHERE h.outlet_id = ? AND h.period_year = 2026
-    `, [outletId])[0] || {};
+      WHERE h.outlet_id IN (${codePlaceholders}) AND h.period_year = 2026
+    `, allCodes)[0] || {};
 
     const totalCartons = Math.max(Math.round((salesSummaryRow.total_cartons || 0) * 10) / 10, 0);
     const totalNetto = Math.max(Math.round(salesSummaryRow.total_netto || 0), 0);
@@ -1298,8 +1422,8 @@ router.get('/outlets/:id/360', (req, res) => {
         COALESCE(SUM(CASE WHEN h.period_month IN (3,4,5) THEN l.sales_netto ELSE 0 END), 0) AS p3m_val
       FROM fact_sales_header h
       JOIN fact_sales_line l ON h.document_number = l.document_number
-      WHERE h.outlet_id = ? AND h.period_year = 2026
-    `, [outletId])[0] || {};
+      WHERE h.outlet_id IN (${codePlaceholders}) AND h.period_year = 2026
+    `, allCodes)[0] || {};
 
     const l3mVal = l3mRow.l3m_val || 0;
     const p3mVal = l3mRow.p3m_val || 0;
@@ -1313,10 +1437,10 @@ router.get('/outlets/:id/360', (req, res) => {
       FROM fact_sales_line l
       JOIN fact_sales_header h ON l.document_number = h.document_number
       JOIN dim_product p ON l.item_code = p.item_code
-      WHERE h.outlet_id = ? AND h.period_year = 2026
+      WHERE h.outlet_id IN (${codePlaceholders}) AND h.period_year = 2026
       GROUP BY p.brand
       ORDER BY total_val DESC
-    `, [outletId]);
+    `, allCodes);
 
     const brandColors = ['#2563EB', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#9CA3AF'];
     const totalBrandVal = brandMixRows.reduce((s, b) => s + Math.max(b.total_val, 0), 0);
@@ -1343,11 +1467,11 @@ router.get('/outlets/:id/360', (req, res) => {
       FROM fact_sales_line l
       JOIN fact_sales_header h ON l.document_number = h.document_number
       JOIN dim_product p ON l.item_code = p.item_code
-      WHERE h.outlet_id = ? AND h.period_year = 2026
+      WHERE h.outlet_id IN (${codePlaceholders}) AND h.period_year = 2026
       GROUP BY p.item_name
       ORDER BY total_val DESC
       LIMIT 5
-    `, [outletId]);
+    `, allCodes);
 
     const topSkus = topSkusRows.map((s, idx) => ({
       rank: idx + 1,
@@ -1362,8 +1486,8 @@ router.get('/outlets/:id/360', (req, res) => {
       FROM fact_sales_line l
       JOIN fact_sales_header h ON l.document_number = h.document_number
       JOIN dim_product p ON l.item_code = p.item_code
-      WHERE h.outlet_id = ? AND p.must_have_line != 'NONE' AND p.must_have_line IS NOT NULL AND h.period_year = 2026
-    `, [outletId]).map(r => r.must_have_line);
+      WHERE h.outlet_id IN (${codePlaceholders}) AND p.must_have_line != 'NONE' AND p.must_have_line IS NOT NULL AND h.period_year = 2026
+    `, allCodes).map(r => r.must_have_line);
 
     const tersediaCount = mhLines.length;
     const totalTargetCount = 6;
@@ -1375,11 +1499,11 @@ router.get('/outlets/:id/360', (req, res) => {
       FROM fact_sales_line l
       JOIN fact_sales_header h ON l.document_number = h.document_number
       JOIN dim_product p ON l.item_code = p.item_code
-      WHERE h.outlet_id = ? AND (p.group_sku LIKE '%NPL%' OR p.item_name LIKE '%DELI%' OR p.item_name LIKE '%NPL%') AND h.period_year = 2026
-    `, [outletId])[0]?.ro_count || 0;
+      WHERE h.outlet_id IN (${codePlaceholders}) AND (p.group_sku LIKE '%NPL%' OR p.item_name LIKE '%DELI%' OR p.item_name LIKE '%NPL%') AND h.period_year = 2026
+    `, allCodes)[0]?.ro_count || 0;
 
     // 6. AR & Overdue:
-    const arRows = db.query('SELECT * FROM fact_ar_invoice WHERE outlet_id = ?', [outletId]);
+    const arRows = db.query(`SELECT * FROM fact_ar_invoice WHERE outlet_id IN (${codePlaceholders})`, allCodes);
     const totalAr = arRows.reduce((s, r) => s + (r.saldo_piutang || 0), 0);
     const overdueAr = arRows.filter(r => (r.overdue_days || 0) > 0).reduce((s, r) => s + (r.saldo_piutang || 0), 0);
     const overduePct = totalAr > 0 ? Math.round((overdueAr / totalAr) * 100) : 0;
@@ -1428,6 +1552,18 @@ router.get('/outlets/:id/360', (req, res) => {
       });
     }
 
+    let statusLabel = 'Belum Pernah Order';
+    if (lastOrderRow && lastOrderRow.last_date) {
+      const orderDate = new Date(lastOrderRow.last_date);
+      if (orderDate.getMonth() === today.getMonth() && orderDate.getFullYear() === today.getFullYear()) {
+        statusLabel = 'Aktif';
+      } else if (daysSinceLastOrder >= 60) {
+        statusLabel = 'Dormant';
+      } else {
+        statusLabel = 'Inaktif MTD';
+      }
+    }
+
     res.json({
       identity: {
         outletId: outlet.outlet_id,
@@ -1443,7 +1579,7 @@ router.get('/outlets/:id/360', (req, res) => {
         topDays: outlet.term_of_payment || 30,
         lastOrderDate: lastOrderRow ? lastOrderRow.last_date : null,
         daysSinceLastOrder,
-        status: daysSinceLastOrder === null ? 'Belum Pernah Order' : (daysSinceLastOrder >= 60 ? 'Dormant' : (daysSinceLastOrder > 20 ? 'Inaktif MTD' : 'Aktif'))
+        status: statusLabel
       },
       summaryMetrics: {
         trenPenjualanJt,
@@ -1528,6 +1664,9 @@ router.post('/datacenter/commit', requireSuperAdmin, (req, res) => {
     if (!stagedFilePath) return res.status(400).json({ error: 'Berkas staging tidak ditemukan.' });
     const user = req.user || getAuthUser(req);
     const result = commitImport(stagedFilePath, datasetType, user);
+    if (result && result.status === 'COMMITTED') {
+      try { refreshOutletSalesSummary(getDb()); } catch (e) { console.error('Error refreshing outlet summary:', e); }
+    }
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1540,6 +1679,7 @@ router.post('/datacenter/rollback', requireSuperAdmin, (req, res) => {
     if (!batchId) return res.status(400).json({ error: 'Batch ID wajib disertakan.' });
     const user = req.user || getAuthUser(req);
     const result = rollbackImport(batchId, user);
+    try { refreshOutletSalesSummary(getDb()); } catch (e) { console.error('Error refreshing outlet summary:', e); }
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
