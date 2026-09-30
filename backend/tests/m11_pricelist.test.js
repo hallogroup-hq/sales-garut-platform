@@ -117,23 +117,39 @@ test('M11-4: Discount Strata Rules & Volume Tier Calculations', async (t) => {
   assert.equal(getDiscountForQty('CANDY_FOXS', 4).discPct, 2);
   assert.equal(getDiscountForQty('CANDY_FOXS', 5).discPct, 3);
 
-  // 6. Unilever (0-5: 0%, 6-19: 2%, 20-49: 3%, >=50: 5%)
-  assert.equal(getDiscountForQty('UNILEVER', 3).discPct, 0);
-  assert.equal(getDiscountForQty('UNILEVER', 5).discPct, 0);
-  assert.equal(getDiscountForQty('UNILEVER', 6).discPct, 2);
-  assert.equal(getDiscountForQty('UNILEVER', 19).discPct, 2);
-  assert.equal(getDiscountForQty('UNILEVER', 20).discPct, 3);
-  assert.equal(getDiscountForQty('UNILEVER', 49).discPct, 3);
-  assert.equal(getDiscountForQty('UNILEVER', 50).discPct, 5);
-  assert.equal(getDiscountForQty('UNILEVER', 100).discPct, 5);
+  // 6. Unilever / SariWangi Reguler (<1: 0%, 1-5: 0.75%, 6-10: 1.00%, >=11: 1.25%)
+  assert.equal(getDiscountForQty('UNILEVER', 0.5).discPct, 0);
+  assert.equal(getDiscountForQty('UNILEVER', 1).discPct, 0.75);
+  assert.equal(getDiscountForQty('UNILEVER', 5).discPct, 0.75);
+  assert.equal(getDiscountForQty('UNILEVER', 6).discPct, 1.00);
+  assert.equal(getDiscountForQty('UNILEVER', 10).discPct, 1.00);
+  assert.equal(getDiscountForQty('UNILEVER', 11).discPct, 1.25);
+  assert.equal(getDiscountForQty('UNILEVER', 50).discPct, 1.25);
 
-  // 7. Test Upsell Hints
+  // 7. Unilever / SariWangi Selected SKU Stacking (Reguler + Selected Promo)
+  // Exact user case: SariWangi Asli TB 288 (68143147) qty 50 -> 1.25% + 5.00% = 6.25%
+  const case50ktn = getDiscountForQty('UNILEVER', 50, '68143147');
+  assert.equal(case50ktn.discPct, 6.25, '50 ktn Selected SKU must be exactly 6.25% (1.25% reg + 5% sel)');
+  assert.equal(case50ktn.regularDiscPct, 1.25);
+  assert.equal(case50ktn.selectedSkuDiscPct, 5.00);
+  assert.equal(case50ktn.isSelectedSku, true);
+
+  const case10ktn = getDiscountForQty('UNILEVER', 10, '68143147');
+  assert.equal(case10ktn.discPct, 3.00, '10 ktn Selected SKU must be 3.00% (1.00% reg + 2.00% sel)');
+
+  const case100ktn = getDiscountForQty('UNILEVER', 100, '68143147');
+  assert.equal(case100ktn.discPct, 8.25, '100 ktn Selected SKU must be 8.25% (1.25% reg + 7.00% sel)');
+
+  const case5ktn = getDiscountForQty('UNILEVER', 5, '68143147');
+  assert.equal(case5ktn.discPct, 0.75, '5 ktn Selected SKU must be 0.75% (0.75% reg + 0% sel < 6 ktn)');
+
+  // 8. Test Upsell Hints
   const hintKopi = getDiscountForQty('KOPI_NON_RTD', 6);
   assert.equal(hintKopi.neededToNext, 2, 'Ordering 6 ktn needs 2 more cartons to reach 8 ktn (3%)');
   assert.ok(hintKopi.hint.includes('Tambah 2 ktn'));
 
-  const hintUnilever = getDiscountForQty('UNILEVER', 15);
-  assert.equal(hintUnilever.neededToNext, 5, 'Ordering 15 ktn needs 5 more cartons to reach 20 ktn (3%)');
+  const hintUnilever = getDiscountForQty('UNILEVER', 4);
+  assert.equal(hintUnilever.neededToNext, 2, 'Ordering 4 ktn needs 2 more cartons to reach 6 ktn (1%)');
 });
 
 test('M11-5: REST API GET /api/pricelist/strata endpoint', async (t) => {
@@ -151,6 +167,7 @@ test('M11-5: REST API GET /api/pricelist/strata endpoint', async (t) => {
     assert.ok(json.rules.PRIMA_TOP_BOGA);
     assert.ok(json.rules.CANDY_FOXS);
     assert.ok(json.rules.UNILEVER);
+    assert.ok(json.rules.SARIWANGI_SELECTED_SKU);
 
     // 2. Query specific category & qty
     const resCalc = await fetch(`http://localhost:${port}/api/pricelist/strata?category=KOPI_NON_RTD&qty=10`);
@@ -160,6 +177,16 @@ test('M11-5: REST API GET /api/pricelist/strata endpoint', async (t) => {
     assert.equal(jsonCalc.discPct, 3);
     assert.equal(jsonCalc.currentTier.label, '8 - 14 ktn');
     assert.equal(jsonCalc.neededToNext, 5);
+
+    // 3. Query dual strata calculation for SariWangi Selected SKU (50 ktn -> 6.25%)
+    const resSariwangi = await fetch(`http://localhost:${port}/api/pricelist/strata?category=UNILEVER&qty=50&itemCode=68143147`);
+    assert.equal(resSariwangi.status, 200);
+    const jsonSariwangi = await resSariwangi.json();
+    assert.equal(jsonSariwangi.success, true);
+    assert.equal(jsonSariwangi.discPct, 6.25);
+    assert.equal(jsonSariwangi.regularDiscPct, 1.25);
+    assert.equal(jsonSariwangi.selectedSkuDiscPct, 5.00);
+    assert.equal(jsonSariwangi.isSelectedSku, true);
   } finally {
     srv.close();
   }

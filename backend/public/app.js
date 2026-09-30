@@ -6699,6 +6699,54 @@ window.pricelistState = {
   initialized: false
 };
 
+const SARIWANGI_SELECTED_SKUS = [
+  '68143151', // SARIWANGI ASLI RL TB 48X(25X1.85G)
+  '68143147', // SARIWANGI ASLI RL TB 288X(4X1.85G)
+  '68143146', // SARIWANGI MELATI RL TB 48X(25X1.9G)
+  '68143155', // SARIMURNI RL TB 48X(25X1.6G)
+  '68791374', // SARIMURNI RL RB 180X(5X1.8G)
+  '68143150'  // SARIMURNI RL RB 48X(20X1.8G)
+];
+
+const SARIWANGI_SELECTED_DETAILS = [
+  { item_code: '68143151', item_name: 'SARIWANGI ASLI RL TB 48X(25X1.85G)' },
+  { item_code: '68143147', item_name: 'SARIWANGI ASLI RL TB 288X(4X1.85G)' },
+  { item_code: '68143146', item_name: 'SARIWANGI MELATI RL TB 48X(25X1.9G)' },
+  { item_code: '68143155', item_name: 'SARIMURNI RL TB 48X(25X1.6G)' },
+  { item_code: '68791374', item_name: 'SARIMURNI RL RB 180X(5X1.8G)' },
+  { item_code: '68143150', item_name: 'SARIMURNI RL RB 48X(20X1.8G)' }
+];
+
+const SARIWANGI_REGULER_TIERS = [
+  { min: 0, max: 0.999, discPct: 0, label: '< 1 ktn', badge: '0% Diskon', desc: 'Tidak ada diskon' },
+  { min: 1, max: 5.999, discPct: 0.75, label: '1 - 5 ktn', badge: '0.75% Diskon', desc: 'Reguler toko kecil' },
+  { min: 6, max: 10.999, discPct: 1.00, label: '6 - 10 ktn', badge: '1.00% Diskon', desc: 'Reguler toko medium' },
+  { min: 11, max: Infinity, discPct: 1.25, label: '≥ 11 ktn', badge: '1.25% Diskon', desc: 'Reguler grosir maksimal' }
+];
+
+const SARIWANGI_SELECTED_TIERS = [
+  { min: 0, max: 5.999, discPct: 0, label: '< 6 ktn', badge: '0% Diskon', desc: 'Belum masuk strata promo' },
+  { min: 6, max: 19.999, discPct: 2.00, label: '6 - 19 ktn', badge: '2.00% Diskon', desc: 'Promo outlet tier 1' },
+  { min: 20, max: 49.999, discPct: 3.00, label: '20 - 49 ktn', badge: '3.00% Diskon', desc: 'Promo outlet tier 2' },
+  { min: 50, max: 99.999, discPct: 5.00, label: '50 - 99 ktn', badge: '5.00% Diskon', desc: 'Promo outlet tier 3' },
+  { min: 100, max: Infinity, discPct: 7.00, label: '≥ 100 ktn', badge: '7.00% Diskon', desc: 'Promo outlet tier 4 (Maksimal)' }
+];
+
+function isSariwangiSelectedSku(itemOrCode) {
+  if (!itemOrCode) return false;
+  let code = '';
+  let name = '';
+  if (typeof itemOrCode === 'string') {
+    code = itemOrCode.trim();
+  } else {
+    code = (itemOrCode.item_code || '').trim();
+    name = (itemOrCode.item_name || '').toUpperCase().trim();
+    if (itemOrCode.is_strata_selected_sku) return true;
+  }
+  if (SARIWANGI_SELECTED_SKUS.includes(code)) return true;
+  return SARIWANGI_SELECTED_DETAILS.some(d => d.item_code === code || (name && name === d.item_name));
+}
+
 const CLIENT_STRATA_RULES = {
   KOPI_NON_RTD: {
     id: 'KOPI_NON_RTD',
@@ -6756,17 +6804,23 @@ const CLIENT_STRATA_RULES = {
   },
   UNILEVER: {
     id: 'UNILEVER',
-    name: 'Semua Produk Unilever Indonesia',
-    brandScope: 'SariWangi, SariMurni, SariMelati',
+    name: 'SariWangi — Reguler (Semua SKU)',
+    brandScope: 'Semua SKU SariWangi & SariMurni (Region Jbks & Jabar)',
     color: 'purple',
     icon: 'coffee',
-    description: 'Semua varian teh celup dan teh kantong resmi Unilever Indonesia (SariWangi, SariMelati, SariMurni).',
-    tiers: [
-      { min: 0, max: 5.999, discPct: 0, label: '0 - 5 ktn', badge: '0% Diskon', desc: 'Order ritel standar' },
-      { min: 6, max: 19.999, discPct: 2, label: '6 - 19 ktn', badge: '2% Diskon', desc: 'Diskon grosir awal' },
-      { min: 20, max: 49.999, discPct: 3, label: '20 - 49 ktn', badge: '3% Diskon', desc: 'Diskon grosir menengah' },
-      { min: 50, max: Infinity, discPct: 5, label: '≥ 50 ktn', badge: '5% Diskon', desc: 'Diskon grosir utama (Big Order)' }
-    ]
+    description: 'Diskon reguler resmi Unilever untuk seluruh varian SariWangi: 1-5 ktn (0.75%), 6-10 ktn (1.00%), ≥ 11 ktn (1.25%).',
+    tiers: SARIWANGI_REGULER_TIERS
+  },
+  SARIWANGI_SELECTED_SKU: {
+    id: 'SARIWANGI_SELECTED_SKU',
+    name: 'SariWangi — Support Promo Outlet GT (6 Selected SKU)',
+    brandScope: 'Khusus 6 SKU Terpilih (Asli 48x25, Asli 288x4, Melati 48x25, Murni 48x25, 180x5, 48x20)',
+    color: 'indigo',
+    icon: 'sparkles',
+    description: 'Promo Outlet GT: 6-19 ktn (2.00%), 20-49 ktn (3.00%), 50-99 ktn (5.00%), ≥ 100 ktn (7.00%). Ditambahkan secara kumulatif ke diskon reguler bila memenuhi kriteria masing-masing.',
+    isDualStrata: true,
+    tiers: SARIWANGI_SELECTED_TIERS,
+    selectedSkus: SARIWANGI_SELECTED_DETAILS
   }
 };
 
@@ -6775,6 +6829,7 @@ function getItemStrataCategory(it) {
   const p = (it.principal || '').toUpperCase();
   const b = (it.brand || '').toUpperCase();
   const name = (it.item_name || '').toUpperCase();
+  const code = (it.item_code || '').trim();
 
   // 1. Beverage RTD & MilkLife
   if (p === 'GLOBAL DAIRY ALAMI' || name.includes(' RTD') || name.includes('CAF RTD') || name.includes('BEVERAGE') || 
@@ -6790,8 +6845,11 @@ function getItemStrataCategory(it) {
   if (p === 'PRIMA TOP BOGA' || b.includes('5DAYS') || b.includes('DELI') || name.includes('5DAYS') || name.includes('DELI')) {
     return CLIENT_STRATA_RULES.PRIMA_TOP_BOGA;
   }
-  // 4. Unilever
-  if (p === 'UNILEVER INDONESIA' || b.includes('SARI') || name.includes('SARIWANGI') || name.includes('SARIMELATI') || name.includes('SARIMURNI')) {
+  // 4. Unilever / SariWangi (Selected SKU vs General Reguler)
+  if (p === 'UNILEVER INDONESIA' || b.includes('SARI') || name.includes('SARIWANGI') || name.includes('SARIMELATI') || name.includes('SARIMURNI') || SARIWANGI_SELECTED_SKUS.includes(code)) {
+    if (isSariwangiSelectedSku(it)) {
+      return CLIENT_STRATA_RULES.SARIWANGI_SELECTED_SKU;
+    }
     return CLIENT_STRATA_RULES.UNILEVER;
   }
   // 5. Kopi Non-RTD
@@ -6801,11 +6859,120 @@ function getItemStrataCategory(it) {
   return CLIENT_STRATA_RULES.CANDY_FOXS;
 }
 
-function getStrataDiscountInfo(categoryObj, qty) {
+function getStrataDiscountInfo(categoryObj, qty, item = null) {
   const q = parseFloat(qty) || 0;
   const category = categoryObj || CLIENT_STRATA_RULES.KOPI_NON_RTD;
-  const tiers = category.tiers || [];
+  const catId = category.id || '';
 
+  const isUnileverCat = catId === 'UNILEVER' || catId === 'SARIWANGI_SELECTED_SKU' || 
+                        catId === 'SARIWANGI_REGULER' ||
+                        (item && ((item.principal || '').toUpperCase().includes('UNILEVER') || isSariwangiSelectedSku(item)));
+
+  if (isUnileverCat) {
+    const isSelected = catId === 'SARIWANGI_SELECTED_SKU' || isSariwangiSelectedSku(item) || (item && item.is_strata_selected_sku);
+
+    const matchTierClient = (tiers, val) => {
+      let matchedTier = tiers[0];
+      let matchedIndex = 0;
+      for (let i = 0; i < tiers.length; i++) {
+        const t = tiers[i];
+        if (val >= t.min && val <= t.max) {
+          matchedTier = t;
+          matchedIndex = i;
+          break;
+        }
+      }
+      const nextTier = matchedIndex < tiers.length - 1 ? tiers[matchedIndex + 1] : null;
+      const neededToNext = nextTier ? Math.max(0, Math.ceil(nextTier.min - val)) : 0;
+      return { matchedTier, matchedIndex, nextTier, neededToNext };
+    };
+
+    const regResult = matchTierClient(SARIWANGI_REGULER_TIERS, q);
+    const regDisc = regResult.matchedTier.discPct;
+
+    if (isSelected) {
+      const selResult = matchTierClient(SARIWANGI_SELECTED_TIERS, q);
+      const selDisc = selResult.matchedTier.discPct;
+      const totalDisc = Math.round((regDisc + selDisc) * 100) / 100;
+
+      // Find next upgrade threshold
+      const candidates = [];
+      if (regResult.nextTier && regResult.neededToNext > 0) {
+        const pQty = q + regResult.neededToNext;
+        const pReg = matchTierClient(SARIWANGI_REGULER_TIERS, pQty).matchedTier.discPct;
+        const pSel = matchTierClient(SARIWANGI_SELECTED_TIERS, pQty).matchedTier.discPct;
+        const pTot = Math.round((pReg + pSel) * 100) / 100;
+        if (pTot > totalDisc) {
+          candidates.push({ qty: pQty, needed: regResult.neededToNext, disc: pTot, label: `≥ ${pQty} ktn` });
+        }
+      }
+      if (selResult.nextTier && selResult.neededToNext > 0) {
+        const pQty = q + selResult.neededToNext;
+        const pReg = matchTierClient(SARIWANGI_REGULER_TIERS, pQty).matchedTier.discPct;
+        const pSel = matchTierClient(SARIWANGI_SELECTED_TIERS, pQty).matchedTier.discPct;
+        const pTot = Math.round((pReg + pSel) * 100) / 100;
+        if (pTot > totalDisc) {
+          candidates.push({ qty: pQty, needed: selResult.neededToNext, disc: pTot, label: `≥ ${pQty} ktn` });
+        }
+      }
+
+      let nextTier = null;
+      let neededToNext = 0;
+      let hint = 'Maksimal tier diskon (8.25%)!';
+
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => a.needed - b.needed);
+        const best = candidates[0];
+        neededToNext = best.needed;
+        hint = `+ ${neededToNext} ktn lagi untuk total ${best.disc}% (Reg + Promo)`;
+        nextTier = {
+          min: best.qty,
+          discPct: best.disc,
+          label: best.label,
+          badge: `${best.disc}% Diskon`
+        };
+      }
+
+      return {
+        category: CLIENT_STRATA_RULES.SARIWANGI_SELECTED_SKU,
+        qty: q,
+        discPct: totalDisc,
+        regularDiscPct: regDisc,
+        selectedSkuDiscPct: selDisc,
+        isSelectedSku: true,
+        breakdown: `${regDisc}% (Reg) + ${selDisc}% (Selected) = ${totalDisc}%`,
+        currentTier: {
+          label: `${regResult.matchedTier.label} (Reg) + ${selResult.matchedTier.label} (Promo)`,
+          badge: `${totalDisc}% Diskon`,
+          discPct: totalDisc,
+          desc: `Reguler: ${regResult.matchedTier.badge} + Promo: ${selResult.matchedTier.badge}`
+        },
+        nextTier,
+        neededToNext,
+        hint
+      };
+    } else {
+      // General SariWangi (Non-Selected SKU)
+      return {
+        category: CLIENT_STRATA_RULES.UNILEVER,
+        qty: q,
+        discPct: regDisc,
+        regularDiscPct: regDisc,
+        selectedSkuDiscPct: 0,
+        isSelectedSku: false,
+        breakdown: `${regDisc}% (Reguler)`,
+        currentTier: regResult.matchedTier,
+        nextTier: regResult.nextTier,
+        neededToNext: regResult.neededToNext,
+        hint: regResult.nextTier && regResult.neededToNext > 0 
+          ? `+ ${regResult.neededToNext} ktn lagi ke diskon ${regResult.nextTier.discPct}% (${regResult.nextTier.label})` 
+          : 'Maksimal tier reguler'
+      };
+    }
+  }
+
+  // Non-Unilever categories
+  const tiers = category.tiers || [];
   let matchedTier = tiers[0];
   let matchedIndex = 0;
   for (let i = 0; i < tiers.length; i++) {
@@ -7174,6 +7341,44 @@ function renderPricelistStrataView() {
       </div>
     </div>
 
+    <!-- Dual Strata Stacking Callout Banner for SariWangi -->
+    <div class="mt-4 p-4 rounded-2xl bg-gradient-to-r from-purple-900/90 via-indigo-900/90 to-slate-900 text-white border border-purple-500/30 shadow-md">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-start gap-3">
+          <div class="p-2.5 rounded-xl bg-purple-500/20 border border-purple-400/30 text-purple-300 shrink-0">
+            <i data-lucide="plus-circle" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-purple-500/30 text-purple-200 text-[10px] font-bold uppercase tracking-wider mb-1">
+              <span>Aturan Khusus Stacking / Akumulasi Strata SariWangi</span>
+            </div>
+            <h4 class="text-sm md:text-base font-extrabold text-white">
+              Diskon Reguler (Semua SKU) + Strata Selected SKU Promo DITAMBAHKAN!
+            </h4>
+            <p class="text-xs text-purple-100 mt-1 leading-relaxed">
+              Bila outlet membeli salah satu dari <strong>6 Selected SKU GT</strong>, diskon reguler dan diskon promo <strong>ditambahkan</strong> secara kumulatif bila memenuhi kriteria volume karton masing-masing.
+            </p>
+            <div class="mt-2 p-2.5 rounded-lg bg-black/30 border border-purple-400/20 text-xs font-mono">
+              <span class="text-amber-300 font-bold">Contoh Riil:</span> SariWangi Asli RL TB 288 order <strong>50 karton</strong>:
+              <br class="hidden sm:inline">
+              <span class="text-emerald-400 font-bold">Strata Reguler 1,25%</span> + <span class="text-indigo-300 font-bold">Strata Selected SKU 5,00%</span> = <span class="text-amber-300 font-extrabold bg-purple-950 px-2 py-0.5 rounded border border-amber-400/40 text-xs">TOTAL DISKON 6,25%</span>!
+            </div>
+          </div>
+        </div>
+
+        <div class="shrink-0 flex sm:flex-col gap-2">
+          <button onclick="testStrataPreset('SARIWANGI_SELECTED_SKU', 50)" class="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-purple-950 rounded-xl text-xs font-black transition shadow-sm flex items-center justify-center gap-1.5">
+            <i data-lucide="calculator" class="w-4 h-4"></i>
+            <span>Uji Coba 50 Ktn (6.25%)</span>
+          </button>
+          <button onclick="testStrataPreset('SARIWANGI_SELECTED_SKU', 100)" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition shadow-sm flex items-center justify-center gap-1.5">
+            <i data-lucide="zap" class="w-4 h-4"></i>
+            <span>Uji Coba 100 Ktn (8.25%)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Interactive Strata Quick-Tester Widget -->
     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-4">
       <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
@@ -7212,6 +7417,11 @@ function renderPricelistStrataView() {
             <div class="text-xs font-bold text-slate-900">
               Tier Terpenuhi: <span class="text-emerald-700 font-mono font-extrabold">${currentCalc.currentTier.label} (${currentCalc.currentTier.badge})</span>
             </div>
+            ${currentCalc.breakdown ? `
+              <div class="text-[11px] font-bold text-indigo-700 mt-0.5">
+                <span class="px-2 py-0.5 bg-indigo-50 border border-indigo-200 rounded font-mono">${currentCalc.breakdown}</span>
+              </div>
+            ` : ''}
             <div class="text-[11px] text-slate-600 mt-0.5">
               Kategori: <strong>${currentCalc.category.name}</strong> (${currentCalc.qty} Karton)
             </div>
@@ -7229,16 +7439,16 @@ function renderPricelistStrataView() {
       </div>
     </div>
 
-    <!-- 5 Strata Category Cards Grid -->
+    <!-- Strata Category Cards Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
       ${Object.values(CLIENT_STRATA_RULES).map((cat, idx) => `
-        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between ${cat.id === 'SARIWANGI_SELECTED_SKU' ? 'ring-2 ring-indigo-500/30' : ''}">
           <div>
             <!-- Card Header -->
             <div class="p-4 bg-slate-50/80 border-b border-slate-200">
               <div class="flex items-center justify-between gap-2">
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-${cat.color}-100 text-${cat.color}-900 font-mono">
-                  KATEGORI 0${idx + 1}
+                  ${cat.isDualStrata ? 'PROMO KHUSUS GT' : `KATEGORI 0${idx + 1}`}
                 </span>
                 <span class="text-[10px] text-slate-500 font-medium">Resmi DSO Garut</span>
               </div>
@@ -7250,7 +7460,7 @@ function renderPricelistStrataView() {
             <div class="p-4">
               <div class="text-[11px] font-bold text-slate-700 mb-2 flex items-center justify-between">
                 <span>Volume Order (Karton)</span>
-                <span>Diskon Promo</span>
+                <span>Diskon ${cat.isDualStrata ? 'Promo (+ Reguler)' : 'Strata'}</span>
               </div>
               <div class="divide-y divide-slate-100 border border-slate-100 rounded-lg overflow-hidden">
                 ${cat.tiers.map((t, tIdx) => `
@@ -7265,6 +7475,29 @@ function renderPricelistStrataView() {
                   </div>
                 `).join('')}
               </div>
+
+              ${cat.selectedSkus ? `
+                <div class="mt-3 p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-lg">
+                  <div class="text-[11px] font-bold text-indigo-950 mb-1.5 flex items-center justify-between">
+                    <span class="flex items-center gap-1">
+                      <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i>
+                      <span>6 Selected SKU Penerima Promo:</span>
+                    </span>
+                    <span class="text-[9px] text-indigo-600 font-mono font-bold">Region GT</span>
+                  </div>
+                  <div class="space-y-1 max-h-32 overflow-y-auto pr-1 scrollbar-thin">
+                    ${cat.selectedSkus.map(s => `
+                      <div class="p-1 rounded bg-white border border-slate-100 flex items-center justify-between text-[10px]">
+                        <span class="font-mono font-bold text-slate-800">${s.item_code}</span>
+                        <span class="text-slate-600 truncate ml-2 font-medium text-[9px]">${s.item_name}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                  <div class="mt-2 pt-1.5 border-t border-indigo-200/50 text-[10px] text-indigo-900 font-medium">
+                    💡 <em>Diskon promo di atas otomatis ditambahkan ke diskon reguler (0.75% s/d 1.25%).</em>
+                  </div>
+                </div>
+              ` : ''}
 
               <!-- Scope description -->
               <p class="text-[11px] text-slate-500 mt-3 leading-relaxed">
@@ -7289,6 +7522,17 @@ function renderPricelistStrataView() {
   lucide.createIcons();
 }
 
+function testStrataPreset(catKey, qty) {
+  const catEl = document.getElementById('strata-test-cat');
+  const qtyEl = document.getElementById('strata-test-qty');
+  if (catEl && qtyEl) {
+    catEl.value = catKey;
+    qtyEl.value = qty;
+    handleStrataQuickTestChange();
+    catEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
 function handleStrataQuickTestChange() {
   const catEl = document.getElementById('strata-test-cat');
   const qtyEl = document.getElementById('strata-test-qty');
@@ -7311,6 +7555,11 @@ function handleStrataQuickTestChange() {
           <div class="text-xs font-bold text-slate-900">
             Tier Terpenuhi: <span class="text-emerald-700 font-mono font-extrabold">${calc.currentTier.label} (${calc.currentTier.badge})</span>
           </div>
+          ${calc.breakdown ? `
+            <div class="text-[11px] font-bold text-indigo-700 mt-0.5">
+              <span class="px-2 py-0.5 bg-indigo-50 border border-indigo-200 rounded font-mono">${calc.breakdown}</span>
+            </div>
+          ` : ''}
           <div class="text-[11px] text-slate-600 mt-0.5">
             Kategori: <strong>${calc.category.name}</strong> (${calc.qty} Karton)
           </div>
@@ -7348,12 +7597,12 @@ function addToSimulation(itemCode) {
     existing.qty += 1;
     if (window.pricelistState.autoApplyStrata) {
       const cat = getItemStrataCategory(existing);
-      existing.discPct = getStrataDiscountInfo(cat, existing.qty).discPct;
+      existing.discPct = getStrataDiscountInfo(cat, existing.qty, existing).discPct;
     }
   } else {
     const cat = getItemStrataCategory(item);
     const initialQty = 1;
-    const initialDisc = window.pricelistState.autoApplyStrata ? getStrataDiscountInfo(cat, initialQty).discPct : 0;
+    const initialDisc = window.pricelistState.autoApplyStrata ? getStrataDiscountInfo(cat, initialQty, item).discPct : 0;
     window.pricelistState.simulationItems.push({
       ...item,
       qty: initialQty,
@@ -7374,7 +7623,7 @@ function toggleAutoApplyStrata(enabled) {
     // Recalculate discount for all items based on strata
     window.pricelistState.simulationItems.forEach(it => {
       const cat = getItemStrataCategory(it);
-      it.discPct = getStrataDiscountInfo(cat, it.qty).discPct;
+      it.discPct = getStrataDiscountInfo(cat, it.qty, it).discPct;
     });
   }
   renderPricelistSimulatorView();
@@ -7387,7 +7636,7 @@ function updateSimulationQty(idx, qty) {
     it.qty = val;
     if (window.pricelistState.autoApplyStrata) {
       const cat = getItemStrataCategory(it);
-      it.discPct = getStrataDiscountInfo(cat, val).discPct;
+      it.discPct = getStrataDiscountInfo(cat, val, it).discPct;
     }
   }
   renderSimulationSummaryAndTotals();
@@ -7403,7 +7652,7 @@ function upgradeItemToNextTier(idx) {
   const it = window.pricelistState.simulationItems[idx];
   if (!it) return;
   const cat = getItemStrataCategory(it);
-  const info = getStrataDiscountInfo(cat, it.qty);
+  const info = getStrataDiscountInfo(cat, it.qty, it);
   if (info.nextTier) {
     it.qty = Math.ceil(info.nextTier.min);
     if (window.pricelistState.autoApplyStrata) {
@@ -7582,7 +7831,7 @@ function renderSimulationSummaryAndTotals() {
     totalHematDiskon += nominalHemat;
 
     const cat = getItemStrataCategory(it);
-    const strataInfo = getStrataDiscountInfo(cat, qty);
+    const strataInfo = getStrataDiscountInfo(cat, qty, it);
 
     return `
       <tr class="hover:bg-slate-50/80 transition">
@@ -7593,6 +7842,7 @@ function renderSimulationSummaryAndTotals() {
             <span class="inline-flex px-1.5 py-0.2 rounded text-[9px] font-bold bg-${cat.color}-100 text-${cat.color}-800">
               ${cat.name.split(' (')[0]}
             </span>
+            ${strataInfo.isSelectedSku ? `<span class="inline-flex px-1.5 py-0.2 rounded text-[9px] font-black bg-indigo-100 text-indigo-900 border border-indigo-200">⭐ Selected SKU GT</span>` : ''}
             <span class="text-[10px] text-slate-400 font-mono">${it.item_code}</span>
           </div>
         </td>
@@ -7605,9 +7855,14 @@ function renderSimulationSummaryAndTotals() {
         </td>
         <td class="py-2.5 px-3 text-center">
           <div class="flex items-center justify-center gap-1">
-            <input type="number" min="0" max="50" step="0.5" value="${disc}" onchange="updateSimulationDisc(${idx}, this.value)" class="w-14 text-center border border-slate-300 rounded px-1 py-1 text-xs font-mono font-bold text-emerald-700 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+            <input type="number" min="0" max="50" step="0.05" value="${disc}" onchange="updateSimulationDisc(${idx}, this.value)" class="w-16 text-center border border-slate-300 rounded px-1 py-1 text-xs font-mono font-bold text-emerald-700 focus:outline-none focus:ring-1 focus:ring-emerald-500">
             <span class="text-xs font-bold text-slate-500">%</span>
           </div>
+          ${strataInfo.breakdown ? `
+            <div class="text-[9px] font-bold text-indigo-700 mt-0.5" title="Rincian akumulasi diskon">
+              ${strataInfo.breakdown}
+            </div>
+          ` : ''}
           ${strataInfo.nextTier ? `
             <div onclick="upgradeItemToNextTier(${idx})" class="text-[9px] text-amber-700 font-bold mt-0.5 cursor-pointer hover:underline" title="Klik untuk upgrade otomatis ke ${strataInfo.nextTier.discPct}%">
               ${strataInfo.hint}
@@ -7839,8 +8094,11 @@ function renderAddSkuModalBase() {
         <button onclick="setSimModalCategory('CANDY_FOXS')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'CANDY_FOXS' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'}">
           🍬 Permen FOX'S
         </button>
-        <button onclick="setSimModalCategory('UNILEVER')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'UNILEVER' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100 border border-emerald-200'}">
-          🍵 Unilever Indonesia
+        <button onclick="setSimModalCategory('UNILEVER')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'UNILEVER' ? 'bg-purple-600 text-white shadow-sm' : 'bg-purple-50 text-purple-900 hover:bg-purple-100 border border-purple-200'}">
+          🍵 SariWangi (Semua SKU)
+        </button>
+        <button onclick="setSimModalCategory('SARIWANGI_SELECTED_SKU')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'SARIWANGI_SELECTED_SKU' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100 border border-indigo-200'}">
+          ⭐ SariWangi Selected SKU (GT)
         </button>
       </div>
     </div>
@@ -7883,8 +8141,15 @@ function renderAddSkuModalItems() {
       if (!match) return false;
     }
     if (catFilter !== 'ALL') {
-      const cat = getItemStrataCategory(it);
-      if (cat.id !== catFilter) return false;
+      if (catFilter === 'SARIWANGI_SELECTED_SKU') {
+        if (!isSariwangiSelectedSku(it)) return false;
+      } else if (catFilter === 'UNILEVER') {
+        const cat = getItemStrataCategory(it);
+        if (cat.id !== 'UNILEVER' && cat.id !== 'SARIWANGI_SELECTED_SKU') return false;
+      } else {
+        const cat = getItemStrataCategory(it);
+        if (cat.id !== catFilter) return false;
+      }
     }
     return true;
   });
@@ -8005,7 +8270,7 @@ function incrementSkuFromModal(itemCode) {
     item.qty += 1;
     if (window.pricelistState.autoApplyStrata) {
       const cat = getItemStrataCategory(item);
-      item.discPct = getStrataDiscountInfo(cat, item.qty).discPct;
+      item.discPct = getStrataDiscountInfo(cat, item.qty, item).discPct;
     }
   }
   renderSimulationSummaryAndTotals();
@@ -8021,7 +8286,7 @@ function decrementSkuFromModal(itemCode) {
       item.qty -= 1;
       if (window.pricelistState.autoApplyStrata) {
         const cat = getItemStrataCategory(item);
-        item.discPct = getStrataDiscountInfo(cat, item.qty).discPct;
+        item.discPct = getStrataDiscountInfo(cat, item.qty, item).discPct;
       }
     } else {
       window.pricelistState.simulationItems.splice(idx, 1);

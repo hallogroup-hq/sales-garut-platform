@@ -21,8 +21,7 @@ const {
   rollbackImport
 } = require('../services/importEngine.js');
 const { getMovementAnalytics, exportMovementCsv } = require('../services/trendEngine.js');
-const { getTotalPerformanceSummary, exportPerformanceCsv } = require('../services/performanceEngine.js');
-const { DISCOUNT_STRATA_RULES, classifyItem, getDiscountForQty } = require('../services/discountStrata.js');
+const { DISCOUNT_STRATA_RULES, classifyItem, getDiscountForQty, isSariwangiSelectedSku } = require('../services/discountStrata.js');
 const { getAuditLogs, logAudit } = require('../middleware/audit.js');
 const { authenticateUser, getAuthUser, requireSuperAdmin } = require('../middleware/auth.js');
 const XLSX = require('xlsx');
@@ -2713,12 +2712,14 @@ router.get('/pricelist', (req, res) => {
         }
       }
       const strata = classifyItem(it);
+      const isSelectedSku = isSariwangiSelectedSku(it);
       return {
         ...it,
         retail_margin_pct: marginPct,
         strata_category_id: strata ? strata.id : null,
         strata_category_name: strata ? strata.name : null,
-        strata_color: strata ? strata.color : 'slate'
+        strata_color: strata ? strata.color : 'slate',
+        is_strata_selected_sku: isSelectedSku
       };
     });
 
@@ -2742,9 +2743,9 @@ router.get('/pricelist', (req, res) => {
 
 router.get('/pricelist/strata', (req, res) => {
   try {
-    const { category, qty } = req.query;
+    const { category, qty, itemCode } = req.query;
     if (category && qty !== undefined) {
-      const calc = getDiscountForQty(category, qty);
+      const calc = getDiscountForQty(category, qty, itemCode || null);
       return res.json({ success: true, ...calc });
     }
     res.json({
