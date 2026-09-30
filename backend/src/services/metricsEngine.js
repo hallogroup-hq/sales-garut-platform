@@ -92,8 +92,8 @@ function buildFilterConditions(filters = {}) {
     }
   }
   if (filters.groupSku) {
-    whereTx.push(`p.group_sku = ?`);
-    paramsTx.push(filters.groupSku);
+    whereTx.push(`(p.group_sku = ? OR UPPER(p.group_sku) = UPPER(?) OR p.subbrand LIKE ? OR p.item_name LIKE ?)`);
+    paramsTx.push(filters.groupSku, filters.groupSku, `%${filters.groupSku}%`, `%${filters.groupSku}%`);
 
     whereTgt.push(`t.group_sku = ?`);
     paramsTgt.push(filters.groupSku);
@@ -142,7 +142,7 @@ function getExecutiveSummary(filters = {}) {
     'SELECT COUNT(*) as c FROM agg_monthly_sales_movement WHERE year = ? AND month = ?',
     [f.year, f.month]
   )[0];
-  const useAgg = Boolean(aggCheck && aggCheck.c > 0 && !filters.kecamatanId && !filters.rayonId);
+  const useAgg = Boolean(aggCheck && aggCheck.c > 0 && !filters.kecamatanId && !filters.rayonId && !filters.subbrand);
 
   let salesRes;
   if (useAgg) {
@@ -173,8 +173,8 @@ function getExecutiveSummary(filters = {}) {
       paramsAgg.push(filters.brand);
     }
     if (filters.groupSku) {
-      whereAgg.push('a.group_sku = ?');
-      paramsAgg.push(filters.groupSku);
+      whereAgg.push('(a.group_sku = ? OR a.group_sku LIKE ?)');
+      paramsAgg.push(filters.groupSku, `%${filters.groupSku}%`);
     }
     const whereAggSql = 'WHERE ' + whereAgg.join(' AND ');
 
@@ -201,9 +201,10 @@ function getExecutiveSummary(filters = {}) {
 
     if (!activeOutletsMtd) {
       const activeOutletRow = db.query(`
-        SELECT COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS active_outlets_mtd
+        SELECT COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN COALESCE(a.outlet_id, h.outlet_id) END) AS active_outlets_mtd
         FROM fact_sales_header h
-        JOIN dim_outlet o ON h.outlet_id = o.outlet_id
+        LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+        JOIN dim_outlet o ON COALESCE(a.outlet_id, h.outlet_id) = o.outlet_id
         LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
         LEFT JOIN dim_product p ON l.item_code = p.item_code
         ${f.whereTxSql}
@@ -236,11 +237,12 @@ function getExecutiveSummary(filters = {}) {
         COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS net_value,
         COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.dpp_amount ELSE -l.dpp_amount END), 0) AS net_dpp,
         COUNT(DISTINCT h.document_number) AS total_invoices,
-        COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS active_outlets_mtd
+        COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN COALESCE(a.outlet_id, h.outlet_id) END) AS active_outlets_mtd
       FROM fact_sales_line l
       JOIN fact_sales_header h ON l.document_number = h.document_number
       JOIN dim_product p ON l.item_code = p.item_code
-      JOIN dim_outlet o ON h.outlet_id = o.outlet_id
+      LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+      JOIN dim_outlet o ON COALESCE(a.outlet_id, h.outlet_id) = o.outlet_id
       ${f.whereTxSql}
     `;
     salesRes = db.query(salesSql, f.paramsTx)[0];
@@ -615,11 +617,12 @@ function getMustHaveProgress(filters = {}) {
     const targetOc = Math.round((registeredCl * targetPenetrationPct) / 100);
 
     const actualSql = `
-      SELECT COUNT(DISTINCT h.outlet_id) AS actual_oc
+      SELECT COUNT(DISTINCT COALESCE(a.outlet_id, h.outlet_id)) AS actual_oc
       FROM fact_sales_line l
       JOIN fact_sales_header h ON l.document_number = h.document_number
       JOIN dim_product p ON l.item_code = p.item_code
-      JOIN dim_outlet o ON h.outlet_id = o.outlet_id
+      LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+      JOIN dim_outlet o ON COALESCE(a.outlet_id, h.outlet_id) = o.outlet_id
       ${f.whereTxSql ? f.whereTxSql + ' AND p.must_have_line = ?' : 'WHERE p.must_have_line = ?'}
     `;
     const actualRes = db.query(actualSql, [...f.paramsTx, cfg.line_code])[0];

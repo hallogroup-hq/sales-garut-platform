@@ -214,8 +214,8 @@ function getMovementAnalytics(options = {}) {
   }
 
   if (options.groupSku) {
-    headerWhere.push('p.group_sku = ?');
-    headerParams.push(options.groupSku);
+    headerWhere.push('(p.group_sku = ? OR UPPER(p.group_sku) = UPPER(?) OR p.subbrand LIKE ? OR p.item_name LIKE ?)');
+    headerParams.push(options.groupSku, options.groupSku, `%${options.groupSku}%`, `%${options.groupSku}%`);
   }
 
   if (options.rayonId) {
@@ -250,12 +250,13 @@ function getMovementAnalytics(options = {}) {
   const branchOaSql = `
     SELECT
       printf('%04d-%02d', COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)), COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT))) AS period_key,
-      COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN h.outlet_id END) AS distinct_oa
+      COUNT(DISTINCT CASE WHEN h.unit_type = 'Sales' THEN COALESCE(a.outlet_id, h.outlet_id) END) AS distinct_oa
     FROM fact_sales_header h
     LEFT JOIN org_salesman s ON h.current_owner_salesman_id = s.salesman_id
     LEFT JOIN fact_sales_line l ON h.document_number = l.document_number
     LEFT JOIN dim_product p ON l.item_code = p.item_code
-    LEFT JOIN dim_outlet o ON h.outlet_id = o.outlet_id
+    LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+    LEFT JOIN dim_outlet o ON COALESCE(a.outlet_id, h.outlet_id) = o.outlet_id
     ${headerWhereSql}
     GROUP BY period_key
   `;
@@ -726,8 +727,8 @@ function getOutletMovementAnalytics(db, options = {}, timeline, periodKeys) {
     params.push(options.subbrand);
   }
   if (options.groupSku) {
-    whereClauses.push('(p.group_sku = ? OR p.group_sku LIKE ?)');
-    params.push(options.groupSku, `%${options.groupSku}%`);
+    whereClauses.push('(p.group_sku = ? OR UPPER(p.group_sku) = UPPER(?) OR p.subbrand LIKE ? OR p.item_name LIKE ?)');
+    params.push(options.groupSku, options.groupSku, `%${options.groupSku}%`, `%${options.groupSku}%`);
   }
 
   const whereSql = 'WHERE ' + whereClauses.join(' AND ');
@@ -995,8 +996,8 @@ function calculateOutletYoY(db, outletId, options = {}) {
     params.push(options.subbrand);
   }
   if (options.groupSku) {
-    whereClauses.push('(p.group_sku = ? OR p.group_sku LIKE ?)');
-    params.push(options.groupSku, `%${options.groupSku}%`);
+    whereClauses.push('(p.group_sku = ? OR UPPER(p.group_sku) = UPPER(?) OR p.subbrand LIKE ? OR p.item_name LIKE ?)');
+    params.push(options.groupSku, options.groupSku, `%${options.groupSku}%`, `%${options.groupSku}%`);
   }
 
   const whereSql = 'WHERE ' + whereClauses.join(' AND ');

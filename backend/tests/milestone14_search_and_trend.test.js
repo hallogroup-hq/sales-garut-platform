@@ -108,3 +108,43 @@ test('M14-5: REST API GET /api/outlets/:id/360 resolves both canonical and alias
     srv.close();
   }
 });
+
+test('M14-6: REST API GET /api/outlets dynamically updates sales metrics when brand or groupSku filter is selected', async () => {
+  const port = 3997;
+  const srv = app.listen(port);
+  try {
+    // 1. Filtered by Group SKU: GADJAH MANIS
+    const resGadjah = await fetch(`http://localhost:${port}/api/outlets?search=saepul+rohman&groupSku=GADJAH+MANIS`);
+    assert.equal(resGadjah.status, 200);
+    const dataGadjah = await resGadjah.json();
+    assert.equal(dataGadjah.outlets.length, 1);
+    const saepulGadjah = dataGadjah.outlets[0];
+    assert.equal(saepulGadjah.name, 'SAEPUL ROHMAN');
+    assert.equal(saepulGadjah.totalYtdCartons, 1.9, 'Saepul Rohman GADJAH MANIS YTD cartons must be 1.9');
+    assert.equal(saepulGadjah.avgLast3Months, 0.5, 'Saepul Rohman GADJAH MANIS Avg L3M must be 0.5');
+    assert.equal(saepulGadjah.monthlySales.m9, 0.1, 'Saepul Rohman GADJAH MANIS September sales must be 0.1');
+    assert.equal(saepulGadjah.status, 'Aktif');
+
+    // 2. Filtered by Brand: 5DAYS
+    const res5Days = await fetch(`http://localhost:${port}/api/outlets?search=saepul+rohman&brand=5DAYS`);
+    assert.equal(res5Days.status, 200);
+    const data5Days = await res5Days.json();
+    assert.equal(data5Days.outlets.length, 1);
+    const saepul5Days = data5Days.outlets[0];
+    assert.equal(saepul5Days.totalYtdCartons, 123.8, 'Saepul Rohman 5DAYS YTD cartons must be 123.8');
+    assert.equal(saepul5Days.monthlySales.m9, 19.4, 'Saepul Rohman 5DAYS September sales must be 19.4');
+    assert.equal(saepul5Days.status, 'Aktif');
+
+    // 3. Unfiltered baseline
+    const resAll = await fetch(`http://localhost:${port}/api/outlets?search=saepul+rohman`);
+    assert.equal(resAll.status, 200);
+    const dataAll = await resAll.json();
+    assert.equal(dataAll.outlets.length, 1);
+    const saepulAll = dataAll.outlets[0];
+    assert.equal(saepulAll.totalYtdCartons, 219.4, 'Saepul Rohman total unfiltered YTD cartons must be 219.4');
+    assert.equal(saepulAll.avgLast3Months, 22.4, 'Saepul Rohman total unfiltered Avg L3M must be 22.4');
+  } finally {
+    srv.close();
+  }
+});
+

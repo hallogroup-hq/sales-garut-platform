@@ -332,7 +332,7 @@ router.get('/sales/performance', (req, res) => {
       'SELECT COUNT(*) as c FROM agg_monthly_sales_movement WHERE year = ? AND month = ?',
       [f.year, f.month]
     )[0];
-    const useAgg = Boolean(aggCheck && aggCheck.c > 0 && !req.query.kecamatanId && !req.query.rayonId);
+    const useAgg = Boolean(aggCheck && aggCheck.c > 0 && !req.query.kecamatanId && !req.query.rayonId && !req.query.subbrand);
 
     if (useAgg) {
       const whereAgg = ['a.year = ? AND a.month = ?'];
@@ -399,11 +399,22 @@ router.get('/sales/performance', (req, res) => {
         whereAggYtd.push('a.brand = ?');
         paramsAggYtd.push(req.query.brand);
       }
+      if (req.query.subbrand) {
+        whereAgg.push('a.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE subbrand = ?)');
+        paramsAgg.push(req.query.subbrand);
+        whereAggYtd.push('a.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE subbrand = ?)');
+        paramsAggYtd.push(req.query.subbrand);
+
+        whereTgt.push('t.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE subbrand = ?)');
+        paramsTgt.push(req.query.subbrand);
+        whereTgtYtd.push('t.group_sku IN (SELECT DISTINCT group_sku FROM dim_product WHERE subbrand = ?)');
+        paramsTgtYtd.push(req.query.subbrand);
+      }
       if (req.query.groupSku) {
-        whereAgg.push('a.group_sku = ?');
-        paramsAgg.push(req.query.groupSku);
-        whereAggYtd.push('a.group_sku = ?');
-        paramsAggYtd.push(req.query.groupSku);
+        whereAgg.push('(a.group_sku = ? OR a.group_sku LIKE ?)');
+        paramsAgg.push(req.query.groupSku, `%${req.query.groupSku}%`);
+        whereAggYtd.push('(a.group_sku = ? OR a.group_sku LIKE ?)');
+        paramsAggYtd.push(req.query.groupSku, `%${req.query.groupSku}%`);
 
         whereTgt.push('UPPER(TRIM(t.group_sku)) = UPPER(TRIM(?))');
         paramsTgt.push(req.query.groupSku);
@@ -682,7 +693,8 @@ router.get('/sales/performance', (req, res) => {
       FROM fact_sales_line l
       JOIN fact_sales_header h ON l.document_number = h.document_number
       JOIN dim_product p ON l.item_code = p.item_code
-      JOIN dim_outlet o ON h.outlet_id = o.outlet_id
+      LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+      JOIN dim_outlet o ON COALESCE(a.outlet_id, h.outlet_id) = o.outlet_id
       ${f.whereTxSql}
       GROUP BY p.principal, p.brand, p.group_sku
       ORDER BY actual_cartons DESC
@@ -1102,6 +1114,11 @@ router.get('/outlets', (req, res) => {
     const kecamatanId = req.query.kecamatanId || null;
     const rayonId = req.query.rayonId || null;
     const spvId = req.query.spvId || null;
+    const salesGroup = req.query.salesGroup || null;
+    const principal = req.query.principal || null;
+    const brand = req.query.brand || null;
+    const subbrand = req.query.subbrand || null;
+    const groupSku = req.query.groupSku || null;
     const statusFilter = req.query.status || null; // 'active', 'inactive_mtd', 'dormant_60d', 'never_ordered', 'all'
     const page = parseInt(req.query.page || '1', 10);
     const limit = parseInt(req.query.limit || '100', 10);
@@ -1110,6 +1127,27 @@ router.get('/outlets', (req, res) => {
     // Total Universe in Registered CL
     const universeRow = db.query(`SELECT COUNT(*) AS total FROM dim_outlet WHERE is_active_cl = 1`)[0];
     const totalUniverse = universeRow ? universeRow.total : 0;
+
+    const prodWhere = [];
+    const prodParams = [];
+    if (principal) {
+      prodWhere.push('p.principal = ?');
+      prodParams.push(principal);
+    }
+    if (brand) {
+      prodWhere.push('(p.brand = ? OR UPPER(p.brand) = UPPER(?))');
+      prodParams.push(brand, brand);
+    }
+    if (subbrand) {
+      prodWhere.push('p.subbrand = ?');
+      prodParams.push(subbrand);
+    }
+    if (groupSku) {
+      prodWhere.push('(p.group_sku = ? OR UPPER(p.group_sku) = UPPER(?) OR p.subbrand LIKE ? OR p.item_name LIKE ?)');
+      prodParams.push(groupSku, groupSku, `%${groupSku}%`, `%${groupSku}%`);
+    }
+    const hasProductFilter = prodWhere.length > 0;
+    const prodFilterSql = hasProductFilter ? ` AND ${prodWhere.join(' AND ')}` : '';
 
     let baseSql = `
       FROM dim_outlet o
@@ -1145,6 +1183,74 @@ router.get('/outlets', (req, res) => {
       baseSql += ` AND s.spv_id = ?`;
       params.push(spvId);
     }
+    if (salesGroup) {
+      const isScm = salesGroup.toUpperCase() === 'SCM' || salesGroup.toUpperCase() === 'SMC';
+      if (isScm) {
+        baseSql += ` AND s.sales_group IN ('SCM', 'SMC')`;
+      } else {
+        baseSql += ` AND s.sales_group = ?`;
+        params.push(salesGroup);
+      }
+    }
+
+    if (hasProductFilter && !search) {
+      if (statusFilter && statusFilter !== 'all') {
+        const sf = statusFilter.toUpperCase();
+        if (sf === 'ACTIVE' || sf === 'AKTIF') {
+          baseSql += ` AND o.outlet_id IN (
+            SELECT DISTINCT COALESCE(a.outlet_id, h.outlet_id)
+            FROM fact_sales_header h
+            JOIN fact_sales_line l ON h.document_number = l.document_number
+            JOIN dim_product p ON l.item_code = p.item_code
+            LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+            WHERE h.period_year = 2026 AND h.period_month = 9 ${prodFilterSql}
+          )`;
+          params.push(...prodParams);
+        } else if (sf === 'DORMANT' || sf === 'DORMANT_60D') {
+          baseSql += ` AND o.outlet_id IN (
+            SELECT DISTINCT COALESCE(a.outlet_id, h.outlet_id)
+            FROM fact_sales_header h
+            JOIN fact_sales_line l ON h.document_number = l.document_number
+            JOIN dim_product p ON l.item_code = p.item_code
+            LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+            WHERE h.period_year = 2026 ${prodFilterSql}
+            GROUP BY COALESCE(a.outlet_id, h.outlet_id)
+            HAVING MAX(h.transaction_date) < date('2026-09-25', '-60 days')
+          )`;
+          params.push(...prodParams);
+        } else if (sf === 'INACTIVE_MTD' || sf === 'INAKTIF') {
+          baseSql += ` AND o.outlet_id IN (
+            SELECT DISTINCT COALESCE(a.outlet_id, h.outlet_id)
+            FROM fact_sales_header h
+            JOIN fact_sales_line l ON h.document_number = l.document_number
+            JOIN dim_product p ON l.item_code = p.item_code
+            LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+            WHERE h.period_year = 2026 AND h.transaction_date >= date('2026-09-25', '-60 days') AND h.period_month != 9 ${prodFilterSql}
+          )`;
+          params.push(...prodParams);
+        } else if (sf === 'NEVER_ORDERED' || sf === 'BELUM_PERNAH_ORDER') {
+          baseSql += ` AND o.outlet_id NOT IN (
+            SELECT DISTINCT COALESCE(a.outlet_id, h.outlet_id)
+            FROM fact_sales_header h
+            JOIN fact_sales_line l ON h.document_number = l.document_number
+            JOIN dim_product p ON l.item_code = p.item_code
+            LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+            WHERE h.period_year = 2026 ${prodFilterSql}
+          )`;
+          params.push(...prodParams);
+        }
+      } else {
+        baseSql += ` AND o.outlet_id IN (
+          SELECT DISTINCT COALESCE(a.outlet_id, h.outlet_id)
+          FROM fact_sales_header h
+          JOIN fact_sales_line l ON h.document_number = l.document_number
+          JOIN dim_product p ON l.item_code = p.item_code
+          LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+          WHERE h.period_year = 2026 ${prodFilterSql}
+        )`;
+        params.push(...prodParams);
+      }
+    }
 
     const selectSql = `
       SELECT
@@ -1168,7 +1274,7 @@ router.get('/outlets', (req, res) => {
     const allRows = db.query(selectSql, params);
     const today = new Date(req.query.asOfDate || '2026-09-25');
 
-    // Map each row to its 4 distinct customer states
+    // Map each row to its customer states
     const enriched = allRows.map(r => {
       let daysSinceLastOrder = null;
       let stateCode = 'NEVER_ORDERED';
@@ -1213,9 +1319,9 @@ router.get('/outlets', (req, res) => {
       };
     });
 
-    // Apply state filter if provided
+    // Apply state filter if provided and not already applied in SQL
     let filteredItems = enriched;
-    if (statusFilter && statusFilter !== 'all') {
+    if (!hasProductFilter && statusFilter && statusFilter !== 'all') {
       const sf = statusFilter.toUpperCase();
       if (sf === 'ACTIVE' || sf === 'AKTIF') {
         filteredItems = enriched.filter(i => i.stateCode === 'ACTIVE');
@@ -1268,22 +1374,34 @@ router.get('/outlets', (req, res) => {
       const allQueryCodes = Object.keys(codeToCanonical);
       const queryPlaceholders = allQueryCodes.map(() => '?').join(',');
 
-      const monthlyRows = db.query(`
+      const monthlySql = `
         SELECT 
           h.outlet_id, 
           h.period_month, 
-          COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS ctn
+          COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.carton_quantity ELSE -l.carton_quantity END), 0) AS ctn,
+          COALESCE(SUM(CASE WHEN h.unit_type = 'Sales' THEN l.sales_netto ELSE -l.sales_netto END), 0) AS val,
+          MAX(h.transaction_date) AS last_date
         FROM fact_sales_header h
         JOIN fact_sales_line l ON h.document_number = l.document_number
-        WHERE h.period_year = 2026 AND h.period_month <= 9 AND h.outlet_id IN (${queryPlaceholders})
+        ${hasProductFilter ? 'JOIN dim_product p ON l.item_code = p.item_code' : ''}
+        WHERE h.period_year = 2026 AND h.period_month <= 9 AND h.outlet_id IN (${queryPlaceholders}) ${prodFilterSql}
         GROUP BY h.outlet_id, h.period_month
-      `, allQueryCodes);
+      `;
+      const monthlyParams = hasProductFilter ? [...allQueryCodes, ...prodParams] : allQueryCodes;
+      const monthlyRows = db.query(monthlySql, monthlyParams);
 
       const monthlyMap = {};
+      const valMap = {};
+      const lastDateMap = {};
+
       monthlyRows.forEach(mr => {
         const canonicalId = codeToCanonical[mr.outlet_id] || mr.outlet_id;
         if (!monthlyMap[canonicalId]) monthlyMap[canonicalId] = {};
         monthlyMap[canonicalId][mr.period_month] = (monthlyMap[canonicalId][mr.period_month] || 0) + mr.ctn;
+        valMap[canonicalId] = (valMap[canonicalId] || 0) + mr.val;
+        if (!lastDateMap[canonicalId] || mr.last_date > lastDateMap[canonicalId]) {
+          lastDateMap[canonicalId] = mr.last_date;
+        }
       });
 
       paginatedItems.forEach(item => {
@@ -1308,6 +1426,30 @@ router.get('/outlets', (req, res) => {
         item.totalYtdCartons = Math.round(totalYtd * 10) / 10;
         item.avgLast3Months = avgL3M;
         item.avgLast6Months = avgL6M;
+
+        if (hasProductFilter) {
+          const prodLastDate = lastDateMap[item.outletId] || null;
+          item.lastOrderDate = prodLastDate;
+          if (prodLastDate && totalYtd > 0) {
+            const orderDate = new Date(prodLastDate);
+            item.daysSinceLastOrder = Math.max(Math.floor((today - orderDate) / (1000 * 60 * 60 * 24)), 0);
+            if (item.monthlySales.m9 > 0) {
+              item.stateCode = 'ACTIVE';
+              item.status = 'Aktif';
+            } else if (item.daysSinceLastOrder >= 60) {
+              item.stateCode = 'DORMANT_60D';
+              item.status = 'Dormant (>60 Hari)';
+            } else {
+              item.stateCode = 'INACTIVE_MTD';
+              item.status = 'Inaktif MTD';
+            }
+          } else {
+            item.daysSinceLastOrder = null;
+            item.stateCode = 'NEVER_ORDERED';
+            item.status = 'Belum Pernah Order';
+          }
+          item.lifetimeValueJt = Math.round((valMap[item.outletId] || 0) / 100000) / 10;
+        }
       });
     }
 

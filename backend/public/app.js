@@ -487,6 +487,19 @@ function resetFilters() {
   applyFilters();
 }
 
+function resetProductFilters() {
+  if (document.getElementById('filter-principal')) document.getElementById('filter-principal').value = '';
+  if (document.getElementById('filter-brand')) document.getElementById('filter-brand').value = '';
+  if (document.getElementById('filter-subbrand')) document.getElementById('filter-subbrand').value = '';
+  if (document.getElementById('filter-group-sku')) document.getElementById('filter-group-sku').value = '';
+  globalFilters.principal = '';
+  globalFilters.brand = '';
+  globalFilters.subbrand = '';
+  globalFilters.groupSku = '';
+  updateMobileFilterSummary();
+  applyFilters();
+}
+
 function sortDataRows(array, key, direction) {
   return [...array].sort((a, b) => {
     let valA = a[key] !== undefined && a[key] !== null ? a[key] : '';
@@ -1472,13 +1485,16 @@ function toggleOutletSort(key) {
 async function renderOutlet() {
   const main = document.getElementById('main-content');
   try {
-    const q = new URLSearchParams();
-    if (globalFilters.salesmanId) q.append('salesmanId', globalFilters.salesmanId);
-    if (globalFilters.kecamatanId) q.append('kecamatanId', globalFilters.kecamatanId);
-    if (globalFilters.rayonId) q.append('rayonId', globalFilters.rayonId);
-    if (globalFilters.spvId) q.append('spvId', globalFilters.spvId);
-    if (outletStatusFilter && outletStatusFilter !== 'all') q.append('status', outletStatusFilter);
-    if (window.globalOutletSearch) q.append('search', window.globalOutletSearch);
+    const q = new URLSearchParams(getFilterQuery());
+    if (outletStatusFilter && outletStatusFilter !== 'all') q.set('status', outletStatusFilter);
+    if (window.globalOutletSearch) q.set('search', window.globalOutletSearch);
+
+    const activeProdFilters = [];
+    if (globalFilters.principal) activeProdFilters.push(`Principal: ${globalFilters.principal}`);
+    if (globalFilters.brand) activeProdFilters.push(`Brand: ${globalFilters.brand}`);
+    if (globalFilters.subbrand) activeProdFilters.push(`Subbrand: ${globalFilters.subbrand}`);
+    if (globalFilters.groupSku) activeProdFilters.push(`Group SKU: ${globalFilters.groupSku}`);
+    if (globalFilters.salesGroup) activeProdFilters.push(`Sales Group: ${globalFilters.salesGroup}`);
 
     const res = await fetch(`/api/outlets?${q.toString()}`);
     const data = await res.json();
@@ -1574,6 +1590,19 @@ async function renderOutlet() {
             <button onclick="clearGlobalSearch()" class="text-blue-700 hover:text-blue-900 font-bold underline text-[11px] flex items-center gap-1">
               <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
               <span>Reset Pencarian</span>
+            </button>
+          </div>
+        ` : ''}
+
+        ${activeProdFilters.length > 0 ? `
+          <div class="px-4 py-2 bg-indigo-50/80 border-b border-indigo-100 flex items-center justify-between text-xs text-indigo-900">
+            <span class="flex items-center gap-1.5">
+              <i data-lucide="filter" class="w-3.5 h-3.5 text-indigo-600"></i>
+              <span>Filter Produk Aktif: <strong class="text-indigo-950 font-bold">${escapeHtml(activeProdFilters.join(' • '))}</strong> (Data penjualan Jan-Sep & status disesuaikan produk)</span>
+            </span>
+            <button onclick="resetProductFilters()" class="text-indigo-700 hover:text-indigo-950 font-bold underline text-[11px] flex items-center gap-1">
+              <i data-lucide="x" class="w-3 h-3"></i>
+              <span>Hapus Filter Produk</span>
             </button>
           </div>
         ` : ''}
