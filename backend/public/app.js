@@ -223,6 +223,7 @@ function navigate(tab) {
     });
   }
   else if (tab === 'penjualan') renderPenjualan();
+  else if (tab === 'sariwangi') renderSariwangiAnalytics();
   else if (tab === 'trend') renderTrend();
   else if (tab === 'performance') renderPerformance();
   else if (tab === 'outlet') renderOutlet();
@@ -8299,4 +8300,1328 @@ function decrementSkuFromModal(itemCode) {
 
 function filterAddSkuModalList(query) {
   handleSimModalSearch(query);
+}
+
+// ==============================================================
+// SARIWANGI DEDICATED ANALYTICS SYSTEM
+// ==============================================================
+window.sariwangiState = {
+  data: null,
+  filters: {
+    salesman: '',
+    rayon: '',
+    kecamatan: '',
+    skuType: 'ALL', // 'ALL', 'SELECTED', 'REGULER'
+    search: ''
+  },
+  outletTable: {
+    page: 1,
+    pageSize: 20,
+    sortField: 'total_cartons',
+    sortDir: 'desc',
+    dropsizeFilter: 'all',
+    recencyFilter: 'all',
+    searchQuery: ''
+  },
+  selectedKecamatan: null
+};
+
+async function renderSariwangiAnalytics() {
+  const main = document.getElementById('main-content');
+  if (!main) return;
+
+  main.innerHTML = `
+    <div class="flex items-center justify-center py-24 text-slate-400 text-sm">
+      <div class="text-center">
+        <i data-lucide="loader-2" class="w-8 h-8 animate-spin mx-auto text-emerald-600 mb-3"></i>
+        <p class="font-medium text-slate-700">Memuat Data Analitik SariWangi...</p>
+        <p class="text-xs text-slate-400 mt-1">Mengagregasi 1,500+ outlet dan transaksi Unilever Kabupaten Garut</p>
+      </div>
+    </div>
+  `;
+  lucide.createIcons();
+
+  try {
+    const params = new URLSearchParams();
+    if (window.sariwangiState.filters.salesman) params.set('salesman', window.sariwangiState.filters.salesman);
+    if (window.sariwangiState.filters.rayon) params.set('rayon', window.sariwangiState.filters.rayon);
+    if (window.sariwangiState.filters.kecamatan) params.set('kecamatan', window.sariwangiState.filters.kecamatan);
+    if (window.sariwangiState.filters.skuType && window.sariwangiState.filters.skuType !== 'ALL') params.set('skuType', window.sariwangiState.filters.skuType);
+    if (window.sariwangiState.filters.search) params.set('search', window.sariwangiState.filters.search);
+
+    const res = await fetch(`/api/analytics/sariwangi?${params.toString()}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: Gagal memuat data SariWangi`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Gagal memproses analitik SariWangi');
+
+    window.sariwangiState.data = data;
+    renderSariwangiLayout(data);
+  } catch (err) {
+    console.error('Error rendering SariWangi Analytics:', err);
+    main.innerHTML = `
+      <div class="p-6 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-sm flex items-start gap-3">
+        <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600 shrink-0 mt-0.5"></i>
+        <div>
+          <h4 class="font-bold text-rose-900">Terjadi Kesalahan Memuat Data SariWangi</h4>
+          <p class="mt-1 text-xs text-rose-700">${escapeHtml(err.message)}</p>
+          <button onclick="renderSariwangiAnalytics()" class="mt-3 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm transition">
+            Coba Lagi
+          </button>
+        </div>
+      </div>
+    `;
+    lucide.createIcons();
+  }
+}
+
+function renderSariwangiLayout(data) {
+  const main = document.getElementById('main-content');
+  if (!main) return;
+
+  const { summary, dropsizeBrackets, promoTiers, upsellOpportunities, kecamatanDistribution, salesmanLeaderboard, filterOptions } = data;
+  const currentFilters = window.sariwangiState.filters;
+
+  main.innerHTML = `
+    <!-- Top Header & Banner -->
+    <div class="bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden border border-emerald-800/40">
+      <div class="absolute -right-8 -bottom-8 opacity-10 pointer-events-none">
+        <i data-lucide="coffee" class="w-64 h-64 text-emerald-400"></i>
+      </div>
+
+      <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2.5">
+            <span class="p-2 bg-emerald-500/20 text-emerald-300 rounded-xl border border-emerald-400/30">
+              <i data-lucide="coffee" class="w-5 h-5"></i>
+            </span>
+            <div>
+              <div class="flex items-center gap-2">
+                <h1 class="text-xl sm:text-2xl font-black tracking-tight text-white">Analytics SariWangi</h1>
+                <span class="text-[11px] bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 font-bold px-2 py-0.5 rounded-full">
+                  Unilever Dedicated
+                </span>
+              </div>
+              <p class="text-xs text-emerald-200/80 mt-0.5">
+                Specialized Dashboard: Penjualan, Rata-rata Dropsize per Order, Peta Sebaran Garut, & Strata Diskon GT
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <div class="bg-emerald-900/60 border border-emerald-700/50 rounded-xl px-3 py-1.5 text-right">
+            <p class="text-[10px] text-emerald-300 uppercase tracking-wider font-semibold">Data Transaksi Terkini</p>
+            <p class="text-xs font-bold text-white flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              s/d ${filterOptions.latestDate ? new Date(filterOptions.latestDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '02 Okt 2026'}
+            </p>
+          </div>
+          <button onclick="exportSariwangiCsv()" class="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all hover:scale-102">
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Bar Card (Salesman, Rayon, Kecamatan, Segment SKU) -->
+    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="sliders-horizontal" class="w-4 h-4 text-emerald-600"></i>
+          <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Filter Analitik Khusus SariWangi</span>
+          <span class="text-[11px] text-slate-400">(Hanya Produk SariWangi & Unilever)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button onclick="resetSariwangiFilters()" class="text-xs text-slate-500 hover:text-slate-800 px-2.5 py-1 rounded hover:bg-slate-100 transition flex items-center gap-1">
+            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+            <span>Reset Filter</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+        <!-- Salesman Filter -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Salesman</label>
+          <select id="filter-sw-salesman" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+            <option value="">Semua Salesman (${filterOptions.salesmen.length})</option>
+            ${filterOptions.salesmen.map(s => `
+              <option value="${escapeHtml(s.name)}" ${currentFilters.salesman === s.name ? 'selected' : ''}>
+                ${escapeHtml(s.name)}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <!-- Rayon Filter -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Rayon</label>
+          <select id="filter-sw-rayon" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+            <option value="">Semua Rayon (${filterOptions.rayons.length})</option>
+            ${filterOptions.rayons.map(r => `
+              <option value="${escapeHtml(r.name)}" ${currentFilters.rayon === r.name ? 'selected' : ''}>
+                ${escapeHtml(r.name)}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <!-- Kecamatan Filter -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Kecamatan</label>
+          <select id="filter-sw-kecamatan" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+            <option value="">Semua Kecamatan (${filterOptions.kecamatans.length})</option>
+            ${filterOptions.kecamatans.map(k => `
+              <option value="${escapeHtml(k.name)}" ${currentFilters.kecamatan === k.name ? 'selected' : ''}>
+                ${escapeHtml(k.name)}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <!-- Quick Outlet Search -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Cari Toko / Outlet</label>
+          <div class="relative">
+            <input type="text" id="filter-sw-search" value="${escapeHtml(currentFilters.search || '')}" onkeydown="if(event.key==='Enter') applySariwangiFilters()" placeholder="Ketik nama toko..." class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Segment SKU Button Pills -->
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+          <span class="text-slate-500 font-semibold mr-1">Segment SKU:</span>
+          <button onclick="setSariwangiSkuType('ALL')" class="px-3 py-1 rounded-lg font-semibold transition ${currentFilters.skuType === 'ALL' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+            Semua SKU SariWangi
+          </button>
+          <button onclick="setSariwangiSkuType('SELECTED')" class="px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${currentFilters.skuType === 'SELECTED' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}">
+            <i data-lucide="sparkles" class="w-3 h-3"></i>
+            <span>6 Selected SKU GT (Promo Strata)</span>
+          </button>
+          <button onclick="setSariwangiSkuType('REGULER')" class="px-3 py-1 rounded-lg font-semibold transition ${currentFilters.skuType === 'REGULER' ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+            SKU Reguler Lainnya
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="applySariwangiFilters()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-sm transition flex items-center gap-1.5">
+            <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+            <span>Terapkan Filter</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 Core KPI Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <!-- Card 1: Total Volume -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 text-xs font-semibold">
+          <span>Total Penjualan Volume</span>
+          <span class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+            <i data-lucide="package" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <p class="text-2xl font-black text-slate-900 mt-2 tracking-tight">
+          ${summary.totalCartons.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <span class="text-xs font-bold text-slate-500 font-normal">Ktn</span>
+        </p>
+        <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500">Selected SKU:</span>
+          <span class="font-bold text-indigo-600">${summary.selectedSkuCartons.toLocaleString('id-ID')} Ktn (${summary.selectedSkuCartonPct}%)</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Total Omzet Netto -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 text-xs font-semibold">
+          <span>Total Omzet Netto</span>
+          <span class="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+            <i data-lucide="banknote" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <p class="text-xl sm:text-2xl font-black text-slate-900 mt-2 tracking-tight truncate" title="Rp ${summary.totalNetto.toLocaleString('id-ID')}">
+          Rp ${(summary.totalNetto / 1000000).toFixed(1)} <span class="text-xs font-bold text-slate-500 font-normal">Jt</span>
+        </p>
+        <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500">Exact Netto:</span>
+          <span class="font-bold text-slate-700">Rp ${summary.totalNetto.toLocaleString('id-ID')}</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Outlet Transaksi (OA) -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 text-xs font-semibold">
+          <span>Outlet Transaksi (OA)</span>
+          <span class="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+            <i data-lucide="store" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <p class="text-2xl font-black text-slate-900 mt-2 tracking-tight">
+          ${summary.totalOA.toLocaleString('id-ID')}
+          <span class="text-xs font-bold text-slate-500 font-normal">Toko</span>
+        </p>
+        <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500">Penetrasi Selected:</span>
+          <span class="font-bold text-emerald-600">${summary.selectedSkuOA.toLocaleString('id-ID')} Toko (${summary.selectedSkuOAPct}%)</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Total Order Call (OC) -->
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-500 text-xs font-semibold">
+          <span>Total Order Call (OC)</span>
+          <span class="p-1.5 bg-purple-50 text-purple-600 rounded-lg">
+            <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <p class="text-2xl font-black text-slate-900 mt-2 tracking-tight">
+          ${summary.totalOC.toLocaleString('id-ID')}
+          <span class="text-xs font-bold text-slate-500 font-normal">Faktur</span>
+        </p>
+        <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500">Frekuensi Beli:</span>
+          <span class="font-bold text-slate-700">${summary.totalOA > 0 ? (summary.totalOC / summary.totalOA).toFixed(2) : 0}x Order/Toko</span>
+        </div>
+      </div>
+
+      <!-- Card 5: Rata-rata Dropsize & Omzet/OC -->
+      <div class="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-200 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-emerald-800 text-xs font-bold">
+          <span>Rata-rata Dropsize (OC)</span>
+          <span class="p-1.5 bg-emerald-600 text-white rounded-lg shadow-sm">
+            <i data-lucide="scale" class="w-4 h-4"></i>
+          </span>
+        </div>
+        <p class="text-2xl font-black text-emerald-950 mt-2 tracking-tight">
+          ${summary.avgDropsizeCtn}
+          <span class="text-xs font-bold text-emerald-700 font-normal">Ktn/OC</span>
+        </p>
+        <div class="mt-2.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[11px]">
+          <span class="text-emerald-800 font-medium">Rata-rata Omzet:</span>
+          <span class="font-extrabold text-emerald-900">Rp ${summary.avgOmzetPerOC.toLocaleString('id-ID')} / OC</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Analisis Dropsize & Omset Rata-rata per OC -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div>
+          <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-600"></i>
+            <span>Analisis Dropsize & Omset Rata-rata per Order Call (OC)</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Distribusi volume pembelian dan nilai omzet rata-rata berdasarkan besaran pesanan faktur SariWangi
+          </p>
+        </div>
+        <span class="text-xs text-slate-400 font-medium self-start sm:self-auto">
+          Rumus: <code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">Total Volume ÷ Total OC</code>
+        </span>
+      </div>
+
+      <!-- 4 Tier Comparison Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Tier 1: < 1/2 Karton -->
+        <div class="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3 relative hover:shadow-md transition">
+          <div class="flex items-center justify-between">
+            <span class="px-2.5 py-1 bg-amber-100 text-amber-800 font-bold text-xs rounded-lg">
+              ${dropsizeBrackets.under_half.label}
+            </span>
+            <span class="text-[11px] font-semibold text-amber-700">Eceran Mikro</span>
+          </div>
+
+          <div>
+            <p class="text-2xl font-black text-slate-900 tracking-tight">
+              ${dropsizeBrackets.under_half.count.toLocaleString('id-ID')}
+              <span class="text-xs font-semibold text-slate-500">Order (${dropsizeBrackets.under_half.pctOrders}%)</span>
+            </p>
+            <p class="text-xs font-medium text-slate-500 mt-0.5">
+              Volume: <strong class="text-slate-800">${dropsizeBrackets.under_half.cartons.toLocaleString('id-ID')} Ktn</strong> (${dropsizeBrackets.under_half.pctCartons}%)
+            </p>
+          </div>
+
+          <div class="pt-2 border-t border-amber-200/60 space-y-1.5 text-xs">
+            <div class="flex justify-between items-center text-slate-600">
+              <span>Total Omzet:</span>
+              <strong class="text-slate-800">Rp ${dropsizeBrackets.under_half.netto.toLocaleString('id-ID')}</strong>
+            </div>
+            <div class="flex justify-between items-center bg-white/80 p-2 rounded-lg border border-amber-100 font-semibold">
+              <span class="text-amber-900">Rata-rata Omzet/OC:</span>
+              <span class="text-amber-800 font-bold">Rp ${dropsizeBrackets.under_half.avgNettoPerOC.toLocaleString('id-ID')}</span>
+            </div>
+            <div class="flex justify-between items-center text-[11px] text-slate-500">
+              <span>Rata-rata Dropsize:</span>
+              <span class="font-medium text-slate-700">${dropsizeBrackets.under_half.avgCartonsPerOC} Ktn/OC</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tier 2: 1/2 s/d 1 Karton -->
+        <div class="rounded-xl border border-sky-200 bg-sky-50/40 p-4 space-y-3 relative hover:shadow-md transition">
+          <div class="flex items-center justify-between">
+            <span class="px-2.5 py-1 bg-sky-100 text-sky-800 font-bold text-xs rounded-lg">
+              ${dropsizeBrackets.half_to_one.label}
+            </span>
+            <span class="text-[11px] font-semibold text-sky-700">Toko Sedang</span>
+          </div>
+
+          <div>
+            <p class="text-2xl font-black text-slate-900 tracking-tight">
+              ${dropsizeBrackets.half_to_one.count.toLocaleString('id-ID')}
+              <span class="text-xs font-semibold text-slate-500">Order (${dropsizeBrackets.half_to_one.pctOrders}%)</span>
+            </p>
+            <p class="text-xs font-medium text-slate-500 mt-0.5">
+              Volume: <strong class="text-slate-800">${dropsizeBrackets.half_to_one.cartons.toLocaleString('id-ID')} Ktn</strong> (${dropsizeBrackets.half_to_one.pctCartons}%)
+            </p>
+          </div>
+
+          <div class="pt-2 border-t border-sky-200/60 space-y-1.5 text-xs">
+            <div class="flex justify-between items-center text-slate-600">
+              <span>Total Omzet:</span>
+              <strong class="text-slate-800">Rp ${dropsizeBrackets.half_to_one.netto.toLocaleString('id-ID')}</strong>
+            </div>
+            <div class="flex justify-between items-center bg-white/80 p-2 rounded-lg border border-sky-100 font-semibold">
+              <span class="text-sky-900">Rata-rata Omzet/OC:</span>
+              <span class="text-sky-800 font-bold">Rp ${dropsizeBrackets.half_to_one.avgNettoPerOC.toLocaleString('id-ID')}</span>
+            </div>
+            <div class="flex justify-between items-center text-[11px] text-slate-500">
+              <span>Rata-rata Dropsize:</span>
+              <span class="font-medium text-slate-700">${dropsizeBrackets.half_to_one.avgCartonsPerOC} Ktn/OC</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tier 3: > 1 Karton -->
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-3 relative hover:shadow-md transition">
+          <div class="flex items-center justify-between">
+            <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-lg">
+              ${dropsizeBrackets.over_one.label}
+            </span>
+            <span class="text-[11px] font-semibold text-emerald-700">Semi Grosir</span>
+          </div>
+
+          <div>
+            <p class="text-2xl font-black text-slate-900 tracking-tight">
+              ${dropsizeBrackets.over_one.count.toLocaleString('id-ID')}
+              <span class="text-xs font-semibold text-slate-500">Order (${dropsizeBrackets.over_one.pctOrders}%)</span>
+            </p>
+            <p class="text-xs font-medium text-slate-500 mt-0.5">
+              Volume: <strong class="text-slate-800">${dropsizeBrackets.over_one.cartons.toLocaleString('id-ID')} Ktn</strong> (${dropsizeBrackets.over_one.pctCartons}%)
+            </p>
+          </div>
+
+          <div class="pt-2 border-t border-emerald-200/60 space-y-1.5 text-xs">
+            <div class="flex justify-between items-center text-slate-600">
+              <span>Total Omzet:</span>
+              <strong class="text-slate-800">Rp ${dropsizeBrackets.over_one.netto.toLocaleString('id-ID')}</strong>
+            </div>
+            <div class="flex justify-between items-center bg-white/80 p-2 rounded-lg border border-emerald-100 font-semibold">
+              <span class="text-emerald-900">Rata-rata Omzet/OC:</span>
+              <span class="text-emerald-800 font-bold">Rp ${dropsizeBrackets.over_one.avgNettoPerOC.toLocaleString('id-ID')}</span>
+            </div>
+            <div class="flex justify-between items-center text-[11px] text-slate-500">
+              <span>Rata-rata Dropsize:</span>
+              <span class="font-medium text-slate-700">${dropsizeBrackets.over_one.avgCartonsPerOC} Ktn/OC</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tier 4: >= 6 Karton (Promo GT Threshold) -->
+        <div class="rounded-xl border-2 border-purple-300 bg-gradient-to-br from-purple-50 to-indigo-50 p-4 space-y-3 relative hover:shadow-md transition">
+          <div class="flex items-center justify-between">
+            <span class="px-2.5 py-1 bg-purple-600 text-white font-extrabold text-xs rounded-lg shadow-sm">
+              ${dropsizeBrackets.strata_promo_tier.label}
+            </span>
+            <span class="text-[11px] font-bold text-purple-700 flex items-center gap-1">
+              <i data-lucide="award" class="w-3.5 h-3.5"></i>
+              <span>Key Wholesaler</span>
+            </span>
+          </div>
+
+          <div>
+            <p class="text-2xl font-black text-purple-950 tracking-tight">
+              ${dropsizeBrackets.strata_promo_tier.count.toLocaleString('id-ID')}
+              <span class="text-xs font-semibold text-purple-700">Order (${dropsizeBrackets.strata_promo_tier.pctOrders}%)</span>
+            </p>
+            <p class="text-xs font-medium text-purple-800 mt-0.5">
+              Volume: <strong class="text-purple-950">${dropsizeBrackets.strata_promo_tier.cartons.toLocaleString('id-ID')} Ktn</strong> (${dropsizeBrackets.strata_promo_tier.pctCartons}%)
+            </p>
+          </div>
+
+          <div class="pt-2 border-t border-purple-200 space-y-1.5 text-xs">
+            <div class="flex justify-between items-center text-purple-900">
+              <span>Total Omzet:</span>
+              <strong class="text-purple-950">Rp ${dropsizeBrackets.strata_promo_tier.netto.toLocaleString('id-ID')}</strong>
+            </div>
+            <div class="flex justify-between items-center bg-white p-2 rounded-lg border border-purple-200 font-semibold shadow-xs">
+              <span class="text-purple-900">Rata-rata Omzet/OC:</span>
+              <span class="text-purple-700 font-extrabold">Rp ${dropsizeBrackets.strata_promo_tier.avgNettoPerOC.toLocaleString('id-ID')}</span>
+            </div>
+            <div class="flex justify-between items-center text-[11px] text-purple-800">
+              <span>Rata-rata Dropsize:</span>
+              <span class="font-bold text-purple-900">${dropsizeBrackets.strata_promo_tier.avgCartonsPerOC} Ktn/OC</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Peta Distribusi SariWangi di Kabupaten Garut -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div>
+          <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <i data-lucide="map" class="w-4 h-4 text-emerald-600"></i>
+            <span>Peta Distribusi & Penetrasi SariWangi di Kabupaten Garut</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Sebaran geografis berdasarkan data riil transaksi toko/outlet per kecamatan di Kabupaten Garut
+          </p>
+        </div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="inline-flex items-center gap-1.5 font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            ${kecamatanDistribution.length} Kecamatan Transaksi
+          </span>
+        </div>
+      </div>
+
+      <!-- Map & Kecamatan Table Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        <!-- SVG Map Container (7 cols) -->
+        <div class="lg:col-span-7 bg-slate-50/70 border border-slate-200/80 rounded-xl p-3 relative flex flex-col items-center justify-center min-h-[360px]">
+          <div id="sariwangi-map-canvas" class="w-full flex items-center justify-center">
+            <div class="py-16 text-center text-xs text-slate-400">
+              <i data-lucide="loader-2" class="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-600"></i>
+              Memuat Peta Garut...
+            </div>
+          </div>
+
+          <!-- Dynamic Floating Tooltip -->
+          <div id="sw-map-tooltip" class="absolute hidden pointer-events-none z-30 bg-slate-900/95 text-white text-[11px] px-3 py-2 rounded-xl shadow-xl backdrop-blur-sm border border-slate-700/80 max-w-xs transition-all">
+          </div>
+
+          <!-- Color Ramp Legend -->
+          <div class="w-full mt-3 pt-3 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-600">
+            <span class="font-bold text-slate-700">Intensitas Volume (Ktn):</span>
+            <div class="flex items-center gap-1">
+              <span class="w-3.5 h-3 rounded bg-emerald-50 border border-slate-200"></span> <span>0</span>
+              <span class="w-3.5 h-3 rounded bg-emerald-100 ml-1"></span> <span>1-5</span>
+              <span class="w-3.5 h-3 rounded bg-emerald-300 ml-1"></span> <span>5-15</span>
+              <span class="w-3.5 h-3 rounded bg-emerald-500 ml-1 text-white"></span> <span>15-30</span>
+              <span class="w-3.5 h-3 rounded bg-emerald-700 ml-1 text-white"></span> <span>30-50</span>
+              <span class="w-3.5 h-3 rounded bg-emerald-950 ml-1 text-white"></span> <span>>50</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kecamatan Leaderboard List (5 cols) -->
+        <div class="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-3 space-y-2 flex flex-col max-h-[420px]">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+            <span class="text-xs font-bold text-slate-800">Top Kecamatan (SariWangi)</span>
+            <span class="text-[11px] text-slate-400">Klik kecamatan untuk filter</span>
+          </div>
+
+          <div class="overflow-y-auto scrollbar-thin space-y-1.5 flex-1 pr-1">
+            ${kecamatanDistribution.map((k, idx) => `
+              <div onclick="filterSariwangiByKecamatan('${escapeHtml(k.kecamatan_name)}')" class="p-2 rounded-lg border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/50 cursor-pointer transition flex items-center justify-between text-xs group">
+                <div class="flex items-center gap-2">
+                  <span class="w-5 h-5 rounded font-mono text-[10px] flex items-center justify-center font-bold ${idx < 3 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}">
+                    ${idx + 1}
+                  </span>
+                  <div>
+                    <p class="font-bold text-slate-900 group-hover:text-emerald-700 transition">${escapeHtml(k.kecamatan_name)}</p>
+                    <p class="text-[10px] text-slate-400">${k.active_outlets} Toko • Top: ${escapeHtml(k.top_salesman)}</p>
+                  </div>
+                </div>
+
+                <div class="text-right">
+                  <p class="font-extrabold text-slate-800">${k.total_cartons} <span class="text-[10px] text-slate-400 font-normal">Ktn</span></p>
+                  <p class="text-[10px] text-emerald-600 font-semibold">Rp ${(k.total_netto / 1000000).toFixed(1)} Jt</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Elaborasi Multi-Perspective & Strata Promo Intelligence -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <!-- Perspective 1: Strata Rules & 6 Selected SKU GT Adoption -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-2">
+            <span class="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+              <i data-lucide="sparkles" class="w-4 h-4"></i>
+            </span>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">Aturan Strata Diskon SariWangi</h3>
+              <p class="text-[11px] text-slate-400">Kombinasi Diskon Reguler + Support Promo 6 Selected SKU GT</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rules Info Box -->
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-2">
+          <div class="flex items-start gap-2">
+            <i data-lucide="info" class="w-4 h-4 text-indigo-600 shrink-0 mt-0.5"></i>
+            <p class="text-slate-700 leading-relaxed text-[11px]">
+              <strong>Mekanisme Tambahan Diskon:</strong> Untuk 6 SKU Terpilih (Selected SKU), diskon promo GT otomatis 
+              <strong>DITAMBAHKAN</strong> ke diskon reguler bila memenuhi kriteria minimum volume karton.
+            </p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+            <div class="bg-white p-2 rounded border border-slate-200">
+              <p class="font-bold text-slate-800 text-[10px] uppercase text-purple-700">1. Strata Reguler (Semua SKU)</p>
+              <p class="text-slate-600 mt-0.5">• 1 – 5 ktn: <strong>0.75%</strong></p>
+              <p class="text-slate-600">• 6 – 10 ktn: <strong>1.00%</strong></p>
+              <p class="text-slate-600">• ≥ 11 ktn: <strong>1.25%</strong></p>
+            </div>
+            <div class="bg-white p-2 rounded border border-slate-200">
+              <p class="font-bold text-slate-800 text-[10px] uppercase text-indigo-700">2. Promo GT (6 Selected SKU)</p>
+              <p class="text-slate-600 mt-0.5">• 6 – 19 ktn: <strong>+2.00%</strong></p>
+              <p class="text-slate-600">• 20 – 49 ktn: <strong>+3.00%</strong></p>
+              <p class="text-slate-600">• 50 – 99 ktn: <strong>+5.00%</strong></p>
+              <p class="text-slate-600">• ≥ 100 ktn: <strong>+7.00%</strong></p>
+            </div>
+          </div>
+
+          <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-[11px] text-emerald-900 flex items-center justify-between">
+            <span>Contoh: Pembelian <strong>50 Karton</strong> Selected SKU:</span>
+            <span class="font-black text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-300">1.25% + 5.00% = 6.25% Diskon!</span>
+          </div>
+        </div>
+
+        <!-- 6 Selected SKUs GT List -->
+        <div>
+          <p class="text-xs font-bold text-slate-800 mb-2">Daftar 6 Selected SKU GT:</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+            <div class="p-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 truncate">1. SARIWANGI ASLI RL TB 48X(25X1.85G)</div>
+            <div class="p-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 truncate">2. SARIWANGI ASLI RL TB 288X(4X1.85G)</div>
+            <div class="p-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 truncate">3. SARIWANGI MELATI RL TB 48X(25X1.9G)</div>
+            <div class="p-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 truncate">4. SARIMURNI RL TB 48X(25X1.6G)</div>
+            <div class="p-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 truncate">5. SARIMURNI RL RB 180X(5X1.8G)</div>
+            <div class="p-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 truncate">6. SARIMURNI RL RB 48X(20X1.8G)</div>
+          </div>
+        </div>
+
+        <!-- Promo Tier Attainment Status -->
+        <div class="space-y-1.5 pt-2 border-t border-slate-100">
+          <p class="text-xs font-bold text-slate-800">Pencapaian Tier Promo Selected SKU (Order Level):</p>
+          <div class="grid grid-cols-4 gap-2 text-center text-xs">
+            <div class="bg-purple-50 p-2 rounded-lg border border-purple-200">
+              <p class="text-[10px] text-purple-700 font-bold">Tier 1 (6-19 ktn)</p>
+              <p class="text-base font-black text-purple-900 mt-0.5">${promoTiers.tier1.count} <span class="text-[10px] font-normal">OC</span></p>
+              <p class="text-[10px] text-purple-600 font-semibold">+2% Promo</p>
+            </div>
+            <div class="bg-indigo-50 p-2 rounded-lg border border-indigo-200">
+              <p class="text-[10px] text-indigo-700 font-bold">Tier 2 (20-49 ktn)</p>
+              <p class="text-base font-black text-indigo-900 mt-0.5">${promoTiers.tier2.count} <span class="text-[10px] font-normal">OC</span></p>
+              <p class="text-[10px] text-indigo-600 font-semibold">+3% Promo</p>
+            </div>
+            <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+              <p class="text-[10px] text-emerald-700 font-bold">Tier 3 (50-99 ktn)</p>
+              <p class="text-base font-black text-emerald-900 mt-0.5">${promoTiers.tier3.count} <span class="text-[10px] font-normal">OC</span></p>
+              <p class="text-[10px] text-emerald-600 font-semibold">+5% Promo</p>
+            </div>
+            <div class="bg-amber-50 p-2 rounded-lg border border-amber-200">
+              <p class="text-[10px] text-amber-700 font-bold">Tier 4 (≥100 ktn)</p>
+              <p class="text-base font-black text-amber-900 mt-0.5">${promoTiers.tier4.count} <span class="text-[10px] font-normal">OC</span></p>
+              <p class="text-[10px] text-amber-600 font-semibold">+7% Promo</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Perspective 2: Upsell Pipeline & Salesman Leaderboard -->
+      <div class="space-y-5">
+        <!-- Upsell Pipeline -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+                <i data-lucide="trending-up" class="w-4 h-4"></i>
+              </span>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">Peluang Upsell Strata Promo (Hot Targets)</h3>
+                <p class="text-[11px] text-slate-400">Toko yang mendekati ambang batas diskon tambahan 2% / 3%</p>
+              </div>
+            </div>
+            <span class="text-[11px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+              ${upsellOpportunities.length} Toko Potensial
+            </span>
+          </div>
+
+          <div class="space-y-2 max-h-48 overflow-y-auto scrollbar-thin pr-1 text-xs">
+            ${upsellOpportunities.length === 0 ? `
+              <p class="text-xs text-slate-400 py-4 text-center italic">Tidak ada toko di rentang gap saat ini</p>
+            ` : upsellOpportunities.slice(0, 5).map(u => `
+              <div class="p-2.5 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-amber-300 transition flex items-center justify-between">
+                <div>
+                  <p class="font-bold text-slate-900">${escapeHtml(u.outlet_name)}</p>
+                  <p class="text-[10px] text-slate-500">${escapeHtml(u.kecamatan)} • Sales: ${escapeHtml(u.salesman_name)}</p>
+                </div>
+                <div class="text-right">
+                  <span class="px-2 py-0.5 bg-amber-100 text-amber-900 font-extrabold text-[10px] rounded-md">
+                    Butuh +${u.gap_to_promo} Ktn
+                  </span>
+                  <p class="text-[10px] text-emerald-600 font-semibold mt-0.5">Ke ${u.target_tier}</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Salesman Leaderboard -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div class="flex items-center gap-2">
+              <span class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                <i data-lucide="users" class="w-4 h-4"></i>
+              </span>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">Leaderboard Salesman SariWangi</h3>
+                <p class="text-[11px] text-slate-400">Peringkat kontribusi volume & dropsize per salesman</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">
+                  <th class="pb-2">Salesman</th>
+                  <th class="pb-2 text-right">Volume</th>
+                  <th class="pb-2 text-right">Omzet</th>
+                  <th class="pb-2 text-right">OA / OC</th>
+                  <th class="pb-2 text-right">Dropsize</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                ${salesmanLeaderboard.map((sm, idx) => `
+                  <tr class="hover:bg-slate-50/70 transition">
+                    <td class="py-2 flex items-center gap-1.5 font-semibold text-slate-800">
+                      <span class="w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center ${idx === 0 ? 'bg-amber-400 text-slate-900' : 'bg-slate-100 text-slate-600'}">
+                        ${idx + 1}
+                      </span>
+                      <span>${escapeHtml(sm.salesman_name)}</span>
+                    </td>
+                    <td class="py-2 text-right font-bold text-slate-900">${sm.total_cartons} <span class="text-[10px] text-slate-400 font-normal">Ktn</span></td>
+                    <td class="py-2 text-right text-emerald-700 font-semibold">Rp ${(sm.total_netto / 1000000).toFixed(1)}M</td>
+                    <td class="py-2 text-right text-slate-600">${sm.outlet_count} / ${sm.order_count}</td>
+                    <td class="py-2 text-right font-bold ${sm.avg_dropsize >= 1 ? 'text-emerald-700' : (sm.avg_dropsize >= 0.5 ? 'text-sky-700' : 'text-amber-700')}">
+                      ${sm.avg_dropsize}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Data Outlet yang Sudah Transaksi SariWangi (Outlets Table) -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <i data-lucide="store" class="w-5 h-5 text-emerald-600"></i>
+            <h2 class="text-base font-bold text-slate-900">Data Outlet yang Sudah Transaksi SariWangi</h2>
+          </div>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Menampilkan seluruh outlet bertransaksi SariWangi dengan rincian all SKU, total volume, dropsize, diskon strata, dan last order
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <span id="sw-outlet-count-badge" class="text-xs font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200">
+            Menampilkan 0 dari ${data.outlets.length} Toko
+          </span>
+          <button onclick="exportSariwangiCsv()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg border border-slate-300 transition flex items-center gap-1.5">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>Unduh CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Table Filter Tools Bar -->
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
+        <!-- Search Input -->
+        <div class="relative flex-1 max-w-sm">
+          <input type="text" id="sw-table-search" oninput="handleSariwangiOutletSearch(this.value)" placeholder="Cari nama toko / ID outlet..." class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+        </div>
+
+        <!-- Filter Dropsize Pills -->
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="text-slate-400 font-semibold mr-1">Dropsize:</span>
+          <button onclick="filterSariwangiOutletsByDropsize('all')" id="btn-sw-ds-all" class="px-2.5 py-1 rounded-md font-semibold transition bg-emerald-600 text-white shadow-xs">Semua</button>
+          <button onclick="filterSariwangiOutletsByDropsize('under_half')" id="btn-sw-ds-under_half" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">&lt; 1/2 ktn</button>
+          <button onclick="filterSariwangiOutletsByDropsize('half_to_one')" id="btn-sw-ds-half_to_one" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">1/2 - 1 ktn</button>
+          <button onclick="filterSariwangiOutletsByDropsize('over_one')" id="btn-sw-ds-over_one" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">&gt; 1 ktn</button>
+          <button onclick="filterSariwangiOutletsByDropsize('ge_six')" id="btn-sw-ds-ge_six" class="px-2.5 py-1 rounded-md font-semibold transition bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold">≥ 6 ktn (Promo)</button>
+        </div>
+
+        <!-- Filter Recency Pills -->
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="text-slate-400 font-semibold mr-1">Recency:</span>
+          <button onclick="filterSariwangiOutletsByRecency('all')" id="btn-sw-rc-all" class="px-2.5 py-1 rounded-md font-semibold transition bg-emerald-600 text-white shadow-xs">Semua</button>
+          <button onclick="filterSariwangiOutletsByRecency('days')" id="btn-sw-rc-days" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">days lalu</button>
+          <button onclick="filterSariwangiOutletsByRecency('1week')" id="btn-sw-rc-1week" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">1 week lalu</button>
+          <button onclick="filterSariwangiOutletsByRecency('gt1week')" id="btn-sw-rc-gt1week" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">&gt; 1 week</button>
+          <button onclick="filterSariwangiOutletsByRecency('gt2week')" id="btn-sw-rc-gt2week" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">&gt; 2 week</button>
+        </div>
+      </div>
+
+      <!-- Outlets Table Content -->
+      <div class="overflow-x-auto rounded-xl border border-slate-200">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px] select-none">
+              <th class="p-3 w-12 text-center">#</th>
+              <th class="p-3 cursor-pointer hover:bg-slate-100 transition" onclick="sortSariwangiOutlets('outlet_name')">
+                <span class="flex items-center gap-1">Nama Toko & ID <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></span>
+              </th>
+              <th class="p-3">Kecamatan / Rayon</th>
+              <th class="p-3">Salesman</th>
+              <th class="p-3 min-w-[200px]">SKU Terbeli & Volume (Ktn)</th>
+              <th class="p-3 text-right cursor-pointer hover:bg-slate-100 transition" onclick="sortSariwangiOutlets('total_cartons')">
+                <span class="flex items-center justify-end gap-1">Total Volume <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></span>
+              </th>
+              <th class="p-3 text-right cursor-pointer hover:bg-slate-100 transition" onclick="sortSariwangiOutlets('total_netto')">
+                <span class="flex items-center justify-end gap-1">Total Omzet <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></span>
+              </th>
+              <th class="p-3 text-center">Kategori Dropsize</th>
+              <th class="p-3 text-center">Strata Diskon</th>
+              <th class="p-3 text-right cursor-pointer hover:bg-slate-100 transition" onclick="sortSariwangiOutlets('days_ago')">
+                <span class="flex items-center justify-end gap-1">Last Day Order <i data-lucide="arrow-up-down" class="w-3 h-3 text-slate-400"></i></span>
+              </th>
+            </tr>
+          </thead>
+          <tbody id="sariwangi-outlets-tbody" class="divide-y divide-slate-100">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Footer -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 text-xs">
+        <div class="flex items-center gap-2 text-slate-500">
+          <span>Baris per halaman:</span>
+          <select id="sw-page-size" onchange="changeSariwangiPageSize(this.value)" class="bg-slate-50 border border-slate-200 rounded px-2 py-1 font-semibold text-slate-700">
+            <option value="15">15</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <span id="sw-pagination-info" class="text-slate-400">Menampilkan 1-25</span>
+        </div>
+
+        <div id="sw-pagination-controls" class="flex items-center gap-1">
+          <!-- Dynamically populated page buttons -->
+        </div>
+      </div>
+    </div>
+  `;
+
+  lucide.createIcons();
+
+  // Render sub-components
+  renderSariwangiGarutMap(kecamatanDistribution);
+  renderSariwangiOutletTable();
+}
+
+async function renderSariwangiGarutMap(distribution) {
+  const container = document.getElementById('sariwangi-map-canvas');
+  const tooltip = document.getElementById('sw-map-tooltip');
+  if (!container) return;
+
+  const mapData = await getGarutMap();
+  if (!mapData || !mapData.features) {
+    container.innerHTML = `<div class="text-xs text-slate-400 py-12 text-center">Data peta Garut tidak tersedia</div>`;
+    return;
+  }
+
+  // Map kecamatan names to stats
+  const distMap = new Map();
+  distribution.forEach(d => {
+    distMap.set(cleanKecName(d.kecamatan_name), d);
+  });
+
+  const getHeatColor = (cartons) => {
+    const c = parseFloat(cartons) || 0;
+    if (c <= 0) return { fill: '#f8fafc', stroke: '#e2e8f0', label: '0 ktn' };
+    if (c < 5) return { fill: '#dcfce7', stroke: '#bbf7d0', label: '< 5 ktn' };
+    if (c < 15) return { fill: '#86efac', stroke: '#4ade80', label: '5-15 ktn' };
+    if (c < 30) return { fill: '#22c55e', stroke: '#16a34a', label: '15-30 ktn' };
+    if (c < 50) return { fill: '#15803d', stroke: '#166534', label: '30-50 ktn' };
+    return { fill: '#052e16', stroke: '#14532d', label: '≥ 50 ktn' };
+  };
+
+  const pathsHtml = mapData.features.map(f => {
+    const norm = cleanKecName(f.name);
+    const d = distMap.get(norm);
+    const ctn = d ? d.total_cartons : 0;
+    const act = d ? d.active_outlets : 0;
+    const netto = d ? d.total_netto : 0;
+    const dropsize = d ? d.avg_dropsize : 0;
+    const topSm = d ? d.top_salesman : '-';
+    const topSku = d ? d.top_sku : '-';
+    const heat = getHeatColor(ctn);
+
+    return `
+      <path id="sw-map-kec-${norm}"
+        class="sw-kec-path cursor-pointer transition-all duration-150"
+        d="${f.path}"
+        fill="${heat.fill}"
+        stroke="#ffffff"
+        stroke-width="0.9"
+        data-name="${escapeHtml(f.name)}"
+        data-cartons="${ctn}"
+        data-outlets="${act}"
+        data-netto="${netto}"
+        data-dropsize="${dropsize}"
+        data-salesman="${escapeHtml(topSm)}"
+        data-sku="${escapeHtml(topSku)}"
+      ></path>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <svg viewBox="${mapData.viewBox}" class="w-full h-full max-h-[340px] drop-shadow-sm select-none" preserveAspectRatio="xMidYMid meet">
+      <g id="sw-garut-kec-group">
+        ${pathsHtml}
+      </g>
+    </svg>
+  `;
+
+  // Attach hover & click events
+  const paths = container.querySelectorAll('.sw-kec-path');
+  paths.forEach(p => {
+    const onEnter = (e) => {
+      p.style.stroke = '#0f172a';
+      p.style.strokeWidth = '2px';
+      p.style.filter = 'drop-shadow(0 2px 8px rgba(0,0,0,0.4))';
+      p.style.opacity = '1';
+
+      paths.forEach(other => {
+        if (other !== p) other.style.opacity = '0.6';
+      });
+
+      const name = p.getAttribute('data-name');
+      const ctn = parseFloat(p.getAttribute('data-cartons')) || 0;
+      const act = parseInt(p.getAttribute('data-outlets')) || 0;
+      const netto = parseInt(p.getAttribute('data-netto')) || 0;
+      const dropsize = parseFloat(p.getAttribute('data-dropsize')) || 0;
+      const sm = p.getAttribute('data-salesman');
+      const sku = p.getAttribute('data-sku');
+
+      if (tooltip) {
+        tooltip.classList.remove('hidden');
+        tooltip.innerHTML = `
+          <div class="space-y-1">
+            <div class="flex items-center justify-between gap-3 border-b border-slate-700/80 pb-1">
+              <strong class="text-xs font-bold text-emerald-400">${name}</strong>
+              <span class="text-[10px] bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 rounded font-semibold">${act} Toko</span>
+            </div>
+            <div class="space-y-0.5 text-[10px] text-slate-200 pt-0.5">
+              <p class="flex justify-between gap-4"><span>Total Volume:</span> <strong class="text-white">${ctn.toLocaleString('id-ID')} Ktn</strong></p>
+              <p class="flex justify-between gap-4"><span>Total Omzet:</span> <strong class="text-emerald-300">Rp ${netto.toLocaleString('id-ID')}</strong></p>
+              <p class="flex justify-between gap-4"><span>Rata Dropsize:</span> <strong class="text-white">${dropsize} Ktn/OC</strong></p>
+              <p class="flex justify-between gap-4 pt-1 border-t border-slate-800 text-slate-400"><span>Top Sales:</span> <span class="text-slate-300 truncate max-w-[120px]">${sm}</span></p>
+            </div>
+            <p class="text-[9px] text-emerald-400/80 text-center pt-1 border-t border-slate-800/80">Klik untuk memfilter rincian outlet</p>
+          </div>
+        `;
+        updateTooltipPos(e);
+      }
+    };
+
+    const updateTooltipPos = (e) => {
+      if (!tooltip) return;
+      const targetParent = tooltip.offsetParent || container;
+      const rect = targetParent.getBoundingClientRect();
+      const clientX = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
+      if (clientX === undefined || clientY === undefined) return;
+
+      const x = clientX - rect.left + 15;
+      const y = clientY - rect.top + 15;
+      const maxX = Math.max(8, rect.width - 180);
+      const maxY = Math.max(8, rect.height - 110);
+      tooltip.style.left = `${Math.max(8, Math.min(x, maxX))}px`;
+      tooltip.style.top = `${Math.max(8, Math.min(y, maxY))}px`;
+    };
+
+    const onLeave = () => {
+      p.style.stroke = '#ffffff';
+      p.style.strokeWidth = '0.9px';
+      p.style.filter = 'none';
+
+      paths.forEach(other => {
+        other.style.opacity = '1';
+      });
+
+      if (tooltip) tooltip.classList.add('hidden');
+    };
+
+    p.addEventListener('mouseenter', onEnter);
+    p.addEventListener('mousemove', updateTooltipPos);
+    p.addEventListener('mouseleave', onLeave);
+    p.addEventListener('touchstart', onEnter, { passive: true });
+
+    p.addEventListener('click', () => {
+      const name = p.getAttribute('data-name');
+      filterSariwangiByKecamatan(name);
+    });
+  });
+}
+
+function renderSariwangiOutletTable() {
+  const tbody = document.getElementById('sariwangi-outlets-tbody');
+  const countBadge = document.getElementById('sw-outlet-count-badge');
+  const paginationControls = document.getElementById('sw-pagination-controls');
+  const paginationInfo = document.getElementById('sw-pagination-info');
+  if (!tbody || !window.sariwangiState.data) return;
+
+  const allOutlets = window.sariwangiState.data.outlets || [];
+  const { sortField, sortDir, dropsizeFilter, recencyFilter, searchQuery, page, pageSize } = window.sariwangiState.outletTable;
+
+  // 1. Filter Outlets
+  let filtered = allOutlets.filter(o => {
+    // Search filter
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchName = (o.outlet_name || '').toLowerCase().includes(q);
+      const matchId = (o.outlet_id || '').toLowerCase().includes(q);
+      const matchSm = (o.salesman_name || '').toLowerCase().includes(q);
+      const matchKec = (o.kecamatan || '').toLowerCase().includes(q);
+      if (!matchName && !matchId && !matchSm && !matchKec) return false;
+    }
+
+    // Dropsize filter
+    if (dropsizeFilter !== 'all') {
+      const c = o.total_cartons;
+      if (dropsizeFilter === 'under_half' && c >= 0.5) return false;
+      if (dropsizeFilter === 'half_to_one' && (c < 0.5 || c > 1.0)) return false;
+      if (dropsizeFilter === 'over_one' && c <= 1.0) return false;
+      if (dropsizeFilter === 'ge_six' && c < 6.0) return false;
+    }
+
+    // Recency filter
+    if (recencyFilter !== 'all') {
+      if (recencyFilter === 'days' && o.recency_key !== 'days') return false;
+      if (recencyFilter === '1week' && o.recency_key !== '1week') return false;
+      if (recencyFilter === 'gt1week' && o.recency_key !== 'gt1week') return false;
+      if (recencyFilter === 'gt2week' && o.recency_key !== 'gt2week') return false;
+    }
+
+    return true;
+  });
+
+  // 2. Sort Outlets
+  filtered.sort((a, b) => {
+    let valA = a[sortField];
+    let valB = b[sortField];
+    if (typeof valA === 'string') {
+      return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    }
+    return sortDir === 'asc' ? (valA || 0) - (valB || 0) : (valB || 0) - (valA || 0);
+  });
+
+  // 3. Paginate
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+  window.sariwangiState.outletTable.page = currentPage;
+
+  const startIdx = (currentPage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, totalItems);
+  const pagedOutlets = filtered.slice(startIdx, endIdx);
+
+  if (countBadge) {
+    countBadge.textContent = `Menampilkan ${totalItems.toLocaleString('id-ID')} dari ${allOutlets.length.toLocaleString('id-ID')} Toko`;
+  }
+  if (paginationInfo) {
+    paginationInfo.textContent = totalItems > 0 ? `Menampilkan ${startIdx + 1} - ${endIdx} dari ${totalItems}` : 'Tidak ada data';
+  }
+
+  // 4. Render Table Rows
+  if (pagedOutlets.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="10" class="p-8 text-center text-slate-400 italic">
+          <i data-lucide="store" class="w-8 h-8 mx-auto mb-2 opacity-40"></i>
+          Tidak ada outlet SariWangi yang cocok dengan filter yang dipilih
+        </td>
+      </tr>
+    `;
+    lucide.createIcons();
+    return;
+  }
+
+  tbody.innerHTML = pagedOutlets.map((o, idx) => {
+    const rowNum = startIdx + idx + 1;
+    const recencyBadgeClass = o.recency_badge === 'emerald' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                             o.recency_badge === 'blue' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                             o.recency_badge === 'amber' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                             'bg-rose-100 text-rose-800 border-rose-200';
+
+    const dsBadgeClass = o.total_cartons >= 6 ? 'bg-purple-100 text-purple-800 border-purple-200 font-extrabold' :
+                         o.total_cartons > 1 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                         o.total_cartons >= 0.5 ? 'bg-sky-100 text-sky-800 border-sky-200' :
+                         'bg-amber-100 text-amber-800 border-amber-200';
+
+    return `
+      <tr class="hover:bg-slate-50/80 transition">
+        <td class="p-3 text-center text-slate-400 font-mono text-[11px]">${rowNum}</td>
+        
+        <!-- Outlet Name & ID -->
+        <td class="p-3">
+          <p class="font-bold text-slate-900 flex items-center gap-1.5">
+            <span>${escapeHtml(o.outlet_name)}</span>
+            ${o.has_selected_sku ? `<span class="w-2 h-2 rounded-full bg-indigo-500 shrink-0" title="Beli Selected SKU"></span>` : ''}
+          </p>
+          <p class="text-[10px] text-slate-400 font-mono mt-0.5">${escapeHtml(o.outlet_id)}</p>
+        </td>
+
+        <!-- Kecamatan / Rayon -->
+        <td class="p-3">
+          <p class="font-medium text-slate-800">${escapeHtml(o.kecamatan)}</p>
+          <p class="text-[10px] text-slate-400">${escapeHtml(o.rayon)}</p>
+        </td>
+
+        <!-- Salesman -->
+        <td class="p-3 font-medium text-slate-700">
+          ${escapeHtml(o.salesman_name)}
+        </td>
+
+        <!-- SKU Terbeli Breakdown -->
+        <td class="p-3">
+          <div class="flex flex-wrap gap-1 max-w-xs">
+            ${o.skus.slice(0, 3).map(s => `
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${s.is_selected ? 'bg-indigo-50 text-indigo-800 border border-indigo-200/60' : 'bg-slate-100 text-slate-700 border border-slate-200'}">
+                <span class="truncate max-w-[120px]">${escapeHtml(s.item_name.replace('SARIWANGI ', '').replace('SARIMURNI ', ''))}</span>
+                <strong class="font-bold">${s.cartons} ktn</strong>
+              </span>
+            `).join('')}
+            ${o.skus.length > 3 ? `
+              <span class="text-[10px] text-slate-400 font-semibold self-center">+${o.skus.length - 3} SKU</span>
+            ` : ''}
+          </div>
+        </td>
+
+        <!-- Total Volume -->
+        <td class="p-3 text-right">
+          <span class="font-black text-slate-900">${o.total_cartons}</span>
+          <span class="text-[10px] text-slate-500">Ktn</span>
+        </td>
+
+        <!-- Total Omzet -->
+        <td class="p-3 text-right">
+          <span class="font-bold text-emerald-700">Rp ${o.total_netto.toLocaleString('id-ID')}</span>
+          <p class="text-[10px] text-slate-400">${o.order_count}x order</p>
+        </td>
+
+        <!-- Dropsize Category -->
+        <td class="p-3 text-center">
+          <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${dsBadgeClass}">
+            ${escapeHtml(o.dropsize_bracket)}
+          </span>
+        </td>
+
+        <!-- Strata Discount -->
+        <td class="p-3 text-center">
+          <div class="inline-block text-[10px] text-slate-700">
+            ${o.strata?.totalDisc > 0 ? `
+              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-extrabold">
+                ${o.strata.totalDisc}%
+              </span>
+              <p class="text-[9px] text-slate-400 mt-0.5">Reg ${o.strata.regDisc}% + Promo ${o.strata.selDisc}%</p>
+            ` : `
+              <span class="text-slate-400 italic">0%</span>
+            `}
+          </div>
+        </td>
+
+        <!-- Last Day Order & Recency Badge -->
+        <td class="p-3 text-right">
+          <span class="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${recencyBadgeClass} shadow-2xs" title="Tanggal faktur terakhir: ${escapeHtml(o.last_order_date)}">
+            ${escapeHtml(o.recency_label)}
+          </span>
+          <p class="text-[10px] text-slate-400 font-mono mt-0.5">${escapeHtml(o.last_order_date)}</p>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  lucide.createIcons();
+
+  // 5. Render Pagination Controls
+  if (paginationControls) {
+    let pagesHtml = '';
+    const maxButtons = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+    if (endPage - startPage + 1 < maxButtons) {
+      startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    pagesHtml += `
+      <button onclick="changeSariwangiPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-100"'} class="px-2 py-1 rounded border border-slate-200 text-slate-600">
+        <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+      </button>
+    `;
+
+    for (let p = startPage; p <= endPage; p++) {
+      pagesHtml += `
+        <button onclick="changeSariwangiPage(${p})" class="px-2.5 py-1 rounded text-xs font-semibold ${p === currentPage ? 'bg-emerald-600 text-white shadow-xs' : 'border border-slate-200 text-slate-700 hover:bg-slate-100'}">
+          ${p}
+        </button>
+      `;
+    }
+
+    pagesHtml += `
+      <button onclick="changeSariwangiPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-100"'} class="px-2 py-1 rounded border border-slate-200 text-slate-600">
+        <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+      </button>
+    `;
+
+    paginationControls.innerHTML = pagesHtml;
+    lucide.createIcons();
+  }
+}
+
+// Event Handlers for SariWangi
+function applySariwangiFilters() {
+  const smSelect = document.getElementById('filter-sw-salesman');
+  const rySelect = document.getElementById('filter-sw-rayon');
+  const kcSelect = document.getElementById('filter-sw-kecamatan');
+  const searchInput = document.getElementById('filter-sw-search');
+
+  if (smSelect) window.sariwangiState.filters.salesman = smSelect.value;
+  if (rySelect) window.sariwangiState.filters.rayon = rySelect.value;
+  if (kcSelect) window.sariwangiState.filters.kecamatan = kcSelect.value;
+  if (searchInput) window.sariwangiState.filters.search = searchInput.value.trim();
+
+  renderSariwangiAnalytics();
+}
+
+function resetSariwangiFilters() {
+  window.sariwangiState.filters = {
+    salesman: '',
+    rayon: '',
+    kecamatan: '',
+    skuType: 'ALL',
+    search: ''
+  };
+  window.sariwangiState.outletTable.dropsizeFilter = 'all';
+  window.sariwangiState.outletTable.recencyFilter = 'all';
+  window.sariwangiState.outletTable.searchQuery = '';
+  window.sariwangiState.outletTable.page = 1;
+  renderSariwangiAnalytics();
+}
+
+function setSariwangiSkuType(skuType) {
+  window.sariwangiState.filters.skuType = skuType;
+  renderSariwangiAnalytics();
+}
+
+function filterSariwangiByKecamatan(kecName) {
+  const kcSelect = document.getElementById('filter-sw-kecamatan');
+  if (kcSelect) {
+    for (let i = 0; i < kcSelect.options.length; i++) {
+      if (cleanKecName(kcSelect.options[i].text).includes(cleanKecName(kecName)) || cleanKecName(kecName).includes(cleanKecName(kcSelect.options[i].text))) {
+        kcSelect.selectedIndex = i;
+        break;
+      }
+    }
+  }
+  window.sariwangiState.filters.kecamatan = kecName;
+  applySariwangiFilters();
+}
+
+function filterSariwangiOutletsByDropsize(bracket) {
+  window.sariwangiState.outletTable.dropsizeFilter = bracket;
+  window.sariwangiState.outletTable.page = 1;
+
+  ['all', 'under_half', 'half_to_one', 'over_one', 'ge_six'].forEach(b => {
+    const btn = document.getElementById(`btn-sw-ds-${b}`);
+    if (btn) {
+      if (b === bracket) {
+        btn.className = 'px-2.5 py-1 rounded-md font-bold transition bg-emerald-600 text-white shadow-xs';
+      } else {
+        btn.className = 'px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200';
+      }
+    }
+  });
+
+  renderSariwangiOutletTable();
+}
+
+function filterSariwangiOutletsByRecency(recency) {
+  window.sariwangiState.outletTable.recencyFilter = recency;
+  window.sariwangiState.outletTable.page = 1;
+
+  ['all', 'days', '1week', 'gt1week', 'gt2week'].forEach(r => {
+    const btn = document.getElementById(`btn-sw-rc-${r}`);
+    if (btn) {
+      if (r === recency) {
+        btn.className = 'px-2.5 py-1 rounded-md font-bold transition bg-emerald-600 text-white shadow-xs';
+      } else {
+        btn.className = 'px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200';
+      }
+    }
+  });
+
+  renderSariwangiOutletTable();
+}
+
+function handleSariwangiOutletSearch(query) {
+  window.sariwangiState.outletTable.searchQuery = query.trim();
+  window.sariwangiState.outletTable.page = 1;
+  renderSariwangiOutletTable();
+}
+
+function sortSariwangiOutlets(field) {
+  const table = window.sariwangiState.outletTable;
+  if (table.sortField === field) {
+    table.sortDir = table.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    table.sortField = field;
+    table.sortDir = 'desc';
+  }
+  renderSariwangiOutletTable();
+}
+
+function changeSariwangiPage(page) {
+  window.sariwangiState.outletTable.page = page;
+  renderSariwangiOutletTable();
+  const el = document.getElementById('sariwangi-outlets-tbody');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function changeSariwangiPageSize(size) {
+  window.sariwangiState.outletTable.pageSize = parseInt(size, 10) || 25;
+  window.sariwangiState.outletTable.page = 1;
+  renderSariwangiOutletTable();
+}
+
+function exportSariwangiCsv() {
+  const params = new URLSearchParams();
+  if (window.sariwangiState.filters.salesman) params.set('salesman', window.sariwangiState.filters.salesman);
+  if (window.sariwangiState.filters.rayon) params.set('rayon', window.sariwangiState.filters.rayon);
+  if (window.sariwangiState.filters.kecamatan) params.set('kecamatan', window.sariwangiState.filters.kecamatan);
+  if (window.sariwangiState.filters.skuType && window.sariwangiState.filters.skuType !== 'ALL') params.set('skuType', window.sariwangiState.filters.skuType);
+  if (window.sariwangiState.filters.search) params.set('search', window.sariwangiState.filters.search);
+
+  window.location.href = `/api/analytics/sariwangi/export?${params.toString()}`;
 }

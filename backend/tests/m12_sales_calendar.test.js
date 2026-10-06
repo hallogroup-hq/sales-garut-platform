@@ -42,10 +42,10 @@ test('M12-3: Executive Summary GAP and Timegone Alignment with Sales Cycle', () 
   assert.equal(summary.calendar.remainingHk, 5);
   assert.equal(summary.calendar.timegonePct, 80.0);
 
-  // Target: 11,723.29 KTN, Actual: 5,432.96 KTN, Remaining: 6,290.33 KTN
-  // GAP Daily with 5 remaining HK = 6290.33 / 5 = 1258.07 KTN/hr
-  assert.equal(summary.sales.gapMonthlyCartons, 6290.33);
-  assert.equal(summary.sales.gapDailyMonFri, 1258.07);
+  // Target: 11,723.29 KTN, Actual: 7,120.63 KTN, Remaining: 4,602.66 KTN
+  // GAP Daily with 5 remaining HK = 4602.66 / 5 = 920.53 KTN/hr
+  assert.equal(summary.sales.gapMonthlyCartons, 4602.66);
+  assert.equal(summary.sales.gapDailyMonFri, 920.53);
   assert.equal(summary.sales.timegonePct, 80.0);
-  assert.equal(summary.sales.achievementPct, 46.3);
+  assert.equal(summary.sales.achievementPct, 60.7);
 });

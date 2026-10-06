@@ -22,6 +22,7 @@ const {
 } = require('../services/importEngine.js');
 const { getMovementAnalytics, exportMovementCsv } = require('../services/trendEngine.js');
 const { DISCOUNT_STRATA_RULES, classifyItem, getDiscountForQty, isSariwangiSelectedSku } = require('../services/discountStrata.js');
+const { getSariwangiAnalytics } = require('../services/sariwangiService.js');
 const { getAuditLogs, logAudit } = require('../middleware/audit.js');
 const { authenticateUser, getAuthUser, requireSuperAdmin } = require('../middleware/auth.js');
 const XLSX = require('xlsx');
@@ -2836,6 +2837,89 @@ router.get('/pricelist/export', (req, res) => {
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="PRICELIST_GARUT_${Date.now()}.csv"`);
+    res.send(rows.join('\r\n'));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 12. SARIWANGI DEDICATED ANALYTICS
+// ==========================================
+router.get('/analytics/sariwangi', (req, res) => {
+  try {
+    const db = getDb();
+    const data = getSariwangiAnalytics(db, req.query);
+    res.json({
+      success: true,
+      ...data
+    });
+  } catch (err) {
+    console.error('Error fetching SariWangi analytics:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/analytics/sariwangi/export', (req, res) => {
+  try {
+    const db = getDb();
+    const data = getSariwangiAnalytics(db, req.query);
+    const outlets = data.outlets || [];
+
+    const headers = [
+      'Outlet ID',
+      'Nama Toko / Outlet',
+      'Kecamatan',
+      'Rayon',
+      'Salesman',
+      'Total Karton',
+      'Total Omzet Netto (Rp)',
+      'Total Order (OC)',
+      'Rata-rata Dropsize (Ktn/OC)',
+      'Kategori Dropsize',
+      'SKU Terbeli',
+      'Tanggal Order Terakhir',
+      'Recency Order',
+      'Diskon Reguler (%)',
+      'Diskon Promo Selected GT (%)',
+      'Total Diskon Strata (%)',
+      'Saran Upsell Promo'
+    ];
+
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = [headers.join(',')];
+    outlets.forEach(o => {
+      rows.push([
+        escapeCsv(o.outlet_id),
+        escapeCsv(o.outlet_name),
+        escapeCsv(o.kecamatan),
+        escapeCsv(o.rayon),
+        escapeCsv(o.salesman_name),
+        escapeCsv(o.total_cartons),
+        escapeCsv(o.total_netto),
+        escapeCsv(o.order_count),
+        escapeCsv(o.avg_dropsize),
+        escapeCsv(o.dropsize_bracket),
+        escapeCsv(o.primary_sku_text),
+        escapeCsv(o.last_order_date),
+        escapeCsv(o.recency_label),
+        escapeCsv(o.strata?.regDisc ? `${o.strata.regDisc}%` : '0%'),
+        escapeCsv(o.strata?.selDisc ? `${o.strata.selDisc}%` : '0%'),
+        escapeCsv(o.strata?.totalDisc ? `${o.strata.totalDisc}%` : '0%'),
+        escapeCsv(o.strata?.upsellTip || '-')
+      ].join(','));
+    });
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="ANALITIK_SARIWANGI_GARUT_${Date.now()}.csv"`);
     res.send(rows.join('\r\n'));
   } catch (err) {
     res.status(500).json({ error: err.message });

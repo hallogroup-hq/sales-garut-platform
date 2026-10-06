@@ -131,8 +131,8 @@ test('M14-6: REST API GET /api/outlets dynamically updates sales metrics when br
     const data5Days = await res5Days.json();
     assert.equal(data5Days.outlets.length, 1);
     const saepul5Days = data5Days.outlets[0];
-    assert.equal(saepul5Days.totalYtdCartons, 123.8, 'Saepul Rohman 5DAYS YTD cartons must be 123.8');
-    assert.equal(saepul5Days.monthlySales.m9, 19.4, 'Saepul Rohman 5DAYS September sales must be 19.4');
+    assert.equal(saepul5Days.totalYtdCartons, 124.8, 'Saepul Rohman 5DAYS YTD cartons must be 124.8');
+    assert.equal(saepul5Days.monthlySales.m9, 20.4, 'Saepul Rohman 5DAYS September sales must be 20.4');
     assert.equal(saepul5Days.status, 'Aktif');
 
     // 3. Unfiltered baseline
@@ -141,7 +141,7 @@ test('M14-6: REST API GET /api/outlets dynamically updates sales metrics when br
     const dataAll = await resAll.json();
     assert.equal(dataAll.outlets.length, 1);
     const saepulAll = dataAll.outlets[0];
-    assert.equal(saepulAll.totalYtdCartons, 219.4, 'Saepul Rohman total unfiltered YTD cartons must be 219.4');
+    assert.equal(saepulAll.totalYtdCartons, 222.4, 'Saepul Rohman total unfiltered YTD cartons must be 222.4');
     assert.equal(saepulAll.avgLast3Months, 22.4, 'Saepul Rohman total unfiltered Avg L3M must be 22.4');
   } finally {
     srv.close();

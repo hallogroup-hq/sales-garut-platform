@@ -35,15 +35,16 @@ function parseIndonesianNumber(val) {
 
 function parseDate(val) {
   if (!val) return null;
-  if (typeof val === 'number') {
-    const d = new Date((val - 25569) * 86400 * 1000);
+  const num = typeof val === 'number' ? val : (String(val).trim().match(/^\d+(\.\d+)?$/) ? parseFloat(val) : NaN);
+  if (!isNaN(num) && num > 30000 && num < 60000) {
+    const d = new Date(Math.round((num - 25569) * 86400 * 1000));
     return d.toISOString().split('T')[0];
   }
   const s = String(val).trim();
   if (s.includes('/')) {
-    const [d, m, y] = s.split('/');
-    if (d && m && y) {
-      return `${y.padStart(4, '20')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    const parts = s.split('/');
+    if (parts.length === 3) {
+      return `${parts[2].padStart(4, '20')}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
     }
   }
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
