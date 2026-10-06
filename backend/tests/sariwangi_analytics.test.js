@@ -112,7 +112,28 @@ test('SariWangi Analytics — Unit & Integration Test Suite', async (t) => {
       assert.equal(jsonSm.summary.totalOA, 147, 'Mulyana has 147 transacting outlets');
       jsonSm.outlets.forEach(o => assert.equal(o.salesman_name, 'Mulyana'));
 
-      // 4. CSV Export
+      // 4. Filter by Hero SKU = TB288
+      const resTb288 = await fetch(`http://localhost:${port}/api/analytics/sariwangi?skuType=TB288`);
+      assert.equal(resTb288.status, 200);
+      const jsonTb288 = await resTb288.json();
+      assert.equal(jsonTb288.success, true);
+      assert.ok(jsonTb288.summary.totalNetto > 90000000 && jsonTb288.summary.totalNetto < 93000000, 'Hero SKU TB288 must equal ~91.8M (reconciles user manual pull)');
+
+      // 5. Filter by Period = 2026-09 (September)
+      const resSep = await fetch(`http://localhost:${port}/api/analytics/sariwangi?period=2026-09`);
+      assert.equal(resSep.status, 200);
+      const jsonSep = await resSep.json();
+      assert.equal(jsonSep.success, true);
+      assert.ok(jsonSep.summary.totalNetto > 140000000 && jsonSep.summary.totalNetto < 142000000, 'September 2026 total netto must equal ~140.8M');
+
+      // 6. Case-insensitive kecamatan filter (TAROGONG KIDUL)
+      const resKecUpper = await fetch(`http://localhost:${port}/api/analytics/sariwangi?kecamatan=TAROGONG%20KIDUL`);
+      assert.equal(resKecUpper.status, 200);
+      const jsonKecUpper = await resKecUpper.json();
+      assert.equal(jsonKecUpper.success, true);
+      assert.equal(jsonKecUpper.summary.totalOA, 151, 'Case-insensitive Tarogong Kidul must return 151 OA');
+
+      // 7. CSV Export
       const resCsv = await fetch(`http://localhost:${port}/api/analytics/sariwangi/export`);
       assert.equal(resCsv.status, 200);
       assert.ok(resCsv.headers.get('content-type').includes('text/csv'));

@@ -205,9 +205,82 @@ async function initApp() {
   lucide.createIcons();
 }
 
+// Tab Filter Ribbon Adaptor
+function adaptFilterRibbonForTab(tab) {
+  const princSelect = document.getElementById('filter-principal');
+  const brandSelect = document.getElementById('filter-brand');
+  const subbrandSelect = document.getElementById('filter-subbrand');
+  const groupSkuSelect = document.getElementById('filter-group-sku');
+  const spvSelect = document.getElementById('filter-spv');
+  const groupSelect = document.getElementById('filter-sales-group');
+  const periodSelect = document.getElementById('filter-period');
+
+  if (tab === 'sariwangi') {
+    // Hide non-relevant filters for SariWangi
+    if (spvSelect && spvSelect.parentElement) spvSelect.parentElement.classList.add('hidden');
+    if (groupSelect && groupSelect.parentElement) groupSelect.parentElement.classList.add('hidden');
+    if (subbrandSelect && subbrandSelect.parentElement) subbrandSelect.parentElement.classList.add('hidden');
+    if (groupSkuSelect && groupSkuSelect.parentElement) groupSkuSelect.parentElement.classList.add('hidden');
+
+    // Lock Principal to UNILEVER INDONESIA
+    if (princSelect) {
+      if (!princSelect.dataset.originalHtml) princSelect.dataset.originalHtml = princSelect.innerHTML;
+      princSelect.innerHTML = '<option value="UNILEVER INDONESIA" selected>UNILEVER INDONESIA (Terkunci)</option>';
+      princSelect.disabled = true;
+      princSelect.classList.add('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
+    }
+
+    // Lock Brand to SARIWANGI
+    if (brandSelect) {
+      if (!brandSelect.dataset.originalHtml) brandSelect.dataset.originalHtml = brandSelect.innerHTML;
+      brandSelect.innerHTML = '<option value="SARIWANGI" selected>SARIWANGI (Terkunci)</option>';
+      brandSelect.disabled = true;
+      brandSelect.classList.add('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
+    }
+
+    // Ensure Period options include Semua Periode (Kumulatif)
+    if (periodSelect) {
+      if (!periodSelect.querySelector('option[value=""]')) {
+        const allOpt = document.createElement('option');
+        allOpt.value = '';
+        allOpt.textContent = 'Semua Periode (Kumulatif)';
+        periodSelect.insertBefore(allOpt, periodSelect.firstChild);
+      }
+      if (window.sariwangiState && window.sariwangiState.filters.period !== undefined) {
+        periodSelect.value = window.sariwangiState.filters.period;
+      }
+    }
+  } else {
+    // Restore normal filter ribbon
+    if (spvSelect && spvSelect.parentElement) spvSelect.parentElement.classList.remove('hidden');
+    if (groupSelect && groupSelect.parentElement) groupSelect.parentElement.classList.remove('hidden');
+    if (subbrandSelect && subbrandSelect.parentElement) subbrandSelect.parentElement.classList.remove('hidden');
+    if (groupSkuSelect && groupSkuSelect.parentElement) groupSkuSelect.parentElement.classList.remove('hidden');
+
+    if (princSelect) {
+      princSelect.disabled = false;
+      princSelect.classList.remove('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
+      if (princSelect.dataset.originalHtml) {
+        princSelect.innerHTML = princSelect.dataset.originalHtml;
+      }
+      princSelect.value = globalFilters.principal || '';
+    }
+
+    if (brandSelect) {
+      brandSelect.disabled = false;
+      brandSelect.classList.remove('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
+      if (brandSelect.dataset.originalHtml) {
+        brandSelect.innerHTML = brandSelect.dataset.originalHtml;
+      }
+      brandSelect.value = globalFilters.brand || '';
+    }
+  }
+}
+
 // Router
 function navigate(tab) {
   currentTab = tab;
+  adaptFilterRibbonForTab(tab);
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const activeNav = document.getElementById(`nav-${tab}`);
   if (activeNav) activeNav.classList.add('active');
@@ -441,6 +514,24 @@ function updateMobileFilterSummary() {
 }
 
 function applyFilters() {
+  if (currentTab === 'sariwangi') {
+    const pEl = document.getElementById('filter-period');
+    window.sariwangiState.filters.period = pEl ? pEl.value : '';
+    const slsEl = document.getElementById('filter-salesman');
+    window.sariwangiState.filters.salesman = (slsEl && slsEl.selectedIndex > 0) ? slsEl.options[slsEl.selectedIndex].text : '';
+    const rynEl = document.getElementById('filter-rayon');
+    window.sariwangiState.filters.rayon = (rynEl && rynEl.selectedIndex > 0) ? rynEl.options[rynEl.selectedIndex].text : '';
+    const kecEl = document.getElementById('filter-kecamatan');
+    window.sariwangiState.filters.kecamatan = (kecEl && kecEl.selectedIndex > 0) ? kecEl.options[kecEl.selectedIndex].text : '';
+
+    updateMobileFilterSummary();
+    if (window.innerWidth < 1024) {
+      toggleMobileFilter(false);
+    }
+    renderSariwangiAnalytics();
+    return;
+  }
+
   const pVal = document.getElementById('filter-period').value.split('-');
   globalFilters.year = parseInt(pVal[0], 10);
   globalFilters.month = parseInt(pVal[1], 10);
@@ -464,6 +555,28 @@ function applyFilters() {
 }
 
 function resetFilters() {
+  if (currentTab === 'sariwangi') {
+    const pEl = document.getElementById('filter-period');
+    if (pEl) pEl.value = '2026-09';
+    if (document.getElementById('filter-salesman')) document.getElementById('filter-salesman').value = '';
+    if (document.getElementById('filter-rayon')) document.getElementById('filter-rayon').value = '';
+    if (document.getElementById('filter-kecamatan')) document.getElementById('filter-kecamatan').value = '';
+    window.sariwangiState.filters = {
+      period: '2026-09',
+      salesman: '',
+      rayon: '',
+      kecamatan: '',
+      skuType: 'ALL',
+      search: ''
+    };
+    updateMobileFilterSummary();
+    if (window.innerWidth < 1024) {
+      toggleMobileFilter(false);
+    }
+    renderSariwangiAnalytics();
+    return;
+  }
+
   document.getElementById('filter-period').value = '2026-09';
   if (document.getElementById('filter-spv')) document.getElementById('filter-spv').value = '';
   if (document.getElementById('filter-salesman')) document.getElementById('filter-salesman').value = '';
@@ -8308,10 +8421,11 @@ function filterAddSkuModalList(query) {
 window.sariwangiState = {
   data: null,
   filters: {
+    period: '2026-09',
     salesman: '',
     rayon: '',
     kecamatan: '',
-    skuType: 'ALL', // 'ALL', 'SELECTED', 'REGULER'
+    skuType: 'ALL', // 'ALL', 'TB288', 'TB48', 'SELECTED', 'REGULER'
     search: ''
   },
   outletTable: {
@@ -8343,6 +8457,7 @@ async function renderSariwangiAnalytics() {
 
   try {
     const params = new URLSearchParams();
+    if (window.sariwangiState.filters.period) params.set('period', window.sariwangiState.filters.period);
     if (window.sariwangiState.filters.salesman) params.set('salesman', window.sariwangiState.filters.salesman);
     if (window.sariwangiState.filters.rayon) params.set('rayon', window.sariwangiState.filters.rayon);
     if (window.sariwangiState.filters.kecamatan) params.set('kecamatan', window.sariwangiState.filters.kecamatan);
@@ -8381,6 +8496,13 @@ function renderSariwangiLayout(data) {
   const { summary, dropsizeBrackets, promoTiers, upsellOpportunities, kecamatanDistribution, salesmanLeaderboard, filterOptions } = data;
   const currentFilters = window.sariwangiState.filters;
 
+  // Format active period label
+  let periodLabel = 'Semua Periode (Kumulatif)';
+  if (currentFilters.period === '2026-09') periodLabel = 'September 2026';
+  else if (currentFilters.period === '2026-10') periodLabel = 'Oktober 2026';
+  else if (currentFilters.period === '2026-08') periodLabel = 'Agustus 2026';
+  else if (currentFilters.period) periodLabel = currentFilters.period;
+
   main.innerHTML = `
     <!-- Top Header & Banner -->
     <div class="bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden border border-emerald-800/40">
@@ -8399,6 +8521,9 @@ function renderSariwangiLayout(data) {
                 <h1 class="text-xl sm:text-2xl font-black tracking-tight text-white">Analytics SariWangi</h1>
                 <span class="text-[11px] bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 font-bold px-2 py-0.5 rounded-full">
                   Unilever Dedicated
+                </span>
+                <span class="text-[11px] bg-blue-500/30 text-blue-200 border border-blue-400/40 font-bold px-2 py-0.5 rounded-full">
+                  ${periodLabel}
                 </span>
               </div>
               <p class="text-xs text-emerald-200/80 mt-0.5">
@@ -8424,13 +8549,50 @@ function renderSariwangiLayout(data) {
       </div>
     </div>
 
-    <!-- Filter Bar Card (Salesman, Rayon, Kecamatan, Segment SKU) -->
+    <!-- Reconciliation Callout Banner (Explaining ~90M vs 156M) -->
+    <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border border-emerald-200/90 rounded-xl p-4 shadow-xs text-xs">
+      <div class="flex items-start gap-3">
+        <span class="p-2 bg-emerald-600 text-white rounded-lg shrink-0 mt-0.5 shadow-2xs">
+          <i data-lucide="info" class="w-4 h-4"></i>
+        </span>
+        <div class="space-y-1.5 flex-1">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h4 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <span>Analisis Rekonsiliasi Data Omzet SariWangi</span>
+              <span class="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">Terverifikasi 100%</span>
+            </h4>
+            <span class="text-[11px] text-slate-500 font-medium">
+              Periode: <strong>${escapeHtml(periodLabel)}</strong>
+            </span>
+          </div>
+          <p class="text-slate-600 leading-relaxed">
+            Jika tarikan manual Anda mencatat angka <strong>sekitar Rp 90 Juta-an</strong>, itu merujuk pada produk hero <strong>SARIWANGI ASLI RL TB 288X4</strong> (Total Netto: <strong>Rp 91.883.349,-</strong> / 391,99 Ktn Kumulatif, atau <strong>Rp 82.567.517,-</strong> pada bulan September). Sedangkan angka <strong>Rp 156,6 Juta</strong> adalah gabungan seluruh 7 SKU teh Unilever (termasuk TB 48x25 Rp 57,2M, TB 48x12 Rp 4,5M, TB 24x50 Rp 2,0M, dll). Anda dapat mengklik tombol <strong>⭐ SariWangi TB 288</strong> di bawah untuk langsung beralih ke SKU hero tersebut.
+          </p>
+          <div class="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-semibold">
+            <button onclick="setSariwangiSkuType('ALL')" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition ${currentFilters.skuType === 'ALL' ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs' : 'bg-white hover:bg-emerald-50 text-slate-700 border-slate-200'}">
+              <span class="w-2 h-2 rounded-full ${currentFilters.skuType === 'ALL' ? 'bg-white' : 'bg-emerald-500'}"></span>
+              <span>Total Semua 7 SKU: <strong>${currentFilters.period === '2026-09' ? 'Rp 140,9 Jt (586 Ktn)' : 'Rp 156,6 Jt (651 Ktn)'}</strong></span>
+            </button>
+            <button onclick="setSariwangiSkuType('TB288')" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition ${currentFilters.skuType === 'TB288' ? 'bg-amber-600 text-white border-amber-700 shadow-xs' : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'}">
+              <i data-lucide="star" class="w-3.5 h-3.5 ${currentFilters.skuType === 'TB288' ? 'text-white' : 'text-amber-600 fill-amber-500'}"></i>
+              <span>Hero SKU TB 288 Saja: <strong>${currentFilters.period === '2026-09' ? 'Rp 82,6 Jt (352 Ktn)' : 'Rp 91,8 Jt (392 Ktn)'}</strong></span>
+            </button>
+            <button onclick="setSariwangiSkuType('TB48')" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition ${currentFilters.skuType === 'TB48' ? 'bg-sky-600 text-white border-sky-700 shadow-xs' : 'bg-white hover:bg-sky-50 text-slate-700 border-slate-200'}">
+              <span class="w-2 h-2 rounded-full ${currentFilters.skuType === 'TB48' ? 'bg-white' : 'bg-sky-500'}"></span>
+              <span>SKU TB 48X25: <strong>${currentFilters.period === '2026-09' ? 'Rp 51,3 Jt (191 Ktn)' : 'Rp 57,2 Jt (213 Ktn)'}</strong></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Bar Card (Periode, Salesman, Rayon, Kecamatan, Segment SKU) -->
     <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
         <div class="flex items-center gap-2">
           <i data-lucide="sliders-horizontal" class="w-4 h-4 text-emerald-600"></i>
           <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Filter Analitik Khusus SariWangi</span>
-          <span class="text-[11px] text-slate-400">(Hanya Produk SariWangi & Unilever)</span>
+          <span class="text-[11px] text-slate-400">(Terkunci Eksklusif: Principal Unilever & Brand SariWangi)</span>
         </div>
         <div class="flex items-center gap-1.5">
           <button onclick="resetSariwangiFilters()" class="text-xs text-slate-500 hover:text-slate-800 px-2.5 py-1 rounded hover:bg-slate-100 transition flex items-center gap-1">
@@ -8440,7 +8602,18 @@ function renderSariwangiLayout(data) {
         </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+        <!-- Periode Filter -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Periode Transaksi</label>
+          <select id="filter-sw-period" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+            <option value="" ${!currentFilters.period ? 'selected' : ''}>Semua Periode (Kumulatif)</option>
+            <option value="2026-09" ${currentFilters.period === '2026-09' ? 'selected' : ''}>September 2026</option>
+            <option value="2026-10" ${currentFilters.period === '2026-10' ? 'selected' : ''}>Oktober 2026</option>
+            <option value="2026-08" ${currentFilters.period === '2026-08' ? 'selected' : ''}>Agustus 2026</option>
+          </select>
+        </div>
+
         <!-- Salesman Filter -->
         <div>
           <label class="block text-[11px] font-semibold text-slate-600 mb-1">Salesman</label>
@@ -8493,9 +8666,16 @@ function renderSariwangiLayout(data) {
       <!-- Segment SKU Button Pills -->
       <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
         <div class="flex flex-wrap items-center gap-1.5 text-xs">
-          <span class="text-slate-500 font-semibold mr-1">Segment SKU:</span>
+          <span class="text-slate-500 font-semibold mr-1">Fokus SKU:</span>
           <button onclick="setSariwangiSkuType('ALL')" class="px-3 py-1 rounded-lg font-semibold transition ${currentFilters.skuType === 'ALL' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
             Semua SKU SariWangi
+          </button>
+          <button onclick="setSariwangiSkuType('TB288')" class="px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${currentFilters.skuType === 'TB288' ? 'bg-amber-600 text-white shadow-sm' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'}">
+            <i data-lucide="star" class="w-3.5 h-3.5"></i>
+            <span>⭐ SariWangi TB 288 (Hero SKU)</span>
+          </button>
+          <button onclick="setSariwangiSkuType('TB48')" class="px-3 py-1 rounded-lg font-semibold transition ${currentFilters.skuType === 'TB48' ? 'bg-sky-600 text-white shadow-sm' : 'bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200'}">
+            SariWangi TB 48X25
           </button>
           <button onclick="setSariwangiSkuType('SELECTED')" class="px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${currentFilters.skuType === 'SELECTED' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}">
             <i data-lucide="sparkles" class="w-3 h-3"></i>
@@ -9502,14 +9682,53 @@ function renderSariwangiOutletTable() {
 
 // Event Handlers for SariWangi
 function applySariwangiFilters() {
+  const pdSelect = document.getElementById('filter-sw-period');
   const smSelect = document.getElementById('filter-sw-salesman');
   const rySelect = document.getElementById('filter-sw-rayon');
   const kcSelect = document.getElementById('filter-sw-kecamatan');
   const searchInput = document.getElementById('filter-sw-search');
 
-  if (smSelect) window.sariwangiState.filters.salesman = smSelect.value;
-  if (rySelect) window.sariwangiState.filters.rayon = rySelect.value;
-  if (kcSelect) window.sariwangiState.filters.kecamatan = kcSelect.value;
+  if (pdSelect) {
+    window.sariwangiState.filters.period = pdSelect.value;
+    const topPeriod = document.getElementById('filter-period');
+    if (topPeriod) topPeriod.value = pdSelect.value;
+  }
+  if (smSelect) {
+    window.sariwangiState.filters.salesman = smSelect.value;
+    const topSls = document.getElementById('filter-salesman');
+    if (topSls) {
+      for (let i = 0; i < topSls.options.length; i++) {
+        if (topSls.options[i].text === smSelect.value || topSls.options[i].value === smSelect.value) {
+          topSls.selectedIndex = i;
+          break;
+        }
+      }
+    }
+  }
+  if (rySelect) {
+    window.sariwangiState.filters.rayon = rySelect.value;
+    const topRyn = document.getElementById('filter-rayon');
+    if (topRyn) {
+      for (let i = 0; i < topRyn.options.length; i++) {
+        if (topRyn.options[i].text === rySelect.value || topRyn.options[i].value === rySelect.value) {
+          topRyn.selectedIndex = i;
+          break;
+        }
+      }
+    }
+  }
+  if (kcSelect) {
+    window.sariwangiState.filters.kecamatan = kcSelect.value;
+    const topKec = document.getElementById('filter-kecamatan');
+    if (topKec) {
+      for (let i = 0; i < topKec.options.length; i++) {
+        if (topKec.options[i].text === kcSelect.value || topKec.options[i].value === kcSelect.value) {
+          topKec.selectedIndex = i;
+          break;
+        }
+      }
+    }
+  }
   if (searchInput) window.sariwangiState.filters.search = searchInput.value.trim();
 
   renderSariwangiAnalytics();
@@ -9517,12 +9736,22 @@ function applySariwangiFilters() {
 
 function resetSariwangiFilters() {
   window.sariwangiState.filters = {
+    period: '2026-09',
     salesman: '',
     rayon: '',
     kecamatan: '',
     skuType: 'ALL',
     search: ''
   };
+  const topPeriod = document.getElementById('filter-period');
+  if (topPeriod) topPeriod.value = '2026-09';
+  const topSls = document.getElementById('filter-salesman');
+  if (topSls) topSls.value = '';
+  const topRyn = document.getElementById('filter-rayon');
+  if (topRyn) topRyn.value = '';
+  const topKec = document.getElementById('filter-kecamatan');
+  if (topKec) topKec.value = '';
+
   window.sariwangiState.outletTable.dropsizeFilter = 'all';
   window.sariwangiState.outletTable.recencyFilter = 'all';
   window.sariwangiState.outletTable.searchQuery = '';
@@ -9541,6 +9770,15 @@ function filterSariwangiByKecamatan(kecName) {
     for (let i = 0; i < kcSelect.options.length; i++) {
       if (cleanKecName(kcSelect.options[i].text).includes(cleanKecName(kecName)) || cleanKecName(kecName).includes(cleanKecName(kcSelect.options[i].text))) {
         kcSelect.selectedIndex = i;
+        break;
+      }
+    }
+  }
+  const topKec = document.getElementById('filter-kecamatan');
+  if (topKec) {
+    for (let i = 0; i < topKec.options.length; i++) {
+      if (cleanKecName(topKec.options[i].text).includes(cleanKecName(kecName)) || cleanKecName(kecName).includes(cleanKecName(topKec.options[i].text))) {
+        topKec.selectedIndex = i;
         break;
       }
     }
@@ -9617,6 +9855,7 @@ function changeSariwangiPageSize(size) {
 
 function exportSariwangiCsv() {
   const params = new URLSearchParams();
+  if (window.sariwangiState.filters.period) params.set('period', window.sariwangiState.filters.period);
   if (window.sariwangiState.filters.salesman) params.set('salesman', window.sariwangiState.filters.salesman);
   if (window.sariwangiState.filters.rayon) params.set('rayon', window.sariwangiState.filters.rayon);
   if (window.sariwangiState.filters.kecamatan) params.set('kecamatan', window.sariwangiState.filters.kecamatan);

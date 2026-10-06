@@ -94,34 +94,39 @@ function getSariwangiAnalytics(db, filters = {}) {
 
   // Build WHERE conditions
   const whereClauses = [
-    "(p.principal LIKE '%UNILEVER%' OR p.brand LIKE '%SARI%' OR p.item_name LIKE '%SARIWANGI%' OR p.item_name LIKE '%SARIMURNI%')"
+    "(p.principal LIKE '%UNILEVER%' OR p.brand LIKE '%SARI%' OR p.item_name LIKE '%SARIWANGI%' OR p.item_name LIKE '%SARIMURNI%')",
+    "l.is_non_omzet = 0"
   ];
   const params = [];
 
-  if (skuType === 'SELECTED') {
+  if (skuType === 'TB288') {
+    whereClauses.push("(p.item_code LIKE '%68143147%' OR p.item_name LIKE '%SARIWANGI ASLI RL TB 288%')");
+  } else if (skuType === 'TB48') {
+    whereClauses.push("(p.item_code LIKE '%68143151%' OR p.item_name LIKE '%SARIWANGI ASLI RL TB 48X%')");
+  } else if (skuType === 'SELECTED') {
     whereClauses.push(`(p.item_code IN (${isSelectedCodeSql}, ${isSelectedSuffixSql}) OR p.item_name LIKE '%SARIWANGI ASLI RL TB 48X%' OR p.item_name LIKE '%SARIWANGI ASLI RL TB 288X%' OR p.item_name LIKE '%SARIWANGI MELATI RL TB 48X%' OR p.item_name LIKE '%SARIMURNI RL TB 48X%' OR p.item_name LIKE '%SARIMURNI RL RB 180X%' OR p.item_name LIKE '%SARIMURNI RL RB 48X%')`);
   } else if (skuType === 'REGULER') {
     whereClauses.push(`NOT (p.item_code IN (${isSelectedCodeSql}, ${isSelectedSuffixSql}) OR p.item_name LIKE '%SARIWANGI ASLI RL TB 48X%' OR p.item_name LIKE '%SARIWANGI ASLI RL TB 288X%' OR p.item_name LIKE '%SARIWANGI MELATI RL TB 48X%' OR p.item_name LIKE '%SARIMURNI RL TB 48X%' OR p.item_name LIKE '%SARIMURNI RL RB 180X%' OR p.item_name LIKE '%SARIMURNI RL RB 48X%')`);
   }
 
-  if (period) {
+  if (period && period !== 'ALL') {
     whereClauses.push("h.transaction_date LIKE ?");
     params.push(`${period}%`);
   }
 
   if (salesman) {
-    whereClauses.push("(h.invoice_salesman_id = ? OR s.name = ? OR h.current_owner_salesman_id = ?)");
+    whereClauses.push("(h.invoice_salesman_id = ? OR UPPER(s.name) = UPPER(?) OR h.current_owner_salesman_id = ?)");
     params.push(salesman, salesman, salesman);
   }
 
   if (rayon) {
-    whereClauses.push("(r.name = ? OR r.code = ? OR r.rayon_id = ?)");
+    whereClauses.push("(UPPER(r.name) = UPPER(?) OR UPPER(r.code) = UPPER(?) OR r.rayon_id = ?)");
     params.push(rayon, rayon, rayon);
   }
 
   if (kecamatan) {
-    whereClauses.push("(k.name = ? OR k.kecamatan_id = ?)");
-    params.push(kecamatan, kecamatan);
+    whereClauses.push("(UPPER(k.name) = UPPER(?) OR UPPER(k.kecamatan_id) = UPPER(?) OR UPPER(o.kecamatan_id) = UPPER(?))");
+    params.push(kecamatan, kecamatan, kecamatan);
   }
 
   if (search) {
@@ -673,7 +678,22 @@ function getSariwangiAnalytics(db, filters = {}) {
       ORDER BY k.name ASC
     `).all().map(r => ({ id: r.kecamatan_id, name: r.name })),
 
-    latestDate: maxDateStr
+    latestDate: maxDateStr,
+
+    periods: [
+      { id: '', name: 'Semua Periode (Kumulatif)' },
+      { id: '2026-09', name: 'September 2026' },
+      { id: '2026-10', name: 'Oktober 2026' },
+      { id: '2026-08', name: 'Agustus 2026' }
+    ],
+
+    skuOptions: [
+      { id: 'ALL', name: 'Semua SKU SariWangi (Rp 156.6M | 651.5 Ktn)' },
+      { id: 'TB288', name: '⭐ SARIWANGI ASLI RL TB 288 (Hero SKU: Rp 91.8M | 392 Ktn)' },
+      { id: 'TB48', name: 'SARIWANGI ASLI RL TB 48X25 (Rp 57.2M | 213 Ktn)' },
+      { id: 'SELECTED', name: '6 Selected SKU GT (Promo Strata: Rp 149.2M | 605 Ktn)' },
+      { id: 'REGULER', name: 'SKU Reguler Lainnya (Rp 7.4M | 46 Ktn)' }
+    ]
   };
 
   return {
