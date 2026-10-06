@@ -248,6 +248,8 @@ function adaptFilterRibbonForTab(tab) {
       }
       if (window.sariwangiState && window.sariwangiState.filters.period !== undefined) {
         periodSelect.value = window.sariwangiState.filters.period;
+      } else {
+        periodSelect.value = '';
       }
     }
   } else {
@@ -256,6 +258,15 @@ function adaptFilterRibbonForTab(tab) {
     if (groupSelect && groupSelect.parentElement) groupSelect.parentElement.classList.remove('hidden');
     if (subbrandSelect && subbrandSelect.parentElement) subbrandSelect.parentElement.classList.remove('hidden');
     if (groupSkuSelect && groupSkuSelect.parentElement) groupSkuSelect.parentElement.classList.remove('hidden');
+
+    if (periodSelect) {
+      const allOpt = periodSelect.querySelector('option[value=""]');
+      if (allOpt) allOpt.remove();
+      const currentGlobalVal = `${globalFilters.year}-${String(globalFilters.month).padStart(2, '0')}`;
+      if (periodSelect.querySelector(`option[value="${currentGlobalVal}"]`)) {
+        periodSelect.value = currentGlobalVal;
+      }
+    }
 
     if (princSelect) {
       princSelect.disabled = false;
@@ -557,12 +568,12 @@ function applyFilters() {
 function resetFilters() {
   if (currentTab === 'sariwangi') {
     const pEl = document.getElementById('filter-period');
-    if (pEl) pEl.value = '2026-09';
+    if (pEl) pEl.value = '';
     if (document.getElementById('filter-salesman')) document.getElementById('filter-salesman').value = '';
     if (document.getElementById('filter-rayon')) document.getElementById('filter-rayon').value = '';
     if (document.getElementById('filter-kecamatan')) document.getElementById('filter-kecamatan').value = '';
     window.sariwangiState.filters = {
-      period: '2026-09',
+      period: '',
       salesman: '',
       rayon: '',
       kecamatan: '',
@@ -8421,7 +8432,7 @@ function filterAddSkuModalList(query) {
 window.sariwangiState = {
   data: null,
   filters: {
-    period: '2026-09',
+    period: '',
     salesman: '',
     rayon: '',
     kecamatan: '',
@@ -8545,43 +8556,6 @@ function renderSariwangiLayout(data) {
             <i data-lucide="download" class="w-4 h-4"></i>
             <span>Export CSV</span>
           </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Reconciliation Callout Banner (Explaining ~90M vs 156M) -->
-    <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border border-emerald-200/90 rounded-xl p-4 shadow-xs text-xs">
-      <div class="flex items-start gap-3">
-        <span class="p-2 bg-emerald-600 text-white rounded-lg shrink-0 mt-0.5 shadow-2xs">
-          <i data-lucide="info" class="w-4 h-4"></i>
-        </span>
-        <div class="space-y-1.5 flex-1">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <h4 class="font-bold text-slate-800 text-sm flex items-center gap-2">
-              <span>Analisis Rekonsiliasi Data Omzet SariWangi</span>
-              <span class="text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">Terverifikasi 100%</span>
-            </h4>
-            <span class="text-[11px] text-slate-500 font-medium">
-              Periode: <strong>${escapeHtml(periodLabel)}</strong>
-            </span>
-          </div>
-          <p class="text-slate-600 leading-relaxed">
-            Jika tarikan manual Anda mencatat angka <strong>sekitar Rp 90 Juta-an</strong>, itu merujuk pada produk hero <strong>SARIWANGI ASLI RL TB 288X4</strong> (Total Netto: <strong>Rp 91.883.349,-</strong> / 391,99 Ktn Kumulatif, atau <strong>Rp 82.567.517,-</strong> pada bulan September). Sedangkan angka <strong>Rp 156,6 Juta</strong> adalah gabungan seluruh 7 SKU teh Unilever (termasuk TB 48x25 Rp 57,2M, TB 48x12 Rp 4,5M, TB 24x50 Rp 2,0M, dll). Anda dapat mengklik tombol <strong>⭐ SariWangi TB 288</strong> di bawah untuk langsung beralih ke SKU hero tersebut.
-          </p>
-          <div class="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-semibold">
-            <button onclick="setSariwangiSkuType('ALL')" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition ${currentFilters.skuType === 'ALL' ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs' : 'bg-white hover:bg-emerald-50 text-slate-700 border-slate-200'}">
-              <span class="w-2 h-2 rounded-full ${currentFilters.skuType === 'ALL' ? 'bg-white' : 'bg-emerald-500'}"></span>
-              <span>Total Semua 7 SKU: <strong>${currentFilters.period === '2026-09' ? 'Rp 140,9 Jt (586 Ktn)' : 'Rp 156,6 Jt (651 Ktn)'}</strong></span>
-            </button>
-            <button onclick="setSariwangiSkuType('TB288')" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition ${currentFilters.skuType === 'TB288' ? 'bg-amber-600 text-white border-amber-700 shadow-xs' : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'}">
-              <i data-lucide="star" class="w-3.5 h-3.5 ${currentFilters.skuType === 'TB288' ? 'text-white' : 'text-amber-600 fill-amber-500'}"></i>
-              <span>Hero SKU TB 288 Saja: <strong>${currentFilters.period === '2026-09' ? 'Rp 82,6 Jt (352 Ktn)' : 'Rp 91,8 Jt (392 Ktn)'}</strong></span>
-            </button>
-            <button onclick="setSariwangiSkuType('TB48')" class="flex items-center gap-1.5 px-2.5 py-1 rounded-md border transition ${currentFilters.skuType === 'TB48' ? 'bg-sky-600 text-white border-sky-700 shadow-xs' : 'bg-white hover:bg-sky-50 text-slate-700 border-slate-200'}">
-              <span class="w-2 h-2 rounded-full ${currentFilters.skuType === 'TB48' ? 'bg-white' : 'bg-sky-500'}"></span>
-              <span>SKU TB 48X25: <strong>${currentFilters.period === '2026-09' ? 'Rp 51,3 Jt (191 Ktn)' : 'Rp 57,2 Jt (213 Ktn)'}</strong></span>
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -9736,7 +9710,7 @@ function applySariwangiFilters() {
 
 function resetSariwangiFilters() {
   window.sariwangiState.filters = {
-    period: '2026-09',
+    period: '',
     salesman: '',
     rayon: '',
     kecamatan: '',
@@ -9744,7 +9718,7 @@ function resetSariwangiFilters() {
     search: ''
   };
   const topPeriod = document.getElementById('filter-period');
-  if (topPeriod) topPeriod.value = '2026-09';
+  if (topPeriod) topPeriod.value = '';
   const topSls = document.getElementById('filter-salesman');
   if (topSls) topSls.value = '';
   const topRyn = document.getElementById('filter-rayon');
