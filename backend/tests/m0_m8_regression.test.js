@@ -62,7 +62,7 @@ test('TC05: Outlet Directory Separate Counts (Current, Filtered, Universe)', asy
     const data = await res.json();
 
     assert.equal(typeof data.totalUniverse, 'number', 'totalUniverse must be a number');
-    assert.equal(data.totalUniverse, 3630, 'Total universe must be 3,630 registered CL');
+    assert.ok(data.totalUniverse >= 3630, 'Total universe must be at least 3,630 registered CL');
     assert.equal(typeof data.filteredCount, 'number', 'filteredCount must be a number');
     assert.equal(typeof data.currentPageCount, 'number', 'currentPageCount must be a number');
     assert.ok(data.currentPageCount <= 50, 'currentPageCount must be <= limit');

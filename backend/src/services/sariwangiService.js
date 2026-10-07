@@ -110,8 +110,14 @@ function getSariwangiAnalytics(db, filters = {}) {
   }
 
   if (period && period !== 'ALL') {
-    whereClauses.push("h.transaction_date LIKE ?");
-    params.push(`${period}%`);
+    const pParts = period.split('-');
+    if (pParts.length === 2) {
+      whereClauses.push("(h.period_year = ? AND h.period_month = ?)");
+      params.push(parseInt(pParts[0], 10), parseInt(pParts[1], 10));
+    } else {
+      whereClauses.push("h.transaction_date LIKE ?");
+      params.push(`${period}%`);
+    }
   }
 
   if (salesman) {
@@ -682,8 +688,8 @@ function getSariwangiAnalytics(db, filters = {}) {
 
     periods: [
       { id: '', name: 'Semua Periode (Kumulatif)' },
-      { id: '2026-09', name: 'September 2026' },
       { id: '2026-10', name: 'Oktober 2026' },
+      { id: '2026-09', name: 'September 2026' },
       { id: '2026-08', name: 'Agustus 2026' }
     ],
 

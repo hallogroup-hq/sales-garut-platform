@@ -18,7 +18,18 @@ const MONTH_NAMES = [
   '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
 
+function getMax2026Month() {
+  try {
+    const db = getDb();
+    const row = db.query('SELECT MAX(month) as max_m FROM agg_monthly_sales_movement WHERE year = 2026')[0];
+    return (row && row.max_m) ? row.max_m : 10;
+  } catch (e) {
+    return 10;
+  }
+}
+
 function generateTimeline(periodRange = '2026') {
+  const max2026 = getMax2026Month();
   const periods = [];
   if (periodRange === '2025') {
     for (let m = 1; m <= 12; m++) {
@@ -38,7 +49,7 @@ function generateTimeline(periodRange = '2026') {
         month: m
       });
     }
-    for (let m = 1; m <= 9; m++) {
+    for (let m = 1; m <= max2026; m++) {
       periods.push({
         key: `2026-${String(m).padStart(2, '0')}`,
         label: `${MONTH_NAMES[m]} '26`,
@@ -47,8 +58,8 @@ function generateTimeline(periodRange = '2026') {
       });
     }
   } else {
-    // Default: 2026 (Jan - Sep)
-    for (let m = 1; m <= 9; m++) {
+    // Default: 2026 (Jan - max2026)
+    for (let m = 1; m <= max2026; m++) {
       periods.push({
         key: `2026-${String(m).padStart(2, '0')}`,
         label: `${MONTH_NAMES[m]} '26`,
@@ -77,12 +88,13 @@ function getMovementAnalytics(options = {}) {
   let whereClauses = [];
   let params = [];
 
+  const max2026 = getMax2026Month();
   if (periodRange === '2026') {
-    whereClauses.push('a.year = 2026 AND a.month <= 9');
+    whereClauses.push(`a.year = 2026 AND a.month <= ${max2026}`);
   } else if (periodRange === '2025') {
     whereClauses.push('a.year = 2025');
   } else {
-    whereClauses.push('(a.year = 2025 OR (a.year = 2026 AND a.month <= 9))');
+    whereClauses.push(`(a.year = 2025 OR (a.year = 2026 AND a.month <= ${max2026}))`);
   }
 
   if (options.spvId) {
@@ -171,11 +183,11 @@ function getMovementAnalytics(options = {}) {
   let headerParams = [];
 
   if (periodRange === '2026') {
-    headerWhere.push('(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= 9)');
+    headerWhere.push(`(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= ${max2026})`);
   } else if (periodRange === '2025') {
     headerWhere.push('COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025');
   } else {
-    headerWhere.push('(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025 OR (COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= 9))');
+    headerWhere.push(`(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025 OR (COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= ${max2026}))`);
   }
 
   if (options.spvId) {
@@ -706,12 +718,13 @@ function getOutletMovementAnalytics(db, options = {}, timeline, periodKeys) {
   ];
   let params = [outletId, outletId, outletId];
 
+  const max2026 = getMax2026Month();
   if (periodRange === '2026') {
-    whereClauses.push('(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= 9)');
+    whereClauses.push(`(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= ${max2026})`);
   } else if (periodRange === '2025') {
     whereClauses.push('COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025');
   } else {
-    whereClauses.push('(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025 OR (COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= 9))');
+    whereClauses.push(`(COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2025 OR (COALESCE(h.period_year, CAST(substr(h.transaction_date, 1, 4) AS INT)) = 2026 AND COALESCE(h.period_month, CAST(substr(h.transaction_date, 6, 2) AS INT)) <= ${max2026}))`);
   }
 
   if (options.principal) {

@@ -124,14 +124,16 @@ test('SariWangi Analytics — Unit & Integration Test Suite', async (t) => {
       assert.equal(resSep.status, 200);
       const jsonSep = await resSep.json();
       assert.equal(jsonSep.success, true);
-      assert.ok(jsonSep.summary.totalNetto > 140000000 && jsonSep.summary.totalNetto < 142000000, 'September 2026 total netto must equal ~140.8M');
+      assert.ok(jsonSep.summary.totalNetto > 155000000 && jsonSep.summary.totalNetto < 158000000, 'September 2026 total netto must equal ~156.6M');
+      assert.equal(Math.round(jsonSep.summary.totalCartons), 651, 'September 2026 total cartons must equal 651');
 
       // 5b. Filter by Period = 2026-10 (October)
       const resOct = await fetch(`http://localhost:${port}/api/analytics/sariwangi?period=2026-10`);
       assert.equal(resOct.status, 200);
       const jsonOct = await resOct.json();
       assert.equal(jsonOct.success, true);
-      assert.ok(jsonOct.summary.totalNetto > 70000000, 'October 2026 total netto must exceed 70M');
+      assert.ok(jsonOct.summary.totalNetto > 64000000 && jsonOct.summary.totalNetto < 66000000, 'October 2026 total netto must equal ~64.7M');
+      assert.equal(Math.round(jsonOct.summary.totalCartons), 282, 'October 2026 total cartons must equal 282');
 
       // 6. Case-insensitive kecamatan filter (TAROGONG KIDUL)
       const resKecUpper = await fetch(`http://localhost:${port}/api/analytics/sariwangi?kecamatan=TAROGONG%20KIDUL`);

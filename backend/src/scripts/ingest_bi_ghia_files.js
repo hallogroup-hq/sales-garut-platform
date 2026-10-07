@@ -354,6 +354,16 @@ async function ingestMasterData(db, scratchDir) {
     const monthVal = MONTH_MAP[monthClean] || 0;
     if (monthVal === 0) return;
 
+    let txDate = parseDate(txDateRaw);
+    let finalMonthVal = monthVal;
+    if (yearVal === 2026 && txDate) {
+      if (txDate < '2026-10-05' && txDate >= '2026-08-31') {
+        finalMonthVal = 9;
+      } else if (txDate >= '2026-10-05') {
+        finalMonthVal = 10;
+      }
+    }
+
     let smId = 'SAVORIA_OTH';
     let smCanonicalName = smName || 'Savoria (Others)';
     if (SALESMAN_NAME_MAP[smName]) {
@@ -394,12 +404,12 @@ async function ingestMasterData(db, scratchDir) {
       });
     }
 
-    const aggKey = `${yearVal}_${monthVal}_${smId}_${principal}_${brand}_${groupSku}`;
+    const aggKey = `${yearVal}_${finalMonthVal}_${smId}_${principal}_${brand}_${groupSku}`;
     let entry = agg.get(aggKey);
     if (!entry) {
       entry = {
         year: yearVal,
-        month: monthVal,
+        month: finalMonthVal,
         salesman_id: smId,
         salesman_name: smCanonicalName,
         sales_group: salesGroup,
@@ -436,7 +446,7 @@ async function ingestMasterData(db, scratchDir) {
       }
 
       if (yearVal === 2026 && custCode && salesCtn > 0) {
-        const periodKey = `2026-${String(monthVal).padStart(2, '0')}`;
+        const periodKey = `2026-${String(finalMonthVal).padStart(2, '0')}`;
         if (!dsoOaMonthly.has(periodKey)) dsoOaMonthly.set(periodKey, new Set());
         dsoOaMonthly.get(periodKey).add(custCode);
 
@@ -447,13 +457,13 @@ async function ingestMasterData(db, scratchDir) {
     }
 
     if (yearVal === 2026 && docNum && custCode && itemCode) {
-      let txDate = parseDate(txDateRaw) || `2026-${String(monthVal).padStart(2, '0')}-01`;
-      let dueDate = parseDate(dueDateRaw) || txDate;
+      let txDateFinal = txDate || `2026-${String(finalMonthVal).padStart(2, '0')}-01`;
+      let dueDate = parseDate(dueDateRaw) || txDateFinal;
 
       if (!headers2026.has(docNum)) {
         headers2026.set(docNum, [
-          docNum, txDate, dueDate, custCode, smId, smId,
-          unitType, payTerm, creditLimit, yearVal, monthVal
+          docNum, txDateFinal, dueDate, custCode, smId, smId,
+          unitType, payTerm, creditLimit, yearVal, finalMonthVal
         ]);
       }
 

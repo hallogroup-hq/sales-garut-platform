@@ -135,17 +135,22 @@ router.get('/filters/options', (req, res) => {
   const kecamatans = db.query('SELECT kecamatan_id, name FROM dim_kecamatan ORDER BY name');
   const rayons = db.query('SELECT rayon_id, code, name FROM dim_rayon ORDER BY code');
 
-  const periods = [
-    { year: 2026, month: 9, label: 'September 2026' },
-    { year: 2026, month: 8, label: 'Agustus 2026' },
-    { year: 2026, month: 7, label: 'Juli 2026' },
-    { year: 2026, month: 6, label: 'Juni 2026' },
-    { year: 2026, month: 5, label: 'Mei 2026' },
-    { year: 2026, month: 4, label: 'April 2026' },
-    { year: 2026, month: 3, label: 'Maret 2026' },
-    { year: 2026, month: 2, label: 'Februari 2026' },
-    { year: 2026, month: 1, label: 'Januari 2026' }
-  ];
+  const monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const dbPeriods = db.query('SELECT DISTINCT year, month FROM agg_monthly_sales_movement WHERE year = 2026 ORDER BY month DESC');
+  const periods = (dbPeriods && dbPeriods.length > 0)
+    ? dbPeriods.map(p => ({ year: p.year, month: p.month, label: `${monthNames[p.month] || p.month} ${p.year}` }))
+    : [
+        { year: 2026, month: 10, label: 'Oktober 2026' },
+        { year: 2026, month: 9, label: 'September 2026' },
+        { year: 2026, month: 8, label: 'Agustus 2026' },
+        { year: 2026, month: 7, label: 'Juli 2026' },
+        { year: 2026, month: 6, label: 'Juni 2026' },
+        { year: 2026, month: 5, label: 'Mei 2026' },
+        { year: 2026, month: 4, label: 'April 2026' },
+        { year: 2026, month: 3, label: 'Maret 2026' },
+        { year: 2026, month: 2, label: 'Februari 2026' },
+        { year: 2026, month: 1, label: 'Januari 2026' }
+      ];
 
   const salesGroups = [
     { id: 'SAVORIA', name: 'SAVORIA (7 Salesman Rayon)' },
