@@ -21,6 +21,7 @@ const {
   rollbackImport
 } = require('../services/importEngine.js');
 const { getMovementAnalytics, exportMovementCsv } = require('../services/trendEngine.js');
+const { getTotalPerformanceSummary, exportPerformanceCsv } = require('../services/performanceEngine.js');
 const { DISCOUNT_STRATA_RULES, classifyItem, getDiscountForQty, isSariwangiSelectedSku } = require('../services/discountStrata.js');
 const { getSariwangiAnalytics } = require('../services/sariwangiService.js');
 const { getAuditLogs, logAudit } = require('../middleware/audit.js');

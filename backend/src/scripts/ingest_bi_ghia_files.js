@@ -447,7 +447,7 @@ async function ingestMasterData(db, scratchDir) {
     }
 
     if (yearVal === 2026 && docNum && custCode && itemCode) {
-      let txDate = parseDate(txDateRaw) || '2026-09-01';
+      let txDate = parseDate(txDateRaw) || `2026-${String(monthVal).padStart(2, '0')}-01`;
       let dueDate = parseDate(dueDateRaw) || txDate;
 
       if (!headers2026.has(docNum)) {
@@ -654,6 +654,53 @@ async function runBiGhiaIngestion() {
   await ingestDataPiutang(db, arPath);
   await ingestMasterData(db, scratchDir);
 
+  console.log('\nRefreshing agg_outlet_sales_summary...');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS agg_outlet_sales_summary (
+      canonical_id VARCHAR(50) PRIMARY KEY,
+      last_order_date DATE,
+      lifetime_orders INTEGER,
+      lifetime_value NUMERIC(15, 2)
+    );
+    DELETE FROM agg_outlet_sales_summary;
+    INSERT INTO agg_outlet_sales_summary (canonical_id, last_order_date, lifetime_orders, lifetime_value)
+    SELECT 
+      COALESCE(a.outlet_id, h.outlet_id) AS canonical_id,
+      MAX(h.transaction_date) AS last_order_date,
+      COUNT(DISTINCT h.document_number) AS lifetime_orders,
+      COALESCE(SUM(l.sales_netto), 0) AS lifetime_value
+    FROM fact_sales_header h
+    JOIN fact_sales_line l ON h.document_number = l.document_number
+    LEFT JOIN outlet_alias a ON h.outlet_id = a.source_customer_code
+    WHERE l.is_non_omzet = 0
+    GROUP BY COALESCE(a.outlet_id, h.outlet_id);
+  `);
+
+  console.log('Ensuring October 2026 targets exist...');
+  db.exec(`
+    INSERT OR IGNORE INTO fact_quantity_target (target_id, year, month, salesman_id, group_sku, target_cartons, target_value)
+    SELECT 
+      '2026_10_' || salesman_id || '_' || group_sku,
+      2026,
+      10,
+      salesman_id,
+      group_sku,
+      target_cartons,
+      target_value
+    FROM fact_quantity_target
+    WHERE year = 2026 AND month = 9;
+
+    INSERT OR IGNORE INTO fact_incentive_value_target (id, year, month, salesman_id, target_value)
+    SELECT 
+      '2026_10_' || salesman_id,
+      2026,
+      10,
+      salesman_id,
+      target_value
+    FROM fact_incentive_value_target
+    WHERE year = 2026 AND month = 9;
+  `);
+
   console.log('\nRunning SQLite WAL Checkpoint & Vacuum...');
   db.exec('PRAGMA wal_checkpoint(FULL);');
   db.exec('PRAGMA optimize;');
@@ -682,7 +729,17 @@ async function runBiGhiaIngestion() {
     FROM agg_monthly_sales_movement
     WHERE year = 2026 AND month = 9
   `)[0];
-  console.log(`September 2026 Aggregation in DB: ${sepTotal.cartons.toFixed(2)} KTN | Rp ${Math.round(sepTotal.netto).toLocaleString('id-ID')}`);
+  console.log(`September 2026 Aggregation in DB: ${sepTotal ? sepTotal.cartons.toFixed(2) : 0} KTN | Rp ${sepTotal ? Math.round(sepTotal.netto).toLocaleString('id-ID') : 0}`);
+
+  const octTotal = db.query(`
+    SELECT 
+      SUM(net_cartons) as cartons,
+      SUM(net_value) as netto,
+      SUM(active_outlets) as total_oa
+    FROM agg_monthly_sales_movement
+    WHERE year = 2026 AND month = 10
+  `)[0];
+  console.log(`Oktober 2026 Aggregation in DB: ${octTotal ? octTotal.cartons.toFixed(2) : 0} KTN | Rp ${octTotal ? Math.round(octTotal.netto).toLocaleString('id-ID') : 0}`);
 }
 
 if (require.main === module) {
