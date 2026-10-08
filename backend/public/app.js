@@ -268,6 +268,13 @@ function adaptFilterRibbonForTab(tab) {
       }
     }
 
+    if (spvSelect) spvSelect.value = globalFilters.spvId || '';
+    if (groupSelect) groupSelect.value = globalFilters.salesGroup || '';
+    const slsEl = document.getElementById('filter-salesman');
+    if (slsEl) slsEl.value = globalFilters.salesmanId || '';
+    const rynEl = document.getElementById('filter-rayon');
+    if (rynEl) rynEl.value = globalFilters.rayonId || '';
+
     if (princSelect) {
       princSelect.disabled = false;
       princSelect.classList.remove('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
@@ -285,6 +292,11 @@ function adaptFilterRibbonForTab(tab) {
       }
       brandSelect.value = globalFilters.brand || '';
     }
+
+    if (subbrandSelect) subbrandSelect.value = globalFilters.subbrand || '';
+    if (groupSkuSelect) groupSkuSelect.value = globalFilters.groupSku || '';
+    const kecEl = document.getElementById('filter-kecamatan');
+    if (kecEl) kecEl.value = globalFilters.kecamatanId || '';
   }
 }
 
@@ -543,9 +555,12 @@ function applyFilters() {
     return;
   }
 
-  const pVal = document.getElementById('filter-period').value.split('-');
-  globalFilters.year = parseInt(pVal[0], 10);
-  globalFilters.month = parseInt(pVal[1], 10);
+  const periodEl = document.getElementById('filter-period');
+  if (periodEl && periodEl.value && periodEl.value.includes('-')) {
+    const pVal = periodEl.value.split('-');
+    globalFilters.year = parseInt(pVal[0], 10);
+    globalFilters.month = parseInt(pVal[1], 10);
+  }
   globalFilters.spvId = document.getElementById('filter-spv') ? document.getElementById('filter-spv').value : '';
   globalFilters.salesmanId = document.getElementById('filter-salesman') ? document.getElementById('filter-salesman').value : '';
   const grpEl = document.getElementById('filter-sales-group');

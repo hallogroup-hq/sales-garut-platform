@@ -10,6 +10,7 @@ const {
   getMustHaveProgress,
   getKecamatanCoverage,
   getPerformanceByRayon,
+  getMonthlyTrend,
   buildFilterConditions
 } = require('../services/metricsEngine.js');
 const { calculateIncentive } = require('../services/incentiveEngine.js');
@@ -213,48 +214,8 @@ router.get('/dashboard/executive', (req, res) => {
        FROM fact_ar_invoice`
     )[0];
 
-    // Monthly historical trend (dynamically query agg_monthly_sales_movement or fallback)
-    const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-    const currentM = summary.calendar.month;
-    const currentY = summary.calendar.year;
-    const trendRows = db.query(`
-      SELECT 
-        m.month, 
-        COALESCE(SUM(m.net_cartons), 0) AS ktn, 
-        COALESCE(SUM(m.net_value), 0) AS val,
-        (SELECT COALESCE(SUM(t.target_cartons), 0) FROM fact_quantity_target t WHERE t.year = ? AND t.month = m.month) AS target_ktn
-      FROM agg_monthly_sales_movement m
-      WHERE m.year = ? AND m.month <= ?
-      GROUP BY m.month
-      ORDER BY m.month DESC
-      LIMIT 5
-    `, [currentY, currentY, currentM]).reverse();
-
-    let trendMonths = [];
-    if (trendRows.length > 0) {
-      trendMonths = trendRows.map(r => {
-        let achv = 85.0;
-        if (r.target_ktn > 0) {
-          achv = Math.round((r.ktn / r.target_ktn) * 1000) / 10;
-        } else if (r.month === currentM && summary.sales.achievementPct !== null) {
-          achv = summary.sales.achievementPct;
-        }
-        return {
-          name: monthNames[r.month] || `Bln ${r.month}`,
-          ktn: Math.round(r.ktn * 10) / 10,
-          val: Math.round(r.val / 100000) / 10,
-          achv
-        };
-      });
-    } else {
-      trendMonths = [
-        { name: 'Jan', ktn: 420, val: 32.5, achv: 82.0 },
-        { name: 'Feb', ktn: 510, val: 39.1, achv: 84.5 },
-        { name: 'Mar', ktn: 605, val: 46.2, achv: 79.0 },
-        { name: 'Apr', ktn: 680, val: 52.0, achv: 81.2 },
-        { name: monthNames[currentM] || 'Mei', ktn: summary.sales.actualCartons || 740, val: Math.round((summary.sales.salesNettoValue || 56000000) / 1000000 * 10) / 10, achv: summary.sales.achievementPct || 73.2 }
-      ];
-    }
+    // Monthly historical trend (dynamically query honoring all active filters)
+    const trendMonths = getMonthlyTrend(filters, 5);
 
     res.json({
       summary,
