@@ -10,7 +10,7 @@ function buildFilterConditions(filters = {}) {
   const paramsOutlet = [];
 
   const year = parseInt(filters.year || 2026, 10);
-  const month = parseInt(filters.month || 9, 10);
+  const month = parseInt(filters.month || 10, 10);
 
   // Month & Year filter for transactions
   const monthStr = String(month).padStart(2, '0');
@@ -732,7 +732,7 @@ function getPerformanceByRayon(filters = {}) {
 function getMonthlyTrend(filters = {}, limit = 5) {
   const db = getDb();
   const currentY = parseInt(filters.year || 2026, 10);
-  const currentM = parseInt(filters.month || 9, 10);
+  const currentM = parseInt(filters.month || 10, 10);
   const startM = Math.max(1, currentM - limit + 1);
   const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 

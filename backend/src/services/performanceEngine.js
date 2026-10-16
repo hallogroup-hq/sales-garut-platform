@@ -13,7 +13,7 @@ const { getMovementAnalytics } = require('./trendEngine.js');
 function getTotalPerformanceSummary(filters = {}) {
   const db = getDb();
   const year = parseInt(filters.year || 2026, 10);
-  const month = parseInt(filters.month || 9, 10);
+  const month = parseInt(filters.month || 10, 10);
   const asOfDateStr = filters.asOfDate || `${year}-${String(month).padStart(2, '0')}-25`;
 
   // 1. Executive Summary & KPIs

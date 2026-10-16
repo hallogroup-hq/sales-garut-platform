@@ -7,7 +7,7 @@
 let currentTab = 'beranda';
 let globalFilters = {
   year: 2026,
-  month: 9,
+  month: 10,
   spvId: '',
   salesmanId: '',
   salesGroup: '',
