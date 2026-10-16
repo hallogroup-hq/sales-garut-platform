@@ -1,5 +1,6 @@
 const path = require('node:path');
 const fs = require('node:fs');
+const zlib = require('node:zlib');
 
 // Dual-engine database connection:
 // Defaults to local SQLite via Node 26 built-in node:sqlite.
@@ -42,6 +43,10 @@ function getDb() {
       const tmpDb = '/tmp/sales_garut.db';
       if (!fs.existsSync(tmpDb)) {
         const candidateSources = [
+          path.join(__dirname, 'sales_garut.db.gz'),
+          path.join(__dirname, '../sales_garut.db.gz'),
+          path.join(process.cwd(), 'backend/sales_garut.db.gz'),
+          path.join(process.cwd(), 'sales_garut.db.gz'),
           path.join(__dirname, 'sales_garut.db'),
           path.join(__dirname, '../sales_garut.db'),
           path.join(__dirname, '../../sales_garut.db'),
@@ -54,12 +59,19 @@ function getDb() {
         for (const src of candidateSources) {
           if (src && fs.existsSync(src)) {
             try {
-              fs.copyFileSync(src, tmpDb);
-              console.log(`[Vercel] Successfully initialized SQLite DB in /tmp from ${src}`);
+              if (src.endsWith('.gz')) {
+                const gzBuf = fs.readFileSync(src);
+                const decompressed = zlib.gunzipSync(gzBuf);
+                fs.writeFileSync(tmpDb, decompressed);
+                console.log(`[Vercel] Successfully decompressed SQLite DB in /tmp from ${src} (${decompressed.length} bytes)`);
+              } else {
+                fs.copyFileSync(src, tmpDb);
+                console.log(`[Vercel] Successfully initialized SQLite DB in /tmp from ${src}`);
+              }
               copied = true;
               break;
             } catch (err) {
-              console.error(`[Vercel] Failed to copy from ${src}:`, err);
+              console.error(`[Vercel] Failed to copy/decompress from ${src}:`, err);
             }
           }
         }

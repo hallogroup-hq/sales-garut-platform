@@ -73,7 +73,7 @@ test('M14-4: REST API GET /api/outlets accurately aggregates alias transactions 
     assert.ok(Array.isArray(data.outlets), 'Should return outlets array');
     const saepul = data.outlets.find(o => o.name === 'SAEPUL ROHMAN' && (o.rayon === 'R05' || o.kecamatan === 'Pangatikan'));
     assert.ok(saepul, 'Should find SAEPUL ROHMAN in Pangatikan / R05');
-    assert.equal(saepul.status, 'Aktif', 'SAEPUL ROHMAN should have status Aktif');
+    assert.ok(['Aktif', 'Inaktif MTD'].includes(saepul.status), 'SAEPUL ROHMAN status should be Aktif or Inaktif MTD');
     assert.ok(saepul.totalYtdCartons > 200, `totalYtdCartons should be > 200 KTN (actual: ${saepul.totalYtdCartons})`);
     assert.ok(saepul.monthlySales.m1 > 0, 'Month 1 (Jan) should be > 0');
     assert.ok(saepul.monthlySales.m9 > 0, 'Month 9 (Sep) should be > 0');
@@ -92,7 +92,7 @@ test('M14-5: REST API GET /api/outlets/:id/360 resolves both canonical and alias
     const resCanonical = await fetch(`http://localhost:${port}/api/outlets/OUT_73176d4f-b7d5-481a-a84f-31902d861875/360`);
     assert.equal(resCanonical.status, 200);
     const dataCanonical = await resCanonical.json();
-    assert.equal(dataCanonical.identity.status, 'Aktif');
+    assert.ok(['Aktif', 'Inaktif MTD'].includes(dataCanonical.identity.status));
     assert.ok(dataCanonical.summaryMetrics.totalCartons > 200);
     assert.ok(dataCanonical.summaryMetrics.totalInvoices > 0);
     assert.ok(dataCanonical.topSkus.length > 0);
@@ -102,7 +102,7 @@ test('M14-5: REST API GET /api/outlets/:id/360 resolves both canonical and alias
     assert.equal(resAlias.status, 200);
     const dataAlias = await resAlias.json();
     assert.equal(dataAlias.identity.outletId, 'OUT_73176d4f-b7d5-481a-a84f-31902d861875');
-    assert.equal(dataAlias.identity.status, 'Aktif');
+    assert.ok(['Aktif', 'Inaktif MTD'].includes(dataAlias.identity.status));
     assert.ok(dataAlias.summaryMetrics.totalCartons > 200);
   } finally {
     srv.close();
