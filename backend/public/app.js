@@ -56,7 +56,7 @@ function updateHeaderUserProfile() {
     if (roleEl) {
       if (window.currentUser.role === 'DSM') {
         roleEl.textContent = 'Super Admin (DSM)';
-        roleEl.className = 'text-[10px] text-emerald-600 font-semibold';
+        roleEl.className = 'text-[10px] text-blue-700 font-semibold';
       } else if (window.currentUser.role === 'SPV') {
         roleEl.textContent = 'Supervisor (Hanya Lihat)';
         roleEl.className = 'text-[10px] text-blue-600 font-semibold';
@@ -373,7 +373,7 @@ function highlightSearchMatch(text, query) {
   const escapedQuery = String(query).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   if (!escapedQuery) return escapedText;
   const regex = new RegExp(`(${escapedQuery})`, 'gi');
-  return escapedText.replace(regex, '<mark class="bg-amber-100 text-amber-900 font-bold px-0.5 rounded">$1</mark>');
+  return escapedText.replace(regex, '<mark class="bg-blue-100 text-blue-900 font-bold px-0.5 rounded">$1</mark>');
 }
 
 function getFilterQuery() {
@@ -412,10 +412,14 @@ function updateHeaderDate(cal) {
   el.textContent = formatHeaderDateNow();
 }
 
+let rawFilterData = null;
+
 async function loadFilterOptions() {
   try {
     const res = await fetch('/api/filters/options');
     const data = await res.json();
+    rawFilterData = data;
+    window.filterOptionsData = data;
 
     // Populate Periods
     const periodSelect = document.getElementById('filter-period');
@@ -431,59 +435,206 @@ async function loadFilterOptions() {
     // Populate SPV
     const spvSelect = document.getElementById('filter-spv');
     if (spvSelect) {
-      spvSelect.innerHTML = '<option value="">Semua SPV</option>' + data.spvs.map(s => `<option value="${s.spv_id}">${s.name} (${s.code})</option>`).join('');
+      spvSelect.innerHTML = '<option value="">Semua SPV</option>' + (data.spvs || []).map(s => `<option value="${s.spv_id}">${s.name} (${s.code})</option>`).join('');
     }
 
     // Populate Salesman Group
     const groupSelect = document.getElementById('filter-sales-group');
     if (groupSelect && data.salesGroups) {
-      groupSelect.innerHTML = '<option value="">Semua Group</option>' + data.salesGroups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+      groupSelect.innerHTML = '<option value="">Semua Group</option>' + (data.salesGroups || []).map(g => `<option value="${g.id}">${g.name}</option>`).join('');
     }
 
     // Populate Salesman
     const salesSelect = document.getElementById('filter-salesman');
     if (salesSelect) {
-      salesSelect.innerHTML = '<option value="">Semua Salesman</option>' + data.salesmen.map(s => `<option value="${s.salesman_id}">${s.name}</option>`).join('');
+      salesSelect.innerHTML = '<option value="">Semua Salesman</option>' + (data.salesmen || []).map(s => `<option value="${s.salesman_id}">${s.name}</option>`).join('');
     }
 
     // Populate Rayon
     const rayonSelect = document.getElementById('filter-rayon');
     if (rayonSelect && data.rayons) {
-      rayonSelect.innerHTML = '<option value="">Semua Rayon</option>' + data.rayons.map(r => `<option value="${r.rayon_id}">${r.code || r.name}</option>`).join('');
+      rayonSelect.innerHTML = '<option value="">Semua Rayon</option>' + (data.rayons || []).map(r => `<option value="${r.rayon_id}">${r.code || r.name}</option>`).join('');
     }
 
     // Populate Principal
     const princSelect = document.getElementById('filter-principal');
     if (princSelect && data.principals) {
-      princSelect.innerHTML = '<option value="">Semua Principal</option>' + data.principals.map(p => `<option value="${p}">${p}</option>`).join('');
+      princSelect.innerHTML = '<option value="">Semua Principal</option>' + (data.principals || []).map(p => `<option value="${p}">${p}</option>`).join('');
     }
 
     // Populate Brand
     const brandSelect = document.getElementById('filter-brand');
     if (brandSelect && data.brands) {
-      brandSelect.innerHTML = '<option value="">Semua Brand</option>' + data.brands.map(b => `<option value="${b}">${b}</option>`).join('');
+      brandSelect.innerHTML = '<option value="">Semua Brand</option>' + (data.brands || []).map(b => `<option value="${b}">${b}</option>`).join('');
     }
 
     // Populate Subbrand
     const subbrandSelect = document.getElementById('filter-subbrand');
     if (subbrandSelect && data.subbrands) {
-      subbrandSelect.innerHTML = '<option value="">Semua Subbrand</option>' + data.subbrands.map(s => `<option value="${s}">${s}</option>`).join('');
+      subbrandSelect.innerHTML = '<option value="">Semua Subbrand</option>' + (data.subbrands || []).map(s => `<option value="${s}">${s}</option>`).join('');
     }
 
     // Populate Group SKU
     const groupSkuSelect = document.getElementById('filter-group-sku');
     if (groupSkuSelect && data.groupSkus) {
-      groupSkuSelect.innerHTML = '<option value="">Semua Group SKU</option>' + data.groupSkus.map(g => `<option value="${g}">${g}</option>`).join('');
+      groupSkuSelect.innerHTML = '<option value="">Semua Group SKU</option>' + (data.groupSkus || []).map(g => `<option value="${g}">${g}</option>`).join('');
     }
 
     // Populate Kecamatan
     const kecSelect = document.getElementById('filter-kecamatan');
     if (kecSelect && data.kecamatans) {
-      kecSelect.innerHTML = '<option value="">Semua Kecamatan</option>' + data.kecamatans.map(k => `<option value="${k.kecamatan_id}">${k.name}</option>`).join('');
+      kecSelect.innerHTML = '<option value="">Semua Kecamatan</option>' + (data.kecamatans || []).map(k => `<option value="${k.kecamatan_id}">${k.name}</option>`).join('');
     }
   } catch (e) {
     console.error('Error loading filter options:', e);
   }
+}
+
+function updateCascadingFilters(trigger) {
+  if (!rawFilterData) return;
+
+  const spvVal = document.getElementById('filter-spv')?.value || '';
+  const grpVal = document.getElementById('filter-sales-group')?.value || '';
+  const slsEl = document.getElementById('filter-salesman');
+  const rynEl = document.getElementById('filter-rayon');
+  const prnVal = document.getElementById('filter-principal')?.value || '';
+  const brdEl = document.getElementById('filter-brand');
+  const sbdEl = document.getElementById('filter-subbrand');
+  const gskEl = document.getElementById('filter-group-sku');
+
+  // 1. SPV / Group -> Salesman cascading
+  if (trigger === 'spv' || trigger === 'group' || trigger === 'reset') {
+    let filteredSalesmen = rawFilterData.salesmen || [];
+    if (spvVal) {
+      filteredSalesmen = filteredSalesmen.filter(s => s.spv_id === spvVal);
+    }
+    if (grpVal) {
+      const isScm = grpVal.toUpperCase() === 'SCM' || grpVal.toUpperCase() === 'SMC';
+      if (isScm) {
+        filteredSalesmen = filteredSalesmen.filter(s => ['SCM', 'SMC'].includes((s.sales_group || '').toUpperCase()));
+      } else {
+        filteredSalesmen = filteredSalesmen.filter(s => (s.sales_group || '').toUpperCase() === grpVal.toUpperCase());
+      }
+    }
+    if (slsEl) {
+      const curSls = slsEl.value;
+      slsEl.innerHTML = '<option value="">Semua Salesman</option>' + filteredSalesmen.map(s => `<option value="${s.salesman_id}">${s.name}</option>`).join('');
+      if (curSls && filteredSalesmen.some(s => s.salesman_id === curSls)) {
+        slsEl.value = curSls;
+      } else {
+        slsEl.value = '';
+      }
+    }
+  }
+
+  // 2. Salesman -> Rayon cascading
+  if (trigger === 'spv' || trigger === 'group' || trigger === 'salesman' || trigger === 'reset') {
+    const curSls = slsEl?.value || '';
+    if (rynEl) {
+      const curRyn = rynEl.value;
+      let filteredRayons = rawFilterData.rayons || [];
+      if (curSls && rawFilterData.salesmanRayons && rawFilterData.salesmanRayons[curSls]) {
+        const allowed = new Set(rawFilterData.salesmanRayons[curSls]);
+        filteredRayons = filteredRayons.filter(r => allowed.has(r.rayon_id) || allowed.has(r.code));
+      }
+      rynEl.innerHTML = '<option value="">Semua Rayon</option>' + filteredRayons.map(r => `<option value="${r.rayon_id}">${r.code || r.name}</option>`).join('');
+      if (curRyn && filteredRayons.some(r => r.rayon_id === curRyn || r.code === curRyn)) {
+        rynEl.value = curRyn;
+      } else {
+        rynEl.value = '';
+      }
+    }
+  }
+
+  // 3. Principal -> Brand / Subbrand / Group SKU cascading
+  if (trigger === 'principal' || trigger === 'reset') {
+    const hierarchy = rawFilterData.productHierarchy || [];
+    let relevantRows = hierarchy;
+    if (prnVal) {
+      relevantRows = relevantRows.filter(r => (r.principal || '').trim().toUpperCase() === prnVal.trim().toUpperCase());
+    }
+
+    const allowedBrands = Array.from(new Set(relevantRows.map(r => r.brand).filter(Boolean))).sort();
+    if (brdEl) {
+      const curBrd = brdEl.value;
+      brdEl.innerHTML = '<option value="">Semua Brand</option>' + allowedBrands.map(b => `<option value="${b}">${b}</option>`).join('');
+      if (curBrd && allowedBrands.includes(curBrd)) {
+        brdEl.value = curBrd;
+      } else {
+        brdEl.value = '';
+      }
+    }
+
+    const curBrdVal = brdEl?.value || '';
+    let subbrandRows = relevantRows;
+    if (curBrdVal) {
+      subbrandRows = subbrandRows.filter(r => (r.brand || '').trim().toUpperCase() === curBrdVal.trim().toUpperCase());
+    }
+
+    const allowedSubbrands = Array.from(new Set(subbrandRows.map(r => r.subbrand).filter(Boolean))).sort();
+    if (sbdEl) {
+      const curSbd = sbdEl.value;
+      sbdEl.innerHTML = '<option value="">Semua Subbrand</option>' + allowedSubbrands.map(s => `<option value="${s}">${s}</option>`).join('');
+      if (curSbd && allowedSubbrands.includes(curSbd)) {
+        sbdEl.value = curSbd;
+      } else {
+        sbdEl.value = '';
+      }
+    }
+
+    const allowedGroupSkus = Array.from(new Set(subbrandRows.map(r => r.group_sku).filter(Boolean))).sort();
+    if (gskEl) {
+      const curGsk = gskEl.value;
+      gskEl.innerHTML = '<option value="">Semua Group SKU</option>' + allowedGroupSkus.map(g => `<option value="${g}">${g}</option>`).join('');
+      if (curGsk && allowedGroupSkus.includes(curGsk)) {
+        gskEl.value = curGsk;
+      } else {
+        gskEl.value = '';
+      }
+    }
+  }
+
+  // 4. Brand -> Subbrand / Group SKU cascading
+  if (trigger === 'brand') {
+    const hierarchy = rawFilterData.productHierarchy || [];
+    let relevantRows = hierarchy;
+    if (prnVal) {
+      relevantRows = relevantRows.filter(r => (r.principal || '').trim().toUpperCase() === prnVal.trim().toUpperCase());
+    }
+    const curBrdVal = brdEl?.value || '';
+    if (curBrdVal) {
+      relevantRows = relevantRows.filter(r => (r.brand || '').trim().toUpperCase() === curBrdVal.trim().toUpperCase());
+    }
+
+    const allowedSubbrands = Array.from(new Set(relevantRows.map(r => r.subbrand).filter(Boolean))).sort();
+    if (sbdEl) {
+      const curSbd = sbdEl.value;
+      sbdEl.innerHTML = '<option value="">Semua Subbrand</option>' + allowedSubbrands.map(s => `<option value="${s}">${s}</option>`).join('');
+      if (curSbd && allowedSubbrands.includes(curSbd)) {
+        sbdEl.value = curSbd;
+      } else {
+        sbdEl.value = '';
+      }
+    }
+
+    const allowedGroupSkus = Array.from(new Set(relevantRows.map(r => r.group_sku).filter(Boolean))).sort();
+    if (gskEl) {
+      const curGsk = gskEl.value;
+      gskEl.innerHTML = '<option value="">Semua Group SKU</option>' + allowedGroupSkus.map(g => `<option value="${g}">${g}</option>`).join('');
+      if (curGsk && allowedGroupSkus.includes(curGsk)) {
+        gskEl.value = curGsk;
+      } else {
+        gskEl.value = '';
+      }
+    }
+  }
+}
+
+function handleFilterChange(filterName) {
+  if (['spv', 'group', 'salesman', 'principal', 'brand'].includes(filterName)) {
+    updateCascadingFilters(filterName);
+  }
+  applyFilters();
 }
 
 function toggleMobileFilter(forceState) {
@@ -603,7 +754,8 @@ function resetFilters() {
     return;
   }
 
-  document.getElementById('filter-period').value = '2026-09';
+  const pEl = document.getElementById('filter-period');
+  if (pEl) pEl.value = '2026-10';
   if (document.getElementById('filter-spv')) document.getElementById('filter-spv').value = '';
   if (document.getElementById('filter-salesman')) document.getElementById('filter-salesman').value = '';
   if (document.getElementById('filter-sales-group')) document.getElementById('filter-sales-group').value = '';
@@ -613,6 +765,11 @@ function resetFilters() {
   if (document.getElementById('filter-subbrand')) document.getElementById('filter-subbrand').value = '';
   if (document.getElementById('filter-group-sku')) document.getElementById('filter-group-sku').value = '';
   if (document.getElementById('filter-kecamatan')) document.getElementById('filter-kecamatan').value = '';
+
+  globalFilters.year = 2026;
+  globalFilters.month = 10;
+  globalFilters.spvId = '';
+  globalFilters.salesmanId = '';
   globalFilters.salesGroup = '';
   globalFilters.rayonId = '';
   globalFilters.principal = '';
@@ -620,6 +777,8 @@ function resetFilters() {
   globalFilters.subbrand = '';
   globalFilters.groupSku = '';
   globalFilters.kecamatanId = '';
+
+  updateCascadingFilters('reset');
   updateMobileFilterSummary();
   if (window.innerWidth < 1024) {
     toggleMobileFilter(false);
@@ -676,13 +835,13 @@ const cleanKecName = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 function getCoverageTier(covPct, regCount) {
   if (!regCount || regCount === 0) {
-    return { fill: '#f1f5f9', stroke: '#cbd5e1', tier: 'empty', label: 'Belum Ada Outlet' };
+    return { fill: '#f8fafc', stroke: '#cbd5e1', tier: 'empty', label: 'Belum Ada Outlet' };
   }
-  if (covPct >= 80) return { fill: '#16a34a', stroke: '#15803d', tier: '80', label: '≥ 80%' };
-  if (covPct >= 60) return { fill: '#4ade80', stroke: '#22c55e', tier: '60', label: '60 – 79%' };
-  if (covPct >= 40) return { fill: '#facc15', stroke: '#eab308', tier: '40', label: '40 – 59%' };
-  if (covPct >= 20) return { fill: '#fb923c', stroke: '#f97316', tier: '20', label: '20 – 39%' };
-  return { fill: '#f87171', stroke: '#ef4444', tier: '0', label: '< 20%' };
+  if (covPct >= 80) return { fill: '#1e3a8a', stroke: '#0f172a', tier: '80', label: '≥ 80%' };
+  if (covPct >= 60) return { fill: '#2563eb', stroke: '#1d4ed8', tier: '60', label: '60 – 79%' };
+  if (covPct >= 40) return { fill: '#60a5fa', stroke: '#3b82f6', tier: '40', label: '40 – 59%' };
+  if (covPct >= 20) return { fill: '#93c5fd', stroke: '#60a5fa', tier: '20', label: '20 – 39%' };
+  return { fill: '#dbeafe', stroke: '#bfdbfe', tier: '0', label: '< 20%' };
 }
 
 async function renderGarutChoropleth(containerId, tooltipId, coverageList, totalStats) {
@@ -785,7 +944,7 @@ async function renderGarutChoropleth(containerId, tooltipId, coverageList, total
         if (reg > 0) {
           detailStats.innerHTML = `
             <span>${act}/${reg} Outlet</span>
-            <span class="font-bold ${cov >= 60 ? 'text-emerald-700' : (cov >= 40 ? 'text-amber-700' : 'text-rose-700')}">${cov}% Cov</span>
+            <span class="font-bold ${cov >= 60 ? 'text-blue-700' : (cov >= 40 ? 'text-blue-800' : 'text-slate-700')}">${cov}% Cov</span>
           `;
         } else {
           detailStats.innerHTML = `<span class="text-slate-400 italic">Belum ada outlet terdaftar</span>`;
@@ -797,7 +956,7 @@ async function renderGarutChoropleth(containerId, tooltipId, coverageList, total
         tooltip.innerHTML = `
           <p class="font-bold text-white text-xs">${name}</p>
           <div class="mt-1 space-y-0.5 text-[10px] text-slate-200">
-            <p class="flex justify-between gap-3"><span>Coverage:</span> <strong class="${cov >= 60 ? 'text-emerald-400' : (cov >= 40 ? 'text-amber-300' : 'text-rose-300')}">${cov}%</strong></p>
+            <p class="flex justify-between gap-3"><span>Coverage:</span> <strong class="${cov >= 60 ? 'text-blue-300' : (cov >= 40 ? 'text-blue-300' : 'text-slate-300')}">${cov}%</strong></p>
             <p class="flex justify-between gap-3"><span>Outlet Aktif:</span> <strong>${act} / ${reg}</strong></p>
             ${reg > 0 ? `<p class="flex justify-between gap-3"><span>Penjualan:</span> <strong>${cartons} KTN</strong></p>` : ''}
           </div>
@@ -866,7 +1025,7 @@ async function renderGarutChoropleth(containerId, tooltipId, coverageList, total
         navigate('outlet');
       } else {
         if (detailStats) {
-          detailStats.innerHTML = `<span class="text-amber-600 font-semibold">Belum ada rute aktif di ${name}</span>`;
+          detailStats.innerHTML = `<span class="text-blue-700 font-semibold">Belum ada rute aktif di ${name}</span>`;
         }
       }
     });
@@ -920,7 +1079,7 @@ async function openGarutMapModal(coverageData, totalStats) {
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <a href="https://www.google.com/maps/search/?api=1&query=Kabupaten+Garut" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition">
+        <a href="https://www.google.com/maps/search/?api=1&query=Kabupaten+Garut" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 transition">
           <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
           <span>Buka di Google Maps</span>
         </a>
@@ -958,14 +1117,14 @@ async function openGarutMapModal(coverageData, totalStats) {
                 ${sortedList.map((k, i) => `
                   <tr class="hover:bg-blue-50/50 transition cursor-pointer" onclick="filterByKecamatanAndClose('${k.name}')">
                     <td class="py-2 px-3 flex items-center gap-1.5 font-medium text-slate-800">
-                      <span class="w-2 h-2 rounded-full shrink-0 ${k.registeredOutlets === 0 ? 'bg-slate-300' : (k.coveragePct >= 60 ? 'bg-emerald-500' : (k.coveragePct >= 40 ? 'bg-amber-500' : 'bg-rose-500'))}"></span>
+                      <span class="w-2 h-2 rounded-full shrink-0 ${k.registeredOutlets === 0 ? 'bg-slate-300' : (k.coveragePct >= 60 ? 'bg-blue-600' : (k.coveragePct >= 40 ? 'bg-blue-400' : 'bg-blue-200'))}"></span>
                       <span class="truncate max-w-[120px]">${k.name}</span>
                     </td>
                     <td class="py-2 px-2 text-right text-slate-600">${k.activeOutlets}/${k.registeredOutlets}</td>
-                    <td class="py-2 px-2 text-right font-bold ${k.coveragePct >= 60 ? 'text-emerald-600' : (k.coveragePct >= 40 ? 'text-amber-600' : (k.registeredOutlets > 0 ? 'text-rose-600' : 'text-slate-400'))}">${k.registeredOutlets > 0 ? k.coveragePct + '%' : '—'}</td>
+                    <td class="py-2 px-2 text-right font-bold ${k.coveragePct >= 60 ? 'text-blue-700' : (k.coveragePct >= 40 ? 'text-blue-700' : (k.registeredOutlets > 0 ? 'text-slate-700' : 'text-slate-400'))}">${k.registeredOutlets > 0 ? k.coveragePct + '%' : '—'}</td>
                     <td class="py-2 px-2 text-right text-slate-700 font-semibold">${k.actualCartons || 0}</td>
                     <td class="py-2 px-2 text-center" onclick="event.stopPropagation()">
-                      <a href="https://www.google.com/maps/search/?api=1&query=Kecamatan+${encodeURIComponent(k.name)}+Garut" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-emerald-600 p-1 inline-flex items-center" title="Buka di Google Maps">
+                      <a href="https://www.google.com/maps/search/?api=1&query=Kecamatan+${encodeURIComponent(k.name)}+Garut" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-blue-700 p-1 inline-flex items-center" title="Buka di Google Maps">
                         <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
                       </a>
                     </td>
@@ -983,7 +1142,7 @@ async function openGarutMapModal(coverageData, totalStats) {
           </div>
           <div>
             <span class="text-slate-500 block text-[10px]">Coverage Garut</span>
-            <span class="font-bold text-emerald-700 text-sm">${totalStats?.coveragePct || 0}%</span>
+            <span class="font-bold text-blue-700 text-sm">${totalStats?.coveragePct || 0}%</span>
           </div>
           <button onclick="navigate('outlet'); document.getElementById('modal-container').classList.add('hidden')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs transition">
             Lihat Semua Outlet
@@ -1027,7 +1186,7 @@ async function renderBeranda() {
 
     updateHeaderDate(cal);
 
-    const achvBadgeClass = s.achievementPct >= 80 ? 'text-emerald-700 bg-emerald-100' : (s.achievementPct >= 60 ? 'text-amber-700 bg-amber-100' : 'text-rose-700 bg-rose-100');
+    const achvBadgeClass = s.achievementPct >= 80 ? 'text-blue-700 bg-blue-100' : (s.achievementPct >= 60 ? 'text-blue-900 bg-blue-50' : 'text-slate-700 bg-slate-100');
 
     let html = `
       <!-- Sub-header Title -->
@@ -1044,7 +1203,7 @@ async function renderBeranda() {
       </div>
 
       <!-- Executive Timegone & Daily Pace Banner (Senin s/d Jumat) -->
-      <div class="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-900 text-white p-4 sm:p-5 rounded-2xl shadow-lg border border-slate-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+      <div class="bg-gradient-to-r #0c2340 text-white p-4 sm:p-5 rounded-2xl shadow-lg border border-slate-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
         <div class="flex items-center gap-3.5">
           <div class="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-300 flex-shrink-0">
             <i data-lucide="clock" class="w-6 h-6"></i>
@@ -1057,17 +1216,17 @@ async function renderBeranda() {
                   BULAN SELESAI (FULL MONTH)
                 </span>
               ` : `
-                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${s.achievementPct >= (cal.timegonePct || 80.0) ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : (s.achievementPct >= (cal.timegonePct || 80.0) - 15 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40')}">
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${s.achievementPct >= (cal.timegonePct || 80.0) ? 'bg-blue-600/20 text-blue-300 border border-blue-400/40' : (s.achievementPct >= (cal.timegonePct || 80.0) - 15 ? 'bg-slate-700/50 text-blue-300 border border-slate-500/40' : 'bg-slate-800 text-slate-300 border border-slate-700')}">
                   ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 80.0) ? 'ON PACE (Ahead Timerate)' : (s.achievementPct >= (cal.timegonePct || 80.0) - 15 ? 'NEEDS ATTENTION' : 'BEHIND PACE')) : 'STANDBY'}
                 </span>
               `}
             </div>
             <p class="text-base font-extrabold text-white mt-0.5">
               ${cal.isFullMonth ? `
-                Realisasi Penuh: <span class="text-emerald-400">${cal.monFriTotalHk || cal.totalHk || 25}</span> / ${cal.monFriTotalHk || cal.totalHk || 25} HK 
+                Realisasi Penuh: <span class="text-blue-300">${cal.monFriTotalHk || cal.totalHk || 25}</span> / ${cal.monFriTotalHk || cal.totalHk || 25} HK 
                 <span class="text-slate-400 text-xs font-normal">(Bulan Telah Ditutup / Full Month)</span>
               ` : `
-                HKE Berjalan: <span class="text-emerald-400">${cal.monFriAsOfHke !== undefined ? cal.monFriAsOfHke : (cal.asOfHke || 20)}</span> / ${cal.monFriTotalHk || cal.totalHk || 25} HK 
+                HKE Berjalan: <span class="text-blue-300">${cal.monFriAsOfHke !== undefined ? cal.monFriAsOfHke : (cal.asOfHke || 20)}</span> / ${cal.monFriTotalHk || cal.totalHk || 25} HK 
                 <span class="text-slate-400 text-xs font-normal">(Sisa ${cal.monFriRemainingHk !== undefined ? cal.monFriRemainingHk : (cal.remainingHk || 5)} Hari Kerja • Siklus ${cal.totalWeeks || 5} Minggu)</span>
               `}
             </p>
@@ -1078,12 +1237,12 @@ async function renderBeranda() {
           <!-- Timegone -->
           <div>
             <span class="text-slate-400 text-[10px] block">Timegone (Timerate)</span>
-            <span class="font-extrabold ${cal.isFullMonth ? 'text-blue-300' : 'text-amber-300'} text-sm">${cal.isFullMonth ? '100.0%' : (cal.timegonePct || 80.0) + '%'}</span>
+            <span class="font-extrabold ${cal.isFullMonth ? 'text-blue-300' : 'text-blue-300'} text-sm">${cal.isFullMonth ? '100.0%' : (cal.timegonePct || 80.0) + '%'}</span>
           </div>
           <!-- Capaian MTD -->
           <div>
             <span class="text-slate-400 text-[10px] block">${cal.isFullMonth ? 'Capaian Target Final' : 'Capaian Target MTD'}</span>
-            <span class="font-extrabold ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 80.0) ? 'text-emerald-400' : 'text-rose-400') : 'text-slate-400'} text-sm">${s.hasTarget && s.achievementPct !== null ? s.achievementPct + '%' + (cal.isFullMonth ? ' (Final)' : '') : 'N/A'}</span>
+            <span class="font-extrabold ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= (cal.timegonePct || 80.0) ? 'text-blue-300' : 'text-slate-300') : 'text-slate-400'} text-sm">${s.hasTarget && s.achievementPct !== null ? s.achievementPct + '%' + (cal.isFullMonth ? ' (Final)' : '') : 'N/A'}</span>
           </div>
           <!-- GAP Bulanan -->
           <div>
@@ -1093,20 +1252,20 @@ async function renderBeranda() {
           <!-- GAP Harian -->
           <div>
             <span class="text-slate-400 text-[10px] block">GAP Harian (Sisa HK)</span>
-            <span class="font-extrabold ${cal.isFullMonth ? 'text-slate-300' : 'text-emerald-400'} text-sm">${cal.isFullMonth ? '0 KTN/hr (Selesai)' : (s.gapDailyMonFri !== null && s.hasTarget ? s.gapDailyMonFri.toLocaleString('id-ID') + ' KTN/hr' : (s.gapDaily !== null && s.hasTarget ? s.gapDaily.toLocaleString('id-ID') + ' KTN/hr' : 'N/A'))}</span>
+            <span class="font-extrabold ${cal.isFullMonth ? 'text-slate-300' : 'text-blue-300'} text-sm">${cal.isFullMonth ? '0 KTN/hr (Selesai)' : (s.gapDailyMonFri !== null && s.hasTarget ? s.gapDailyMonFri.toLocaleString('id-ID') + ' KTN/hr' : (s.gapDaily !== null && s.hasTarget ? s.gapDaily.toLocaleString('id-ID') + ' KTN/hr' : 'N/A'))}</span>
           </div>
         </div>
       </div>
 
       <!-- Total Performance Quick Banner & CTA -->
-      <div class="bg-gradient-to-r from-blue-900 to-indigo-950 p-4 sm:p-5 rounded-2xl border border-blue-800/80 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="bg-gradient-to-r #0c2340 p-4 sm:p-5 rounded-2xl border border-blue-800/80 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
         <div class="flex items-center gap-3.5">
-          <div class="w-11 h-11 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
+          <div class="w-11 h-11 rounded-xl bg-blue-600/20 border border-blue-400/30 flex items-center justify-center text-blue-300 shrink-0">
             <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <span class="text-xs font-bold uppercase tracking-wider text-emerald-300">Total Performance Intelligence</span>
+              <span class="text-xs font-bold uppercase tracking-wider text-blue-300">Total Performance Intelligence</span>
               <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-white/10 text-slate-200">1-Page Deep Dive</span>
             </div>
             <h3 class="text-sm sm:text-base font-bold text-white mt-0.5">Analisis Total Performa DSO, Kinerja Salesman & Kontribusi Sub-brand</h3>
@@ -1114,7 +1273,7 @@ async function renderBeranda() {
           </div>
         </div>
         <div class="flex items-center gap-3 w-full md:w-auto justify-end shrink-0">
-          <button onclick="navigate('performance')" class="w-full md:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2">
+          <button onclick="navigate('performance')" class="w-full md:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-600 text-slate-950 font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2">
             <span>Buka Summary Performance</span>
             <i data-lucide="arrow-right" class="w-4 h-4"></i>
           </button>
@@ -1137,17 +1296,17 @@ async function renderBeranda() {
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Actual KTN</span>
-            <i data-lucide="package-check" class="w-3.5 h-3.5 ${cal.isFullMonth ? 'text-blue-500' : 'text-emerald-500'}"></i>
+            <i data-lucide="package-check" class="w-3.5 h-3.5 ${cal.isFullMonth ? 'text-blue-500' : 'text-blue-600'}"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">${s.actualCartons.toLocaleString('id-ID')}</p>
-          <p class="text-[10px] ${cal.isFullMonth ? 'text-blue-600' : 'text-emerald-600'} font-medium flex items-center gap-0.5 mt-0.5"><i data-lucide="${cal.isFullMonth ? 'check-circle' : 'trending-up'}" class="w-2.5 h-2.5"></i> ${cal.isFullMonth ? 'Realisasi Penuh (Full Month)' : 'MTD Realisasi'}</p>
+          <p class="text-[10px] ${cal.isFullMonth ? 'text-blue-600' : 'text-blue-700'} font-medium flex items-center gap-0.5 mt-0.5"><i data-lucide="${cal.isFullMonth ? 'check-circle' : 'trending-up'}" class="w-2.5 h-2.5"></i> ${cal.isFullMonth ? 'Realisasi Penuh (Full Month)' : 'MTD Realisasi'}</p>
         </div>
 
         <!-- 3. Achievement -->
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Achievement</span>
-            <i data-lucide="award" class="w-3.5 h-3.5 text-amber-500"></i>
+            <i data-lucide="award" class="w-3.5 h-3.5 text-blue-600"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">${s.hasTarget && s.achievementPct !== null ? s.achievementPct + '%' : '<span class="text-slate-400 text-sm">N/A</span>'}</p>
           <span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${cal.isFullMonth ? 'bg-blue-50 text-blue-700 border border-blue-200' : (s.hasTarget && s.latestEstimateAchvPct !== null ? achvBadgeClass : 'bg-slate-100 text-slate-500')} mt-0.5">${cal.isFullMonth ? 'Final Realisasi: ' + (s.achievementPct !== null ? s.achievementPct + '%' : 'N/A') : ('LE ' + (s.hasTarget && s.latestEstimateAchvPct !== null ? s.latestEstimateAchvPct + '%' : 'N/A'))}</span>
@@ -1157,27 +1316,27 @@ async function renderBeranda() {
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Gap Target</span>
-            <i data-lucide="trending-down" class="w-3.5 h-3.5 text-rose-500"></i>
+            <i data-lucide="trending-down" class="w-3.5 h-3.5 text-slate-500"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">${s.hasTarget && s.remainingTarget !== null ? s.remainingTarget.toLocaleString('id-ID') : '<span class="text-slate-400 text-sm">N/A</span>'}</p>
-          <p class="text-[10px] ${s.hasTarget && s.remainingTarget === 0 ? 'text-emerald-600 font-semibold' : 'text-rose-600'} font-medium mt-0.5">${s.hasTarget ? (s.remainingTarget === 0 ? 'Target tercapai!' : (cal.isFullMonth ? 'sisa target final' : 'sisa target')) : 'target belum ada'}</p>
+          <p class="text-[10px] ${s.hasTarget && s.remainingTarget === 0 ? 'text-blue-700 font-semibold' : 'text-slate-700'} font-medium mt-0.5">${s.hasTarget ? (s.remainingTarget === 0 ? 'Target tercapai!' : (cal.isFullMonth ? 'sisa target final' : 'sisa target')) : 'target belum ada'}</p>
         </div>
 
         <!-- 5. Sales Value -->
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Sales Value</span>
-            <i data-lucide="coins" class="w-3.5 h-3.5 text-purple-500"></i>
+            <i data-lucide="coins" class="w-3.5 h-3.5 text-blue-600"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">Rp ${(s.salesNettoValue / 1000000).toFixed(1)} Jt</p>
-          <p class="text-[10px] ${s.hasTarget && s.targetValue ? 'text-purple-700 font-semibold' : 'text-emerald-600'} font-medium mt-0.5" title="${s.hasTarget && s.targetValue ? 'Target: Rp ' + s.targetValue.toLocaleString('id-ID') : ''}">${s.hasTarget && s.targetValue ? 'Tgt: Rp ' + (s.targetValue / 1000000).toFixed(1) + ' Jt (' + (Math.round((s.salesNettoValue / s.targetValue) * 1000) / 10) + '%)' : (cal.isFullMonth ? 'Netto Full Month' : 'Netto MTD')}</p>
+          <p class="text-[10px] ${s.hasTarget && s.targetValue ? 'text-blue-700 font-semibold' : 'text-blue-700'} font-medium mt-0.5" title="${s.hasTarget && s.targetValue ? 'Target: Rp ' + s.targetValue.toLocaleString('id-ID') : ''}">${s.hasTarget && s.targetValue ? 'Tgt: Rp ' + (s.targetValue / 1000000).toFixed(1) + ' Jt (' + (Math.round((s.salesNettoValue / s.targetValue) * 1000) / 10) + '%)' : (cal.isFullMonth ? 'Netto Full Month' : 'Netto MTD')}</p>
         </div>
 
         <!-- 6. Registered Outlet (CL) -->
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Registered (CL)</span>
-            <i data-lucide="store" class="w-3.5 h-3.5 text-teal-500"></i>
+            <i data-lucide="store" class="w-3.5 h-3.5 text-blue-600"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">${c.registeredOutlets.toLocaleString('id-ID')}</p>
           <p class="text-[10px] text-slate-400 mt-0.5">Universe Outlet</p>
@@ -1190,14 +1349,14 @@ async function renderBeranda() {
             <i data-lucide="shopping-bag" class="w-3.5 h-3.5 text-blue-600"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">${c.activeOutletsMtd.toLocaleString('id-ID')}</p>
-          <p class="text-[10px] text-emerald-600 font-medium mt-0.5">Aktif Order MTD</p>
+          <p class="text-[10px] text-blue-700 font-medium mt-0.5">Aktif Order MTD</p>
         </div>
 
         <!-- 8. Coverage & 4 States -->
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Coverage</span>
-            <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-600"></i>
+            <i data-lucide="map-pin" class="w-3.5 h-3.5 text-blue-700"></i>
           </div>
           <p class="text-lg font-bold text-slate-800">${c.coveragePct}%</p>
           <p class="text-[10px] text-slate-500 font-medium mt-0.5 truncate" title="${c.activeOutletsMtd} Aktif, ${c.dormant60dOutlets} Dormant, ${c.neverOrderedOutlets || 0} Belum Pernah Order">${c.dormant60dOutlets} Dormant • ${c.neverOrderedOutlets || 0} Belum Order</p>
@@ -1231,7 +1390,7 @@ async function renderBeranda() {
                       <div class="w-6 md:w-7 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-sm shadow-sm transition-all duration-300 group-hover:from-blue-500 group-hover:to-blue-300" style="height: ${barH}px;" title="${m.name}: ${ktnVal.toLocaleString('id-ID')} KTN (${m.achv}%)"></div>
                     </div>
                     <span class="text-[10px] font-semibold text-slate-600 mt-1.5">${m.name}</span>
-                    <span class="text-[9px] text-emerald-600 font-bold">${m.achv}%</span>
+                    <span class="text-[9px] text-blue-700 font-bold">${m.achv}%</span>
                   </div>
                 `;
               }).join('');
@@ -1239,7 +1398,7 @@ async function renderBeranda() {
           </div>
           <div class="flex items-center justify-center gap-4 text-[10px] text-slate-500 pt-2">
             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 bg-blue-600 rounded-sm"></span> Actual KTN</span>
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 bg-emerald-500 rounded-sm"></span> Achv %</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 bg-blue-600 rounded-sm"></span> Achv %</span>
           </div>
         </div>
 
@@ -1259,7 +1418,7 @@ async function renderBeranda() {
             ${data.topSalesmen.map((s, idx) => `
               <div class="py-2.5 flex items-center justify-between hover:bg-slate-50/80 px-2 rounded-lg transition cursor-pointer" onclick="navigate('salesman')">
                 <div class="flex items-center gap-2.5">
-                  <span class="w-5 h-5 rounded-full ${idx === 0 ? 'bg-amber-100 text-amber-700 font-extrabold' : 'bg-slate-100 text-slate-600'} text-[11px] flex items-center justify-center">
+                  <span class="w-5 h-5 rounded-full ${idx === 0 ? 'bg-blue-100 text-blue-900 font-extrabold' : 'bg-slate-100 text-slate-600'} text-[11px] flex items-center justify-center">
                     ${idx + 1}
                   </span>
                   <div>
@@ -1313,23 +1472,23 @@ async function renderBeranda() {
               <!-- Tier Legend matching media_1789303707623.jpg -->
               <div class="space-y-1 text-[11px] text-slate-600">
                 <div class="flex items-center justify-between">
-                  <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block shrink-0"></span> ≥ 80%</span>
+                  <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-900 inline-block shrink-0"></span> ≥ 80%</span>
                   <span class="font-bold text-slate-700" id="legend-count-80">0 kec</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-400 inline-block shrink-0"></span> 60 – 79%</span>
+                  <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block shrink-0"></span> 60 – 79%</span>
                   <span class="font-bold text-slate-700" id="legend-count-60">0 kec</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block shrink-0"></span> 40 – 59%</span>
+                  <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block shrink-0"></span> 40 – 59%</span>
                   <span class="font-bold text-slate-700" id="legend-count-40">0 kec</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block shrink-0"></span> 20 – 39%</span>
+                  <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-300 inline-block shrink-0"></span> 20 – 39%</span>
                   <span class="font-bold text-slate-700" id="legend-count-20">0 kec</span>
                 </div>
                 <div class="flex items-center justify-between">
-                  <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block shrink-0"></span> &lt; 20%</span>
+                  <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-100 inline-block shrink-0"></span> &lt; 20%</span>
                   <span class="font-bold text-slate-700" id="legend-count-0">0 kec</span>
                 </div>
                 <div class="flex items-center justify-between pt-0.5 border-t border-slate-100">
@@ -1362,12 +1521,12 @@ async function renderBeranda() {
               </div>
             </div>
             <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <div class="w-7 h-7 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
                 <i data-lucide="pie-chart" class="w-4 h-4"></i>
               </div>
               <div>
                 <p class="text-[10px] text-slate-400 font-medium leading-none">Coverage</p>
-                <p class="font-bold text-emerald-700 text-sm mt-0.5">${c.coveragePct}%</p>
+                <p class="font-bold text-blue-700 text-sm mt-0.5">${c.coveragePct}%</p>
               </div>
             </div>
           </div>
@@ -1404,40 +1563,40 @@ async function renderBeranda() {
                   <td class="py-2 px-3 font-bold text-slate-800">Kopi (Qty)</td>
                   <td class="py-2 px-3 text-right">4.100 KTN</td>
                   <td class="py-2 px-3 text-right font-bold text-blue-600">2.850 KTN</td>
-                  <td class="py-2 px-3 text-right font-bold text-emerald-600">69,5%</td>
-                  <td class="py-2 px-3 text-right text-rose-600">-1.250</td>
+                  <td class="py-2 px-3 text-right font-bold text-blue-700">69,5%</td>
+                  <td class="py-2 px-3 text-right text-slate-700">-1.250</td>
                 </tr>
                 <tr class="hover:bg-slate-50">
                   <td class="py-2 px-3 text-slate-400">2</td>
                   <td class="py-2 px-3 font-bold text-slate-800">Beverage (Qty)</td>
                   <td class="py-2 px-3 text-right">2.900 KTN</td>
                   <td class="py-2 px-3 text-right font-bold text-blue-600">1.980 KTN</td>
-                  <td class="py-2 px-3 text-right font-bold text-emerald-600">68,3%</td>
-                  <td class="py-2 px-3 text-right text-rose-600">-920</td>
+                  <td class="py-2 px-3 text-right font-bold text-blue-700">68,3%</td>
+                  <td class="py-2 px-3 text-right text-slate-700">-920</td>
                 </tr>
                 <tr class="hover:bg-slate-50">
                   <td class="py-2 px-3 text-slate-400">3</td>
                   <td class="py-2 px-3 font-bold text-slate-800">Non Kopi & Non Bvg (Qty)</td>
                   <td class="py-2 px-3 text-right">2.750 KTN</td>
                   <td class="py-2 px-3 text-right font-bold text-blue-600">1.620 KTN</td>
-                  <td class="py-2 px-3 text-right font-bold text-amber-600">58,9%</td>
-                  <td class="py-2 px-3 text-right text-rose-600">-1.130</td>
+                  <td class="py-2 px-3 text-right font-bold text-blue-700">58,9%</td>
+                  <td class="py-2 px-3 text-right text-slate-700">-1.130</td>
                 </tr>
                 <tr class="hover:bg-slate-50">
                   <td class="py-2 px-3 text-slate-400">4</td>
                   <td class="py-2 px-3 font-bold text-slate-800">Value - All (Rp)</td>
                   <td class="py-2 px-3 text-right">Rp 5.250 Jt</td>
                   <td class="py-2 px-3 text-right font-bold text-blue-600">Rp 3.820 Jt</td>
-                  <td class="py-2 px-3 text-right font-bold text-emerald-600">72,8%</td>
-                  <td class="py-2 px-3 text-right text-rose-600">-1.430 Jt</td>
+                  <td class="py-2 px-3 text-right font-bold text-blue-700">72,8%</td>
+                  <td class="py-2 px-3 text-right text-slate-700">-1.430 Jt</td>
                 </tr>
                 <tr class="hover:bg-slate-50">
                   <td class="py-2 px-3 text-slate-400">5</td>
                   <td class="py-2 px-3 font-bold text-slate-800">OC Must Have SKU (Qty)</td>
                   <td class="py-2 px-3 text-right">1.250 Outlet</td>
                   <td class="py-2 px-3 text-right font-bold text-blue-600">890 Outlet</td>
-                  <td class="py-2 px-3 text-right font-bold text-emerald-600">71,2%</td>
-                  <td class="py-2 px-3 text-right text-rose-600">-360</td>
+                  <td class="py-2 px-3 text-right font-bold text-blue-700">71,2%</td>
+                  <td class="py-2 px-3 text-right text-slate-700">-360</td>
                 </tr>
                 <tr class="hover:bg-slate-50 bg-slate-50/50">
                   <td class="py-2 px-3 text-slate-400">6</td>
@@ -1471,10 +1630,10 @@ async function renderBeranda() {
                 </div>
                 <div class="flex justify-between items-center text-[10px] text-slate-500 mb-1">
                   <span>Realisasi: <strong class="text-slate-700">${m.actualPenetrationPct}%</strong> (${m.actualOc} Toko)</span>
-                  <span class="font-bold ${m.progressToTargetPct >= 100 ? 'text-emerald-600' : 'text-amber-600'}">Progres: ${m.progressToTargetPct}%</span>
+                  <span class="font-bold ${m.progressToTargetPct >= 100 ? 'text-blue-700' : 'text-blue-700'}">Progres: ${m.progressToTargetPct}%</span>
                 </div>
                 <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                  <div class="h-2 rounded-full ${m.progressToTargetPct >= 100 ? 'bg-emerald-500' : 'bg-blue-600'}" style="width: ${Math.min(m.progressToTargetPct, 100)}%;"></div>
+                  <div class="h-2 rounded-full ${m.progressToTargetPct >= 100 ? 'bg-blue-600' : 'bg-blue-600'}" style="width: ${Math.min(m.progressToTargetPct, 100)}%;"></div>
                 </div>
               </div>
             `).join('')}
@@ -1506,29 +1665,29 @@ async function renderBeranda() {
             </div>
             <div>
               <p class="text-slate-400 text-[10px]">Sisa HK</p>
-              <p class="text-sm font-bold text-rose-600">${cal.remainingHk}</p>
+              <p class="text-sm font-bold text-slate-700">${cal.remainingHk}</p>
             </div>
           </div>
           <div class="flex justify-between text-xs pt-1">
             <span class="text-slate-500">Gap / Hari:</span>
-            <span class="font-bold text-rose-600">${s.gapDailyPace} KTN/hari</span>
+            <span class="font-bold text-slate-700">${s.gapDailyPace} KTN/hari</span>
           </div>
           <div class="flex justify-between text-xs pt-0.5">
             <span class="text-slate-500">LE Projection:</span>
-            <span class="font-bold text-emerald-600">${s.latestEstimateAchvPct}% (${s.latestEstimateCartons} KTN)</span>
+            <span class="font-bold text-blue-700">${s.latestEstimateAchvPct}% (${s.latestEstimateCartons} KTN)</span>
           </div>
         </div>
 
         <!-- Ringkasan Insentif (Estimasi) -->
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="coins" class="w-3.5 h-3.5 text-amber-500"></i> Ringkasan Insentif</span>
-            <span class="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">+12% vs lalu</span>
+            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="coins" class="w-3.5 h-3.5 text-blue-600"></i> Ringkasan Insentif</span>
+            <span class="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold">+12% vs lalu</span>
           </div>
           <p class="text-xl font-extrabold text-slate-800 mt-2">Rp ${data.totalIncentiveEstimated.toLocaleString('id-ID')}</p>
           <p class="text-[11px] text-slate-500 mb-2">Estimasi payout tim salesman MTD</p>
           <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-2">
-            <div class="bg-gradient-to-r from-amber-400 to-emerald-500 h-2 rounded-full" style="width: 68%;"></div>
+            <div class="bg-gradient-to-r from-blue-600 to-blue-500 h-2 rounded-full" style="width: 68%;"></div>
           </div>
           <div class="flex justify-between text-[11px] text-slate-500">
             <span>68,8% dari total mangkok</span>
@@ -1539,7 +1698,7 @@ async function renderBeranda() {
         <!-- NPL (Piutang) -->
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="receipt" class="w-3.5 h-3.5 text-purple-500"></i> NPL & Piutang</span>
+            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="receipt" class="w-3.5 h-3.5 text-blue-600"></i> NPL & Piutang</span>
             <button onclick="navigate('stock')" class="text-[10px] text-blue-600 font-semibold hover:underline">Detail AR</button>
           </div>
           <div class="space-y-2 mt-2">
@@ -1549,9 +1708,9 @@ async function renderBeranda() {
             </div>
             <div class="flex justify-between items-center text-xs">
               <span class="text-slate-500">NPL > 90 Hari:</span>
-              <span class="font-bold text-rose-600">Rp ${data.arSummary.nplOver90dJt} Jt (${data.arSummary.nplPct}%)</span>
+              <span class="font-bold text-slate-700">Rp ${data.arSummary.nplOver90dJt} Jt (${data.arSummary.nplPct}%)</span>
             </div>
-            <div class="p-2 bg-rose-50 rounded-lg text-[11px] text-rose-700 border border-rose-100 mt-1">
+            <div class="p-2 bg-slate-100 rounded-lg text-[11px] text-slate-700 border border-slate-200 mt-1">
               Perhatian: 4 outlet menunggak pembayaran > 60 hari.
             </div>
           </div>
@@ -1560,7 +1719,7 @@ async function renderBeranda() {
         <!-- Peringatan Stock -->
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-rose-500"></i> Peringatan Stock</span>
+            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-slate-500"></i> Peringatan Stock</span>
             <button onclick="navigate('stock')" class="text-[10px] text-blue-600 font-semibold hover:underline">Lihat Gudang</button>
           </div>
           <div class="space-y-1.5 mt-1 text-xs">
@@ -1589,14 +1748,14 @@ async function renderBeranda() {
     const alertsList = document.getElementById('alerts-list');
     if (alertsList && data.insights) {
       alertsList.innerHTML = data.insights.map(ins => `
-        <div class="p-2 rounded-lg ${ins.level === 'DANGER' ? 'bg-rose-50 text-rose-800 border border-rose-100' : 'bg-slate-50 text-slate-800 border border-slate-100'}">
+        <div class="p-2 rounded-lg ${ins.level === 'DANGER' ? 'bg-slate-100 text-slate-800 border border-slate-200' : 'bg-slate-50 text-slate-800 border border-slate-100'}">
           <p class="font-bold text-[11px]">${ins.title}</p>
           <p class="text-[10px] mt-0.5">${ins.message}</p>
         </div>
       `).join('');
     }
   } catch (err) {
-    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl border border-rose-200">Gagal memuat Beranda: ${err.message}</div>`;
+    main.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl border border-slate-300">Gagal memuat Beranda: ${err.message}</div>`;
   }
 }
 
@@ -1681,13 +1840,13 @@ async function renderOutlet() {
         <button onclick="filterOutletStatus('all')" class="px-3 py-1.5 rounded-lg font-semibold transition ${outletStatusFilter === 'all' ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}">
           Semua Outlet
         </button>
-        <button onclick="filterOutletStatus('ACTIVE')" class="px-3 py-1.5 rounded-lg font-semibold transition ${outletStatusFilter === 'ACTIVE' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'}">
+        <button onclick="filterOutletStatus('ACTIVE')" class="px-3 py-1.5 rounded-lg font-semibold transition ${outletStatusFilter === 'ACTIVE' ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'}">
           Aktif MTD
         </button>
-        <button onclick="filterOutletStatus('INACTIVE_MTD')" class="px-3 py-1.5 rounded-lg font-semibold transition ${outletStatusFilter === 'INACTIVE_MTD' ? 'bg-amber-500 text-white shadow-sm' : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50'}">
+        <button onclick="filterOutletStatus('INACTIVE_MTD')" class="px-3 py-1.5 rounded-lg font-semibold transition ${outletStatusFilter === 'INACTIVE_MTD' ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'}">
           Inaktif MTD (<60 Hari)
         </button>
-        <button onclick="filterOutletStatus('DORMANT_60D')" class="px-3 py-1.5 rounded-lg font-semibold transition ${outletStatusFilter === 'DORMANT_60D' ? 'bg-rose-600 text-white shadow-sm' : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-50'}">
+        <button onclick="filterOutletStatus('DORMANT_60D')" class="px-3 py-1.5 rounded-lg font-semibold transition ${outletStatusFilter === 'DORMANT_60D' ? 'bg-slate-800 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'}">
           Dormant (>60 Hari)
         </button>
         <button onclick="filterOutletStatus('NEVER_ORDERED')" class="px-3 py-1.5 rounded-lg font-semibold transition ${outletStatusFilter === 'NEVER_ORDERED' ? 'bg-slate-700 text-white shadow-sm' : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100'}">
@@ -1716,7 +1875,7 @@ async function renderOutlet() {
                 class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-8 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
               />
               ${window.globalOutletSearch ? `
-                <button type="button" onclick="clearGlobalSearch()" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-600 transition" title="Hapus pencarian">
+                <button type="button" onclick="clearGlobalSearch()" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition" title="Hapus pencarian">
                   <i data-lucide="x-circle" class="w-3.5 h-3.5"></i>
                 </button>
               ` : ''}
@@ -1735,12 +1894,12 @@ async function renderOutlet() {
         ` : ''}
 
         ${activeProdFilters.length > 0 ? `
-          <div class="px-4 py-2 bg-indigo-50/80 border-b border-indigo-100 flex items-center justify-between text-xs text-indigo-900">
+          <div class="px-4 py-2 bg-blue-50/80 border-b border-blue-100 flex items-center justify-between text-xs text-blue-900">
             <span class="flex items-center gap-1.5">
-              <i data-lucide="filter" class="w-3.5 h-3.5 text-indigo-600"></i>
-              <span>Filter Produk Aktif: <strong class="text-indigo-950 font-bold">${escapeHtml(activeProdFilters.join(' • '))}</strong> (Data penjualan Jan-Sep & status disesuaikan produk)</span>
+              <i data-lucide="filter" class="w-3.5 h-3.5 text-blue-600"></i>
+              <span>Filter Produk Aktif: <strong class="text-blue-950 font-bold">${escapeHtml(activeProdFilters.join(' • '))}</strong> (Data penjualan Jan-Sep & status disesuaikan produk)</span>
             </span>
-            <button onclick="resetProductFilters()" class="text-indigo-700 hover:text-indigo-950 font-bold underline text-[11px] flex items-center gap-1">
+            <button onclick="resetProductFilters()" class="text-blue-700 hover:text-blue-950 font-bold underline text-[11px] flex items-center gap-1">
               <i data-lucide="x" class="w-3 h-3"></i>
               <span>Hapus Filter Produk</span>
             </button>
@@ -1765,8 +1924,8 @@ async function renderOutlet() {
                 <th class="py-3 px-2 text-right whitespace-nowrap font-semibold">Jul</th>
                 <th class="py-3 px-2 text-right whitespace-nowrap font-semibold">Agu</th>
                 <th class="py-3 px-2 text-right whitespace-nowrap font-bold bg-blue-50/60 text-blue-900">Sep</th>
-                <th class="py-3 px-3 text-right whitespace-nowrap font-bold bg-indigo-50/70 text-indigo-900">Avg 3 Bln</th>
-                <th class="py-3 px-3 text-right whitespace-nowrap font-bold bg-purple-50/70 text-purple-900">Avg 6 Bln</th>
+                <th class="py-3 px-3 text-right whitespace-nowrap font-bold bg-blue-50/70 text-blue-900">Avg 3 Bln</th>
+                <th class="py-3 px-3 text-right whitespace-nowrap font-bold bg-slate-100 text-blue-900">Avg 6 Bln</th>
                 <th onclick="toggleOutletSort('status')" class="py-3 px-4 text-center cursor-pointer hover:bg-slate-100 transition whitespace-nowrap">Status ${sortIcon('status')}</th>
                 <th onclick="toggleOutletSort('daysSinceLastOrder')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-100 transition whitespace-nowrap">Hari Sejak Order ${sortIcon('daysSinceLastOrder')}</th>
                 <th class="py-3 px-4 text-right">Aksi</th>
@@ -1818,14 +1977,14 @@ async function renderOutlet() {
                   <td class="py-3 px-2 text-right font-mono text-slate-600">${(o.monthlySales?.m7 || 0).toLocaleString('id-ID')}</td>
                   <td class="py-3 px-2 text-right font-mono text-slate-600">${(o.monthlySales?.m8 || 0).toLocaleString('id-ID')}</td>
                   <td class="py-3 px-2 text-right font-mono font-bold text-blue-700 bg-blue-50/30">${(o.monthlySales?.m9 || 0).toLocaleString('id-ID')}</td>
-                  <td class="py-3 px-3 text-right font-mono font-extrabold text-indigo-700 bg-indigo-50/40">${(o.avgLast3Months || 0).toLocaleString('id-ID')}</td>
-                  <td class="py-3 px-3 text-right font-mono font-extrabold text-purple-700 bg-purple-50/40">${(o.avgLast6Months || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-3 text-right font-mono font-extrabold text-blue-700 bg-blue-50/40">${(o.avgLast3Months || 0).toLocaleString('id-ID')}</td>
+                  <td class="py-3 px-3 text-right font-mono font-extrabold text-blue-700 bg-slate-50">${(o.avgLast6Months || 0).toLocaleString('id-ID')}</td>
                   <td class="py-3 px-4 text-center">
                     <span class="px-2 py-0.5 rounded text-[10px] font-bold ${o.stateCode === 'ACTIVE' ? 'badge-success' : (o.stateCode === 'DORMANT_60D' ? 'badge-danger' : (o.stateCode === 'INACTIVE_MTD' ? 'badge-warning' : 'bg-slate-200 text-slate-700'))}">
                       ${o.status}
                     </span>
                   </td>
-                  <td class="py-3 px-4 text-right font-bold ${o.daysSinceLastOrder !== null && o.daysSinceLastOrder >= 60 ? 'text-rose-600' : 'text-slate-800'}">
+                  <td class="py-3 px-4 text-right font-bold ${o.daysSinceLastOrder !== null && o.daysSinceLastOrder >= 60 ? 'text-slate-700' : 'text-slate-800'}">
                     ${o.daysSinceLastOrder === null ? '<span class="text-slate-400 italic font-normal">Belum pernah order</span>' : o.daysSinceLastOrder + ' hari'}
                   </td>
                   <td class="py-3 px-4 text-right">
@@ -1844,7 +2003,7 @@ async function renderOutlet() {
     main.innerHTML = html;
     lucide.createIcons();
   } catch (err) {
-    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat daftar outlet: ${err.message}</div>`;
+    main.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat daftar outlet: ${err.message}</div>`;
   }
 }
 
@@ -1886,7 +2045,7 @@ async function openOutlet360(outletId) {
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(idn.canonicalName + ' ' + (idn.address || idn.kecamatan) + ' Garut')}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-lg hover:bg-emerald-100 transition flex items-center gap-1 shadow-sm">
+          <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(idn.canonicalName + ' ' + (idn.address || idn.kecamatan) + ' Garut')}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold rounded-lg hover:bg-blue-100 transition flex items-center gap-1 shadow-sm">
             <i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Maps
           </a>
           <button class="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">Bagikan</button>
@@ -1916,7 +2075,7 @@ async function openOutlet360(outletId) {
         </div>
         <div>
           <span class="text-slate-400 text-[10px] block">Status Kredit</span>
-          <span class="font-bold text-emerald-600">${idn.statusKredit}</span>
+          <span class="font-bold text-blue-700">${idn.statusKredit}</span>
         </div>
         <div>
           <span class="text-slate-400 text-[10px] block">Limit Kredit / TOP</span>
@@ -1930,7 +2089,7 @@ async function openOutlet360(outletId) {
         <div class="lg:col-span-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
           <span class="text-[11px] text-slate-500 font-medium">Tren Penjualan (3 Bln)</span>
           <p class="text-lg font-bold text-slate-800 mt-1">Rp ${sm.trenPenjualanJt} Jt</p>
-          <span class="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5"><i data-lucide="trending-up" class="w-3 h-3"></i> +${sm.trenPenjualanGrowthPct}% vs lalu</span>
+          <span class="text-[10px] font-bold text-blue-700 flex items-center gap-0.5"><i data-lucide="trending-up" class="w-3 h-3"></i> +${sm.trenPenjualanGrowthPct}% vs lalu</span>
           <div class="h-16 flex items-end justify-between pt-2 gap-1 border-b border-slate-200 mt-1">
             <div class="w-2 bg-blue-300 rounded-t h-8"></div>
             <div class="w-2 bg-blue-300 rounded-t h-10"></div>
@@ -1943,12 +2102,12 @@ async function openOutlet360(outletId) {
         <div class="lg:col-span-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
           <span class="text-[11px] text-slate-500 font-medium">Frekuensi Order</span>
           <p class="text-lg font-bold text-slate-800 mt-1">${sm.frekuensiOrderBulan} kali/bulan</p>
-          <span class="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5"><i data-lucide="trending-up" class="w-3 h-3"></i> +20% stabil</span>
+          <span class="text-[10px] font-bold text-blue-700 flex items-center gap-0.5"><i data-lucide="trending-up" class="w-3 h-3"></i> +20% stabil</span>
           <div class="h-16 flex items-end justify-between pt-2 gap-1 border-b border-slate-200 mt-1">
-            <div class="w-2 bg-emerald-300 rounded-t h-6"></div>
-            <div class="w-2 bg-emerald-300 rounded-t h-9"></div>
-            <div class="w-2 bg-emerald-300 rounded-t h-11"></div>
-            <div class="w-2 bg-emerald-500 rounded-t h-14"></div>
+            <div class="w-2 bg-blue-300 rounded-t h-6"></div>
+            <div class="w-2 bg-blue-300 rounded-t h-9"></div>
+            <div class="w-2 bg-blue-300 rounded-t h-11"></div>
+            <div class="w-2 bg-blue-600 rounded-t h-14"></div>
           </div>
         </div>
 
@@ -1956,23 +2115,23 @@ async function openOutlet360(outletId) {
         <div class="lg:col-span-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
           <span class="text-[11px] text-slate-500 font-medium">Rata-rata Nilai Drop</span>
           <p class="text-lg font-bold text-slate-800 mt-1">Rp ${sm.rataRataDropJt} Jt</p>
-          <span class="text-[10px] font-bold text-rose-600 flex items-center gap-0.5"><i data-lucide="trending-down" class="w-3 h-3"></i> -7% drop</span>
+          <span class="text-[10px] font-bold text-slate-700 flex items-center gap-0.5"><i data-lucide="trending-down" class="w-3 h-3"></i> -7% drop</span>
           <div class="h-16 flex items-end justify-between pt-2 gap-1 border-b border-slate-200 mt-1">
-            <div class="w-2 bg-purple-300 rounded-t h-14"></div>
-            <div class="w-2 bg-purple-300 rounded-t h-12"></div>
-            <div class="w-2 bg-purple-300 rounded-t h-11"></div>
-            <div class="w-2 bg-purple-500 rounded-t h-10"></div>
+            <div class="w-2 bg-slate-300 rounded-t h-14"></div>
+            <div class="w-2 bg-slate-300 rounded-t h-12"></div>
+            <div class="w-2 bg-slate-300 rounded-t h-11"></div>
+            <div class="w-2 bg-slate-500 rounded-t h-10"></div>
           </div>
         </div>
 
         <!-- Insight & Rekomendasi (4 cols) -->
         <div class="lg:col-span-4 bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm text-xs">
           <div class="flex items-center gap-1.5 font-bold text-slate-800 mb-2">
-            <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i> Insight & Rekomendasi
+            <i data-lucide="sparkles" class="w-4 h-4 text-blue-600"></i> Insight & Rekomendasi
           </div>
           <div class="space-y-2">
             ${o.recommendations.map(r => `
-              <div class="p-2 rounded-lg ${r.type === 'SUCCESS' ? 'bg-emerald-50 text-emerald-800' : (r.type === 'WARNING' ? 'bg-rose-50 text-rose-800' : 'bg-blue-50 text-blue-800')} text-[11px]">
+              <div class="p-2 rounded-lg ${r.type === 'SUCCESS' ? 'bg-blue-50 text-blue-800' : (r.type === 'WARNING' ? 'bg-slate-100 text-slate-800' : 'bg-blue-50 text-blue-800')} text-[11px]">
                 <p class="font-bold">${r.title}</p>
                 <p class="text-[10px] mt-0.5">${r.desc}</p>
               </div>
@@ -2032,7 +2191,7 @@ async function openOutlet360(outletId) {
             </div>
             <div class="flex justify-between text-[11px]">
               <span class="text-slate-500">Overdue:</span>
-              <span class="font-bold text-rose-600">Rp ${(o.arOverdue.overdue / 1000000).toFixed(1)} Jt (${o.arOverdue.overduePct}%)</span>
+              <span class="font-bold text-slate-700">Rp ${(o.arOverdue.overdue / 1000000).toFixed(1)} Jt (${o.arOverdue.overduePct}%)</span>
             </div>
           </div>
         </div>
@@ -2040,7 +2199,7 @@ async function openOutlet360(outletId) {
     `;
     lucide.createIcons();
   } catch (err) {
-    modalContent.innerHTML = `<div class="p-6 text-rose-600">Gagal memuat outlet: ${err.message}</div>`;
+    modalContent.innerHTML = `<div class="p-6 text-slate-700">Gagal memuat outlet: ${err.message}</div>`;
   }
 }
 
@@ -2164,11 +2323,11 @@ async function renderDataCenter() {
 
     <!-- Viewer Restriction Notice if Viewer -->
     ${!isSuper ? `
-      <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-start gap-3">
-        <i data-lucide="shield-alert" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+      <div class="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs flex items-start gap-3">
+        <i data-lucide="shield-alert" class="w-5 h-5 text-blue-700 shrink-0 mt-0.5"></i>
         <div>
           <strong class="font-bold">Mode Akses Terbatas (Viewer):</strong>
-          <p class="mt-0.5 text-amber-700 leading-relaxed">Anda saat ini login sebagai <strong class="text-amber-900">${window.currentUser?.fullName || 'Viewer'}</strong> (${window.currentUser?.roleLabel || 'Staff'}). Anda dapat melihat seluruh analitik, memeriksa riwayat berkas, dan mengunduh format template master, namun hak unggah (upload), simpan (commit), dan perubahan data dibatasi hanya untuk Super User (Aghia Anggala).</p>
+          <p class="mt-0.5 text-blue-800 leading-relaxed">Anda saat ini login sebagai <strong class="text-blue-900">${window.currentUser?.fullName || 'Viewer'}</strong> (${window.currentUser?.roleLabel || 'Staff'}). Anda dapat melihat seluruh analitik, memeriksa riwayat berkas, dan mengunduh format template master, namun hak unggah (upload), simpan (commit), dan perubahan data dibatasi hanya untuk Super User (Aghia Anggala).</p>
         </div>
       </div>
     ` : ''}
@@ -2181,7 +2340,7 @@ async function renderDataCenter() {
         <!-- Ganti Kata Sandi Super User (Aghia Anggala) -->
         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm max-w-xl">
           <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
-            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
               <i data-lucide="key-round" class="w-5 h-5"></i>
             </div>
             <div>
@@ -2200,7 +2359,7 @@ async function renderDataCenter() {
               <label class="block text-xs font-bold text-slate-700 mb-1">Konfirmasi Kata Sandi Baru</label>
               <input type="password" id="input-confirm-password" required placeholder="Ulangi kata sandi baru..." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none">
             </div>
-            <button type="submit" id="btn-change-password" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+            <button type="submit" id="btn-change-password" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5">
               <i data-lucide="check" class="w-4 h-4"></i>
               <span>Simpan Kata Sandi Baru</span>
             </button>
@@ -2245,7 +2404,7 @@ async function renderDataCenter() {
       </div>
 
       <!-- Active Category Details & Template Download Card -->
-      <div class="bg-gradient-to-r from-blue-50/80 via-slate-50 to-emerald-50/40 p-4 rounded-2xl border border-blue-200/80 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div class="bg-gradient-to-r from-blue-50/80 to-blue-50/40 p-4 rounded-2xl border border-blue-200/80 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div class="flex items-start gap-3">
           <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-700/20">
             <i data-lucide="${cat.icon}" class="w-5 h-5"></i>
@@ -2366,16 +2525,16 @@ async function uploadAndValidate(file) {
 
     preview.innerHTML = `
       <!-- File Metadata Card -->
-      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div class="flex items-center gap-3">
-          <i data-lucide="check-circle" class="w-6 h-6 text-emerald-600 shrink-0"></i>
+          <i data-lucide="check-circle" class="w-6 h-6 text-blue-700 shrink-0"></i>
           <div>
-            <h4 class="font-bold text-slate-800 text-sm">File terdeteksi sebagai format <span class="text-emerald-700 underline font-extrabold">${data.datasetType}</span></h4>
+            <h4 class="font-bold text-slate-800 text-sm">File terdeteksi sebagai format <span class="text-blue-700 underline font-extrabold">${data.datasetType}</span></h4>
             <p class="text-xs text-slate-600">${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB) • ${data.totalRows.toLocaleString('id-ID')} baris terbaca</p>
           </div>
         </div>
         ${isSuper ? `
-          <button onclick="commitStagedImport()" id="btn-commit-import" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-700/20 transition flex items-center justify-center gap-1.5 shrink-0">
+          <button onclick="commitStagedImport()" id="btn-commit-import" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-700/20 transition flex items-center justify-center gap-1.5 shrink-0">
             <i data-lucide="save" class="w-4 h-4"></i> Simpan & Commit ke Database
           </button>
         ` : `
@@ -2410,20 +2569,20 @@ async function uploadAndValidate(file) {
           <h4 class="font-bold text-slate-800 mb-3">Hasil Validasi Data</h4>
 
           <div class="grid grid-cols-4 gap-2 mb-4">
-            <div class="p-2.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-center">
+            <div class="p-2.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-center">
               <span class="text-[10px] font-semibold block">Valid</span>
               <span class="text-sm font-extrabold">${data.validRows.toLocaleString('id-ID')}</span>
-              <span class="text-[9px] block text-emerald-600">${validPct}%</span>
+              <span class="text-[9px] block text-blue-700">${validPct}%</span>
             </div>
-            <div class="p-2.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-center">
+            <div class="p-2.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-300 text-center">
               <span class="text-[10px] font-semibold block">Warning</span>
               <span class="text-sm font-extrabold">${data.warningRows}</span>
-              <span class="text-[9px] block text-amber-600">${warnPct}%</span>
+              <span class="text-[9px] block text-blue-700">${warnPct}%</span>
             </div>
-            <div class="p-2.5 rounded-lg bg-rose-50 text-rose-800 border border-rose-200 text-center">
+            <div class="p-2.5 rounded-lg bg-slate-100 text-slate-800 border border-slate-300 text-center">
               <span class="text-[10px] font-semibold block">Error</span>
               <span class="text-sm font-extrabold">${data.errorRows}</span>
-              <span class="text-[9px] block text-rose-600">${errPct}%</span>
+              <span class="text-[9px] block text-slate-700">${errPct}%</span>
             </div>
             <div class="p-2.5 rounded-lg bg-slate-50 text-slate-800 border border-slate-200 text-center">
               <span class="text-[10px] font-semibold block">Total</span>
@@ -2436,14 +2595,14 @@ async function uploadAndValidate(file) {
           <div class="border border-slate-200 rounded-lg overflow-hidden">
             <div class="bg-slate-50 px-3 py-1.5 font-bold text-[11px] text-slate-700 border-b border-slate-200 flex justify-between">
               <span>Catatan Validasi Data</span>
-              <span class="${data.errors.length === 0 ? 'text-emerald-700 font-bold' : 'text-rose-600'}">${data.errors.length === 0 ? 'Status: Siap Simpan' : 'Ditemukan Kendala'}</span>
+              <span class="${data.errors.length === 0 ? 'text-blue-700 font-bold' : 'text-slate-700'}">${data.errors.length === 0 ? 'Status: Siap Simpan' : 'Ditemukan Kendala'}</span>
             </div>
             <div class="max-h-48 overflow-y-auto p-2.5 space-y-1.5 scrollbar-thin text-[11px]">
               ${data.warnings.length === 0 && data.errors.length === 0 ? `
-                <p class="text-emerald-600 font-semibold p-2 flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4"></i> Seluruh data lulus validasi tanpa error fatal. Siap disimpan ke database.</p>
+                <p class="text-blue-700 font-semibold p-2 flex items-center gap-1.5"><i data-lucide="check" class="w-4 h-4"></i> Seluruh data lulus validasi tanpa error fatal. Siap disimpan ke database.</p>
               ` : `
-                ${data.errors.map(e => `<p class="text-rose-600 font-medium">❌ ${e}</p>`).join('')}
-                ${data.warnings.map(w => `<p class="text-amber-600 font-medium">⚠️ ${w}</p>`).join('')}
+                ${data.errors.map(e => `<p class="text-slate-700 font-medium">❌ ${e}</p>`).join('')}
+                ${data.warnings.map(w => `<p class="text-blue-700 font-medium">⚠️ ${w}</p>`).join('')}
               `}
             </div>
           </div>
@@ -2452,7 +2611,7 @@ async function uploadAndValidate(file) {
     `;
     lucide.createIcons();
   } catch (err) {
-    preview.innerHTML = `<div class="p-4 bg-rose-50 text-rose-700 rounded-xl">Gagal memvalidasi berkas: ${err.message}</div>`;
+    preview.innerHTML = `<div class="p-4 bg-slate-100 text-slate-700 rounded-xl">Gagal memvalidasi berkas: ${err.message}</div>`;
   }
 }
 
@@ -2530,7 +2689,7 @@ async function loadRecentBatches() {
             <tr class="hover:bg-slate-50/60">
               <td class="py-2.5 px-3 font-mono font-bold text-slate-700">${b.batch_id}</td>
               <td class="py-2.5 px-3">
-                <span class="px-2 py-0.5 rounded font-bold text-[10px] ${b.dataset_type === 'TARGETS' ? 'bg-amber-100 text-amber-800' : (b.dataset_type === 'AR' ? 'bg-rose-100 text-rose-800' : (b.dataset_type === 'STOCK' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'))}">
+                <span class="px-2 py-0.5 rounded font-bold text-[10px] ${b.dataset_type === 'TARGETS' ? 'bg-blue-50 text-blue-800' : (b.dataset_type === 'AR' ? 'bg-slate-100 text-slate-800' : (b.dataset_type === 'STOCK' ? 'bg-blue-100 text-blue-800' : 'bg-blue-100 text-blue-800'))}">
                   ${b.dataset_type}
                 </span>
               </td>
@@ -2547,7 +2706,7 @@ async function loadRecentBatches() {
     `;
     lucide.createIcons();
   } catch (err) {
-    container.innerHTML = `<p class="py-4 text-center text-rose-600">Gagal memuat riwayat batch: ${err.message}</p>`;
+    container.innerHTML = `<p class="py-4 text-center text-slate-700">Gagal memuat riwayat batch: ${err.message}</p>`;
   }
 }
 
@@ -2577,12 +2736,12 @@ async function loadUserManagement() {
               <td class="py-2.5 px-3 font-bold text-slate-800">${u.username}</td>
               <td class="py-2.5 px-3 text-slate-700">${u.full_name}</td>
               <td class="py-2.5 px-3">
-                <span class="px-2 py-0.5 rounded font-bold text-[10px] ${u.role === 'DSM' ? 'bg-emerald-100 text-emerald-800' : (u.role === 'SPV' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700')}">
+                <span class="px-2 py-0.5 rounded font-bold text-[10px] ${u.role === 'DSM' ? 'bg-blue-100 text-blue-800' : (u.role === 'SPV' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700')}">
                   ${u.role === 'DSM' ? 'Super Admin' : (u.role === 'SPV' ? 'Supervisor' : 'Salesman / Staff')}
                 </span>
               </td>
               <td class="py-2.5 px-3 text-slate-600">
-                ${u.can_upload_sales ? '<span class="text-emerald-700 font-bold">Full Edit & Upload</span>' : '<span class="text-slate-400">Hanya Lihat (View Only)</span>'}
+                ${u.can_upload_sales ? '<span class="text-blue-700 font-bold">Full Edit & Upload</span>' : '<span class="text-slate-400">Hanya Lihat (View Only)</span>'}
               </td>
               <td class="py-2.5 px-3 text-center">
                 <span class="badge-success px-2 py-0.5 rounded text-[10px] font-bold">Aktif</span>
@@ -2599,7 +2758,7 @@ async function loadUserManagement() {
     `;
     lucide.createIcons();
   } catch (err) {
-    container.innerHTML = `<p class="py-4 text-center text-rose-600">Gagal memuat data pengguna: ${err.message}</p>`;
+    container.innerHTML = `<p class="py-4 text-center text-slate-700">Gagal memuat data pengguna: ${err.message}</p>`;
   }
 }
 
@@ -2610,14 +2769,14 @@ async function handlePasswordChangeSubmit(event) {
   const alertEl = document.getElementById('password-change-alert');
 
   if (!p1 || p1.trim().length === 0) {
-    alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+    alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300';
     alertEl.textContent = 'Password baru tidak boleh kosong.';
     alertEl.classList.remove('hidden');
     return;
   }
 
   if (p1 !== p2) {
-    alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+    alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300';
     alertEl.textContent = 'Konfirmasi password tidak cocok.';
     alertEl.classList.remove('hidden');
     return;
@@ -2635,18 +2794,18 @@ async function handlePasswordChangeSubmit(event) {
     });
     const data = await res.json();
     if (data.success) {
-      alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200';
+      alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200';
       alertEl.textContent = 'Kata sandi berhasil diperbarui! Silakan gunakan kata sandi baru untuk login berikutnya.';
       alertEl.classList.remove('hidden');
       document.getElementById('input-new-password').value = '';
       document.getElementById('input-confirm-password').value = '';
     } else {
-      alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+      alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300';
       alertEl.textContent = data.error || 'Gagal mengubah kata sandi.';
       alertEl.classList.remove('hidden');
     }
   } catch (err) {
-    alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+    alertEl.className = 'p-3 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300';
     alertEl.textContent = 'Kesalahan jaringan: ' + err.message;
     alertEl.classList.remove('hidden');
   }
@@ -2727,7 +2886,7 @@ async function renderPenjualan() {
 
     renderPenjualanContent();
   } catch (err) {
-    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat penjualan: ${err.message}</div>`;
+    main.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat penjualan: ${err.message}</div>`;
   }
 }
 
@@ -2823,18 +2982,18 @@ function renderPenjualanContent() {
           ${g.targetValue > 0 ? `<div class="text-[10px] text-slate-400 font-normal">Rp ${(g.targetValue / 1000000).toFixed(1)} Jt</div>` : ''}
         </td>
         <td class="py-2.5 px-4 text-right font-extrabold text-slate-900">${g.actualCartons.toLocaleString('id-ID')}</td>
-        <td class="py-2.5 px-4 text-right font-bold ${g.targetCartons > 0 ? (g.achievementPct >= 80 ? 'text-emerald-600' : (g.achievementPct >= 60 ? 'text-amber-600' : 'text-rose-600')) : 'text-slate-400'}">
+        <td class="py-2.5 px-4 text-right font-bold ${g.targetCartons > 0 ? (g.achievementPct >= 80 ? 'text-blue-700' : (g.achievementPct >= 60 ? 'text-blue-700' : 'text-slate-700')) : 'text-slate-400'}">
           <div>${g.targetCartons > 0 ? g.achievementPct + '%' : 'N/A'}</div>
-          ${g.targetValue > 0 ? `<div class="text-[10px] ${g.valueAchievementPct >= 80 ? 'text-emerald-600' : 'text-amber-600'} font-normal">Val: ${g.valueAchievementPct}%</div>` : ''}
+          ${g.targetValue > 0 ? `<div class="text-[10px] ${g.valueAchievementPct >= 80 ? 'text-blue-700' : 'text-blue-700'} font-normal">Val: ${g.valueAchievementPct}%</div>` : ''}
         </td>
-        <td class="py-2.5 px-4 text-right font-semibold ${g.targetCartons > 0 ? (g.gapCartons > 0 ? 'text-rose-600' : 'text-emerald-600') : 'text-slate-400'}">
+        <td class="py-2.5 px-4 text-right font-semibold ${g.targetCartons > 0 ? (g.gapCartons > 0 ? 'text-slate-700' : 'text-blue-700') : 'text-slate-400'}">
           <div>${g.targetCartons > 0 ? (g.gapCartons > 0 ? '-' + g.gapCartons.toLocaleString('id-ID') : 'Tercapai') : '—'}</div>
-          ${g.targetValue > 0 && g.gapValue > 0 ? `<div class="text-[10px] text-rose-500 font-normal">-Rp ${(g.gapValue / 1000000).toFixed(1)} Jt</div>` : ''}
+          ${g.targetValue > 0 && g.gapValue > 0 ? `<div class="text-[10px] text-slate-500 font-normal">-Rp ${(g.gapValue / 1000000).toFixed(1)} Jt</div>` : ''}
         </td>
         <td class="py-2.5 px-4 text-right font-mono font-medium">Rp ${(g.salesNetto / 1000000).toFixed(1)} Jt</td>
         <td class="py-2.5 px-4 text-right font-extrabold text-blue-700">${g.contributionPct}%</td>
-        <td class="py-2.5 px-4 text-right font-extrabold text-indigo-700 bg-indigo-50/30 font-mono">${(g.stockOnHand || 0).toLocaleString('id-ID')}</td>
-        <td class="py-2.5 px-4 text-right font-bold bg-indigo-50/30 ${(g.stockCoverDays || 0) < 7 ? 'text-rose-600' : ((g.stockCoverDays || 0) <= 25 ? 'text-emerald-600' : 'text-amber-600')}">
+        <td class="py-2.5 px-4 text-right font-extrabold text-blue-700 bg-blue-50/30 font-mono">${(g.stockOnHand || 0).toLocaleString('id-ID')}</td>
+        <td class="py-2.5 px-4 text-right font-bold bg-blue-50/30 ${(g.stockCoverDays || 0) < 7 ? 'text-slate-700' : ((g.stockCoverDays || 0) <= 25 ? 'text-blue-700' : 'text-blue-700')}">
           ${(g.stockCoverDays || 0).toLocaleString('id-ID')} hr
         </td>
       </tr>
@@ -2851,18 +3010,18 @@ function renderPenjualanContent() {
           ${p.targetValue > 0 ? `<div class="text-[10px] text-slate-400 font-normal">Rp ${(p.targetValue / 1000000).toFixed(1)} Jt</div>` : ''}
         </td>
         <td class="py-2.5 px-4 text-right font-extrabold text-slate-900">${p.actualCartons.toLocaleString('id-ID')}</td>
-        <td class="py-2.5 px-4 text-right font-bold ${p.targetCartons > 0 ? (p.achievementPct >= 80 ? 'text-emerald-600' : (p.achievementPct >= 60 ? 'text-amber-600' : 'text-rose-600')) : 'text-slate-400'}">
+        <td class="py-2.5 px-4 text-right font-bold ${p.targetCartons > 0 ? (p.achievementPct >= 80 ? 'text-blue-700' : (p.achievementPct >= 60 ? 'text-blue-700' : 'text-slate-700')) : 'text-slate-400'}">
           <div>${p.targetCartons > 0 ? p.achievementPct + '%' : 'N/A'}</div>
-          ${p.targetValue > 0 ? `<div class="text-[10px] ${p.valueAchievementPct >= 80 ? 'text-emerald-600' : 'text-amber-600'} font-normal">Val: ${p.valueAchievementPct}%</div>` : ''}
+          ${p.targetValue > 0 ? `<div class="text-[10px] ${p.valueAchievementPct >= 80 ? 'text-blue-700' : 'text-blue-700'} font-normal">Val: ${p.valueAchievementPct}%</div>` : ''}
         </td>
         <td class="py-2.5 px-4 text-right font-semibold ${p.targetCartons > 0 ? (p.gapCartons > 0 ? '-' + p.gapCartons.toLocaleString('id-ID') : 'Tercapai') : '—'}">
           <div>${p.targetCartons > 0 ? (p.gapCartons > 0 ? '-' + p.gapCartons.toLocaleString('id-ID') : 'Tercapai') : '—'}</div>
-          ${p.targetValue > 0 && p.gapValue > 0 ? `<div class="text-[10px] text-rose-500 font-normal">-Rp ${(p.gapValue / 1000000).toFixed(1)} Jt</div>` : ''}
+          ${p.targetValue > 0 && p.gapValue > 0 ? `<div class="text-[10px] text-slate-500 font-normal">-Rp ${(p.gapValue / 1000000).toFixed(1)} Jt</div>` : ''}
         </td>
         <td class="py-2.5 px-4 text-right font-mono font-medium">Rp ${(p.salesNetto / 1000000).toFixed(1)} Jt</td>
         <td class="py-2.5 px-4 text-right font-extrabold text-blue-700">${p.contributionPct}%</td>
-        <td class="py-2.5 px-4 text-right font-extrabold text-indigo-700 bg-indigo-50/30 font-mono">${(p.stockOnHand || 0).toLocaleString('id-ID')}</td>
-        <td class="py-2.5 px-4 text-right font-bold bg-indigo-50/30 ${(p.stockCoverDays || 0) < 7 ? 'text-rose-600' : ((p.stockCoverDays || 0) <= 25 ? 'text-emerald-600' : 'text-amber-600')}">
+        <td class="py-2.5 px-4 text-right font-extrabold text-blue-700 bg-blue-50/30 font-mono">${(p.stockOnHand || 0).toLocaleString('id-ID')}</td>
+        <td class="py-2.5 px-4 text-right font-bold bg-blue-50/30 ${(p.stockCoverDays || 0) < 7 ? 'text-slate-700' : ((p.stockCoverDays || 0) <= 25 ? 'text-blue-700' : 'text-blue-700')}">
           ${(p.stockCoverDays || 0).toLocaleString('id-ID')} hr
         </td>
       </tr>
@@ -2929,23 +3088,23 @@ function renderPenjualanContent() {
 
         <!-- YTD Actual -->
         <div class="bg-white/5 rounded-xl p-3 border border-white/10">
-          <div class="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i> Actual YTD 2026
+          <div class="text-[11px] font-semibold text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-blue-300"></i> Actual YTD 2026
           </div>
-          <div class="text-lg md:text-2xl font-black mt-1 font-mono text-emerald-300">
+          <div class="text-lg md:text-2xl font-black mt-1 font-mono text-blue-300">
             ${ytdSummary.actualCartons.toLocaleString('id-ID')} <span class="text-xs font-normal text-slate-300 font-sans">KTN</span>
           </div>
-          <div class="text-[11px] text-emerald-200 mt-0.5">
+          <div class="text-[11px] text-blue-200 mt-0.5">
             Rp ${(ytdSummary.salesNetto / 1000000000).toFixed(2)} Milyar Netto
           </div>
         </div>
 
         <!-- YTD Achievement % -->
         <div class="bg-white/5 rounded-xl p-3 border border-white/10">
-          <div class="text-[11px] font-semibold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-            <i data-lucide="percent" class="w-3.5 h-3.5 text-amber-400"></i> Pencapaian YTD
+          <div class="text-[11px] font-semibold text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="percent" class="w-3.5 h-3.5 text-blue-300"></i> Pencapaian YTD
           </div>
-          <div class="text-lg md:text-2xl font-black mt-1 font-mono ${ytdSummary.achievementPct >= 80 ? 'text-emerald-300' : 'text-amber-300'}">
+          <div class="text-lg md:text-2xl font-black mt-1 font-mono ${ytdSummary.achievementPct >= 80 ? 'text-blue-300' : 'text-blue-300'}">
             ${ytdSummary.achievementPct}% <span class="text-xs font-normal text-slate-300 font-sans">Qty</span>
           </div>
           <div class="text-[11px] text-slate-300 mt-0.5">
@@ -2955,13 +3114,13 @@ function renderPenjualanContent() {
 
         <!-- YTD Gap -->
         <div class="bg-white/5 rounded-xl p-3 border border-white/10">
-          <div class="text-[11px] font-semibold text-rose-300 uppercase tracking-wider flex items-center gap-1.5">
-            <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-rose-400"></i> GAP YTD 2026
+          <div class="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-slate-300"></i> GAP YTD 2026
           </div>
-          <div class="text-lg md:text-2xl font-black mt-1 font-mono ${ytdSummary.gapCartons > 0 ? 'text-rose-400' : 'text-emerald-400'}">
+          <div class="text-lg md:text-2xl font-black mt-1 font-mono ${ytdSummary.gapCartons > 0 ? 'text-slate-300' : 'text-blue-300'}">
             ${ytdSummary.gapCartons > 0 ? '-' + ytdSummary.gapCartons.toLocaleString('id-ID') : 'Tercapai'} <span class="text-xs font-normal text-slate-300 font-sans">${ytdSummary.gapCartons > 0 ? 'KTN' : ''}</span>
           </div>
-          <div class="text-[11px] ${ytdSummary.gapValue > 0 ? 'text-rose-300' : 'text-emerald-300'} mt-0.5">
+          <div class="text-[11px] ${ytdSummary.gapValue > 0 ? 'text-slate-300' : 'text-blue-300'} mt-0.5">
             ${ytdSummary.gapValue > 0 ? '-Rp ' + (ytdSummary.gapValue / 1000000).toFixed(1) + ' Jt' : 'Target Value Tercapai'}
           </div>
         </div>
@@ -3020,11 +3179,11 @@ function renderPenjualanContent() {
               <th onclick="sortPenjualanTable('contributionPct')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition">
                 <div class="flex items-center justify-end">Kontribusi % ${sortIcon('contributionPct')}</div>
               </th>
-              <th onclick="sortPenjualanTable('stockOnHand')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition bg-indigo-50/50">
-                <div class="flex items-center justify-end text-indigo-900">Stock on Hand (KTN) ${sortIcon('stockOnHand')}</div>
+              <th onclick="sortPenjualanTable('stockOnHand')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition bg-blue-50/50">
+                <div class="flex items-center justify-end text-blue-900">Stock on Hand (KTN) ${sortIcon('stockOnHand')}</div>
               </th>
-              <th onclick="sortPenjualanTable('stockCoverDays')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition bg-indigo-50/50">
-                <div class="flex items-center justify-end text-indigo-900">Stock Cover (Hari) ${sortIcon('stockCoverDays')}</div>
+              <th onclick="sortPenjualanTable('stockCoverDays')" class="py-3 px-4 text-right cursor-pointer hover:bg-slate-200/60 transition bg-blue-50/50">
+                <div class="flex items-center justify-end text-blue-900">Stock Cover (Hari) ${sortIcon('stockCoverDays')}</div>
               </th>
             </tr>
           </thead>
@@ -3082,7 +3241,7 @@ async function renderTrend() {
 
     renderTrendView();
   } catch (err) {
-    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat Trend & Movement: ${err.message}</div>`;
+    main.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat Trend & Movement: ${err.message}</div>`;
   }
 }
 
@@ -3153,7 +3312,7 @@ function renderTrendView() {
   const dimLabel = dimension === 'principal' ? 'Principal' : dimension === 'brand' ? 'Brand' : 'Salesman';
 
   const momBadge = summary.momGrowthPct !== null ? `
-    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold ${summary.momGrowthPct >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}">
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold ${summary.momGrowthPct >= 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-700 border border-slate-300'}">
       ${summary.momGrowthPct >= 0 ? '▲ +' : '▼ '}${summary.momGrowthPct}% vs bln lalu
     </span>
   ` : '';
@@ -3164,14 +3323,14 @@ function renderTrendView() {
       <div>
         <div class="flex items-center gap-2">
           <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">INTELLIGENCE ANALYTICS</span>
-          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">TARGET 2026 INGESTED</span>
+          <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">TARGET 2026 INGESTED</span>
         </div>
         <h1 class="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight mt-1">Trend & Movement Sales</h1>
         <p class="text-xs text-slate-500 mt-0.5">Analisis tren dan dinamika pergerakan penjualan bulanan periode 2025–2026</p>
       </div>
 
       <div class="flex items-center gap-2">
-        <button onclick="exportTrendCsv()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition">
+        <button onclick="exportTrendCsv()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition">
           <i data-lucide="download" class="w-4 h-4"></i>
           <span>Unduh CSV</span>
         </button>
@@ -3199,7 +3358,7 @@ function renderTrendView() {
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
         <div class="flex items-center justify-between text-slate-500 mb-1">
           <span class="text-xs font-semibold">Total Nilai Omzet</span>
-          <i data-lucide="banknote" class="w-4 h-4 text-emerald-500"></i>
+          <i data-lucide="banknote" class="w-4 h-4 text-blue-600"></i>
         </div>
         <div class="text-xl md:text-2xl font-extrabold text-slate-900 font-mono">
           Rp ${((summary.totalValue || 0) / 1000000000).toFixed(2)} <span class="text-xs font-normal text-slate-500 font-sans">Milyar</span>
@@ -3213,7 +3372,7 @@ function renderTrendView() {
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
         <div class="flex items-center justify-between text-slate-500 mb-1">
           <span class="text-xs font-semibold">Rata-rata Outlet Aktif (OA)</span>
-          <i data-lucide="store" class="w-4 h-4 text-amber-500"></i>
+          <i data-lucide="store" class="w-4 h-4 text-blue-600"></i>
         </div>
         <div class="text-xl md:text-2xl font-extrabold text-slate-900 font-mono">
           ${(summary.avgMonthlyOa || 0).toLocaleString('id-ID')} <span class="text-xs font-normal text-slate-500 font-sans">Toko/bln</span>
@@ -3227,7 +3386,7 @@ function renderTrendView() {
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
         <div class="flex items-center justify-between text-slate-500 mb-1">
           <span class="text-xs font-semibold">Realisasi Bulan Berjalan</span>
-          <i data-lucide="calendar" class="w-4 h-4 text-violet-500"></i>
+          <i data-lucide="calendar" class="w-4 h-4 text-blue-600"></i>
         </div>
         <div class="text-xl md:text-2xl font-extrabold text-slate-900 font-mono">
           ${metric === 'value' ? 'Rp ' + ((summary.currentMonthVal || 0) / 1000000).toFixed(1) + ' Jt' : (summary.currentMonthVal || 0).toLocaleString('id-ID')}
@@ -3248,15 +3407,15 @@ function renderTrendView() {
       const asMonthName = monthNames[yoy.asOfMonth] || ('Bulan ' + yoy.asOfMonth);
 
       return `
-      <div class="mt-5 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-5 text-white shadow-lg border border-indigo-800/40">
+      <div class="mt-5 bg-gradient-to-br #0c2340 rounded-2xl p-5 text-white shadow-lg border border-blue-900/50">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-white/10 gap-2 mb-4">
           <div class="flex items-center gap-2">
-            <span class="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-[10px] font-black rounded-lg tracking-wider uppercase">
+            <span class="px-2.5 py-1 bg-blue-600/20 text-blue-300 border border-blue-400/30 text-[10px] font-black rounded-lg tracking-wider uppercase">
               MILESTONE & YEAR-OVER-YEAR (YOY) BENCHMARK
             </span>
             <span class="text-xs text-slate-300">Cut-off Posisi: <strong>Januari – ${asMonthName} 2026</strong></span>
           </div>
-          <span class="text-[11px] text-indigo-200">
+          <span class="text-[11px] text-blue-200">
             Komparasi Makro Historis 2025 vs Realisasi 2026
           </span>
         </div>
@@ -3266,11 +3425,11 @@ function renderTrendView() {
           <div class="bg-white/5 rounded-xl p-4 border border-white/10 flex flex-col justify-between hover:bg-white/[0.08] transition">
             <div>
               <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-                  <i data-lucide="award" class="w-4 h-4 text-amber-400"></i>
+                <span class="text-xs font-bold text-blue-300 flex items-center gap-1.5">
+                  <i data-lucide="award" class="w-4 h-4 text-blue-300"></i>
                   1. Full Year 2025 vs Year to Date 2026
                 </span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${fy.achievedPctQty >= 75 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">
+                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${fy.achievedPctQty >= 75 ? 'bg-blue-600/20 text-blue-300' : 'bg-slate-700/50 text-blue-300'}">
                   ${fy.achievedPctQty}% Tercapai
                 </span>
               </div>
@@ -3282,33 +3441,33 @@ function renderTrendView() {
                 <div class="text-2xl lg:text-3xl font-black font-mono text-white">
                   ${fy.achievedPctQty}%
                 </div>
-                <div class="text-xs font-semibold ${fy.gapPctQty < 0 ? 'text-rose-400' : 'text-emerald-400'} font-mono">
+                <div class="text-xs font-semibold ${fy.gapPctQty < 0 ? 'text-slate-300' : 'text-blue-300'} font-mono">
                   GAP: ${fy.gapPctQty}% (${fy.gapQty.toLocaleString('id-ID')} KTN)
                 </div>
               </div>
 
               <!-- Progress bar -->
               <div class="w-full bg-white/10 rounded-full h-2.5 mt-2.5 overflow-hidden">
-                <div class="bg-gradient-to-r from-blue-500 to-indigo-400 h-2.5 rounded-full" style="width: ${Math.min(fy.achievedPctQty, 100)}%"></div>
+                <div class="bg-gradient-to-r from-blue-600 to-blue-500 h-2.5 rounded-full" style="width: ${Math.min(fy.achievedPctQty, 100)}%"></div>
               </div>
 
               <div class="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-white/10 text-xs">
                 <div>
                   <div class="text-[10px] text-slate-400 uppercase tracking-wide">Realisasi FY 2025 (12 Bln)</div>
                   <div class="font-bold font-mono text-slate-200 mt-0.5">${fy.totalQty2025.toLocaleString('id-ID')} KTN</div>
-                  <div class="text-[10px] text-indigo-200">Rp ${(fy.totalValue2025 / 1000000000).toFixed(2)} Milyar</div>
+                  <div class="text-[10px] text-blue-200">Rp ${(fy.totalValue2025 / 1000000000).toFixed(2)} Milyar</div>
                 </div>
                 <div>
                   <div class="text-[10px] text-slate-400 uppercase tracking-wide">Realisasi YTD 2026 (Jan–${asMonthName})</div>
-                  <div class="font-bold font-mono text-emerald-300 mt-0.5">${fy.totalQtyYtd2026.toLocaleString('id-ID')} KTN</div>
-                  <div class="text-[10px] text-emerald-200">Rp ${(fy.totalValueYtd2026 / 1000000000).toFixed(2)} Milyar</div>
+                  <div class="font-bold font-mono text-blue-300 mt-0.5">${fy.totalQtyYtd2026.toLocaleString('id-ID')} KTN</div>
+                  <div class="text-[10px] text-blue-200">Rp ${(fy.totalValueYtd2026 / 1000000000).toFixed(2)} Milyar</div>
                 </div>
               </div>
             </div>
 
             <div class="mt-3 pt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-white/5">
               <span>Gap Nilai Omzet:</span>
-              <strong class="${fy.gapValue < 0 ? 'text-rose-400' : 'text-emerald-400'} font-mono">
+              <strong class="${fy.gapValue < 0 ? 'text-slate-300' : 'text-blue-300'} font-mono">
                 ${fy.gapValue < 0 ? '-Rp ' + Math.abs(fy.gapValue / 1000000).toFixed(1) + ' Jt' : 'Surplus'}
               </strong>
             </div>
@@ -3318,11 +3477,11 @@ function renderTrendView() {
           <div class="bg-white/5 rounded-xl p-4 border border-white/10 flex flex-col justify-between hover:bg-white/[0.08] transition">
             <div>
               <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                  <i data-lucide="git-compare" class="w-4 h-4 text-emerald-400"></i>
+                <span class="text-xs font-bold text-blue-300 flex items-center gap-1.5">
+                  <i data-lucide="git-compare" class="w-4 h-4 text-blue-300"></i>
                   2. Year to Date 2025 vs Year to Date 2026
                 </span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${ytd.growthPctQty >= 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}">
+                <span class="px-2 py-0.5 rounded text-[10px] font-extrabold ${ytd.growthPctQty >= 0 ? 'bg-blue-600/20 text-blue-300' : 'bg-slate-800 text-slate-300'}">
                   ${ytd.growthPctQty >= 0 ? 'Surplus YoY' : 'Defisit YoY'}
                 </span>
               </div>
@@ -3331,10 +3490,10 @@ function renderTrendView() {
               </p>
 
               <div class="mt-4 flex items-baseline gap-2">
-                <div class="text-2xl lg:text-3xl font-black font-mono ${ytd.growthPctQty >= 0 ? 'text-emerald-300' : 'text-rose-400'}">
+                <div class="text-2xl lg:text-3xl font-black font-mono ${ytd.growthPctQty >= 0 ? 'text-blue-300' : 'text-slate-300'}">
                   ${ytd.growthPctQty >= 0 ? '+' : ''}${ytd.growthPctQty}%
                 </div>
-                <div class="text-xs font-semibold ${ytd.diffQty >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-mono">
+                <div class="text-xs font-semibold ${ytd.diffQty >= 0 ? 'text-blue-300' : 'text-slate-300'} font-mono">
                   ${ytd.diffQty >= 0 ? 'Surplus +' : 'Defisit '}${ytd.diffQty.toLocaleString('id-ID')} KTN
                 </div>
               </div>
@@ -3342,10 +3501,10 @@ function renderTrendView() {
               <!-- Metric tags -->
               <div class="mt-2.5 flex items-center gap-2">
                 <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-white/10 text-slate-200">
-                  Growth Qty: <strong class="${ytd.growthPctQty >= 0 ? 'text-emerald-300' : 'text-rose-400'}">${ytd.growthPctQty >= 0 ? '+' : ''}${ytd.growthPctQty}%</strong>
+                  Growth Qty: <strong class="${ytd.growthPctQty >= 0 ? 'text-blue-300' : 'text-slate-300'}">${ytd.growthPctQty >= 0 ? '+' : ''}${ytd.growthPctQty}%</strong>
                 </span>
                 <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-white/10 text-slate-200">
-                  Growth Value: <strong class="${ytd.growthPctValue >= 0 ? 'text-emerald-300' : 'text-rose-400'}">${ytd.growthPctValue >= 0 ? '+' : ''}${ytd.growthPctValue}%</strong>
+                  Growth Value: <strong class="${ytd.growthPctValue >= 0 ? 'text-blue-300' : 'text-slate-300'}">${ytd.growthPctValue >= 0 ? '+' : ''}${ytd.growthPctValue}%</strong>
                 </span>
               </div>
 
@@ -3353,19 +3512,19 @@ function renderTrendView() {
                 <div>
                   <div class="text-[10px] text-slate-400 uppercase tracking-wide">YTD 2025 (Jan–${asMonthName})</div>
                   <div class="font-bold font-mono text-slate-200 mt-0.5">${ytd.totalQtyYtd2025.toLocaleString('id-ID')} KTN</div>
-                  <div class="text-[10px] text-indigo-200">Rp ${(ytd.totalValueYtd2025 / 1000000000).toFixed(2)} Milyar</div>
+                  <div class="text-[10px] text-blue-200">Rp ${(ytd.totalValueYtd2025 / 1000000000).toFixed(2)} Milyar</div>
                 </div>
                 <div>
                   <div class="text-[10px] text-slate-400 uppercase tracking-wide">YTD 2026 (Jan–${asMonthName})</div>
-                  <div class="font-bold font-mono text-emerald-300 mt-0.5">${ytd.totalQtyYtd2026.toLocaleString('id-ID')} KTN</div>
-                  <div class="text-[10px] text-emerald-200">Rp ${(ytd.totalValueYtd2026 / 1000000000).toFixed(2)} Milyar</div>
+                  <div class="font-bold font-mono text-blue-300 mt-0.5">${ytd.totalQtyYtd2026.toLocaleString('id-ID')} KTN</div>
+                  <div class="text-[10px] text-blue-200">Rp ${(ytd.totalValueYtd2026 / 1000000000).toFixed(2)} Milyar</div>
                 </div>
               </div>
             </div>
 
             <div class="mt-3 pt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-white/5">
               <span>Gap Nilai Netto (YoY):</span>
-              <strong class="${ytd.diffValue >= 0 ? 'text-emerald-400' : 'text-rose-400'} font-mono">
+              <strong class="${ytd.diffValue >= 0 ? 'text-blue-300' : 'text-slate-300'} font-mono">
                 ${ytd.diffValue >= 0 ? '+Rp ' + (ytd.diffValue / 1000000).toFixed(1) + ' Jt' : '-Rp ' + Math.abs(ytd.diffValue / 1000000).toFixed(1) + ' Jt'}
               </strong>
             </div>
@@ -3400,7 +3559,7 @@ function renderTrendView() {
               class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
             />
             ${window.trendState.outletId ? `
-              <button type="button" onclick="clearTrendOutlet()" class="absolute right-2.5 text-slate-400 hover:text-rose-600 transition" title="Hapus Filter Toko">
+              <button type="button" onclick="clearTrendOutlet()" class="absolute right-2.5 text-slate-400 hover:text-slate-700 transition" title="Hapus Filter Toko">
                 <i data-lucide="x-circle" class="w-4 h-4"></i>
               </button>
             ` : ''}
@@ -3422,7 +3581,7 @@ function renderTrendView() {
             ${data.dsoMovement.outletInfo.salesmanName ? `<span class="text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">Salesman: ${data.dsoMovement.outletInfo.salesmanName}</span>` : ''}
             ${data.dsoMovement.outletInfo.clusterTier ? `<span class="text-[11px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Cluster: ${data.dsoMovement.outletInfo.clusterTier}</span>` : ''}
           </div>
-          <button type="button" onclick="clearTrendOutlet()" class="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition shadow-sm">
+          <button type="button" onclick="clearTrendOutlet()" class="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold transition shadow-sm">
             <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
             <span>Kembali ke Total DSO</span>
           </button>
@@ -3435,10 +3594,10 @@ function renderTrendView() {
       <div class="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b border-slate-100 gap-3">
         <div>
           <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 ${data.dsoMovement?.isOutletScope ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'} text-[10px] font-bold rounded">
+            <span class="px-2 py-0.5 ${data.dsoMovement?.isOutletScope ? 'bg-blue-100 text-blue-800' : 'bg-blue-100 text-blue-800'} text-[10px] font-bold rounded">
               ${data.dsoMovement?.isOutletScope ? 'TREND TOKO: ' + escapeHtml(data.dsoMovement.outletInfo.name) : 'TOTAL DSO GARUT'}
             </span>
-            <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">DUAL-AXIS LINE CHART</span>
+            <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">DUAL-AXIS LINE CHART</span>
           </div>
           <h2 class="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2 mt-1">
             <i data-lucide="activity" class="w-4 h-4 text-blue-600"></i>
@@ -3465,20 +3624,20 @@ function renderTrendView() {
               ${(data.dsoMovement?.totals?.totalVolume || summary.totalQty || 0).toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-500">KTN</span>
             </div>
           </div>
-          <div class="bg-emerald-50 border border-emerald-200/60 px-3 py-1.5 rounded-lg text-left">
-            <div class="text-[10px] text-emerald-600 font-semibold uppercase tracking-wider">
+          <div class="bg-blue-50 border border-blue-200/60 px-3 py-1.5 rounded-lg text-left">
+            <div class="text-[10px] text-blue-700 font-semibold uppercase tracking-wider">
               ${data.dsoMovement?.isOutletScope ? 'Total Frekuensi Order' : 'Rata-rata OA'}
             </div>
-            <div class="text-xs md:text-sm font-extrabold text-emerald-900 font-mono">
+            <div class="text-xs md:text-sm font-extrabold text-blue-900 font-mono">
               ${data.dsoMovement?.isOutletScope 
                 ? (data.dsoMovement.totals.totalInvoices || 0).toLocaleString('id-ID') + ' <span class="text-[10px] font-normal text-slate-500">Order</span>'
                 : (data.dsoMovement?.totals?.avgOa || summary.avgMonthlyOa || 0).toLocaleString('id-ID') + ' <span class="text-[10px] font-normal text-slate-500">Toko/bln</span>'
               }
             </div>
           </div>
-          <div class="bg-indigo-50 border border-indigo-200/60 px-3 py-1.5 rounded-lg text-left">
-            <div class="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider">Total Omzet</div>
-            <div class="text-xs md:text-sm font-extrabold text-indigo-900 font-mono">
+          <div class="bg-blue-50 border border-blue-200/60 px-3 py-1.5 rounded-lg text-left">
+            <div class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider">Total Omzet</div>
+            <div class="text-xs md:text-sm font-extrabold text-blue-900 font-mono">
               ${(data.dsoMovement?.totals?.totalValue || summary.totalValue || 0) >= 1000000000 
                 ? 'Rp ' + (((data.dsoMovement?.totals?.totalValue || summary.totalValue || 0)) / 1000000000).toFixed(2) + ' <span class="text-[10px] font-normal text-slate-500">M</span>'
                 : 'Rp ' + (((data.dsoMovement?.totals?.totalValue || summary.totalValue || 0)) / 1000000).toFixed(1) + ' <span class="text-[10px] font-normal text-slate-500">Jt</span>'
@@ -3524,11 +3683,11 @@ function renderTrendView() {
                 ${data.dsoMovement?.isOutletScope ? `
                   <th class="py-2.5 px-3 text-right">Frekuensi Order</th>
                   <th class="py-2.5 px-3 text-right">Nilai Omzet (Rp Netto)</th>
-                  <th class="py-2.5 px-3 text-right text-emerald-800 bg-emerald-50/50">MoM Omzet (%)</th>
+                  <th class="py-2.5 px-3 text-right text-blue-800 bg-blue-50/50">MoM Omzet (%)</th>
                 ` : `
                   <th class="py-2.5 px-3 text-right">Target (KTN)</th>
                   <th class="py-2.5 px-3 text-right">Pencapaian</th>
-                  <th class="py-2.5 px-3 text-right text-emerald-800 bg-emerald-50/50">Outlet Aktif (OA)</th>
+                  <th class="py-2.5 px-3 text-right text-blue-800 bg-blue-50/50">Outlet Aktif (OA)</th>
                   <th class="py-2.5 px-3 text-right">MoM OA (%)</th>
                   <th class="py-2.5 px-3 text-right">Nilai Omzet (Rp Netto)</th>
                 `}
@@ -3537,14 +3696,14 @@ function renderTrendView() {
             <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
               ${(data.dsoMovement?.monthlyTable || []).map((m, idx) => {
                 const momVolBadge = m.momVolPct !== null
-                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momVolPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momVolPct >= 0 ? '▲ +' : '▼ '}${m.momVolPct}%</span>`
+                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momVolPct >= 0 ? 'text-blue-700' : 'text-slate-700'}">${m.momVolPct >= 0 ? '▲ +' : '▼ '}${m.momVolPct}%</span>`
                   : `<span class="text-slate-300">—</span>`;
 
                 const isCurrentMonth = m.year === 2026 && m.month === 9;
 
                 if (data.dsoMovement?.isOutletScope) {
                   const momValBadge = m.momValPct !== null
-                    ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momValPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momValPct >= 0 ? '▲ +' : '▼ '}${m.momValPct}%</span>`
+                    ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momValPct >= 0 ? 'text-blue-700' : 'text-slate-700'}">${m.momValPct >= 0 ? '▲ +' : '▼ '}${m.momValPct}%</span>`
                     : `<span class="text-slate-300">—</span>`;
 
                   return `
@@ -3566,7 +3725,7 @@ function renderTrendView() {
                       <td class="py-2 px-3 text-right font-mono text-slate-800 font-bold whitespace-nowrap">
                         Rp ${m.volumeValue.toLocaleString('id-ID')}
                       </td>
-                      <td class="py-2 px-3 text-right font-mono bg-emerald-50/20">
+                      <td class="py-2 px-3 text-right font-mono bg-blue-50/20">
                         ${momValBadge}
                       </td>
                     </tr>
@@ -3574,11 +3733,11 @@ function renderTrendView() {
                 }
 
                 const momOaBadge = m.momOaPct !== null
-                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momOaPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momOaPct >= 0 ? '▲ +' : '▼ '}${m.momOaPct}%</span>`
+                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momOaPct >= 0 ? 'text-blue-700' : 'text-slate-700'}">${m.momOaPct >= 0 ? '▲ +' : '▼ '}${m.momOaPct}%</span>`
                   : `<span class="text-slate-300">—</span>`;
 
                 const achvBadge = m.achvPct !== null
-                  ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono ${m.achvPct >= 100 ? 'bg-emerald-100 text-emerald-800' : m.achvPct >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}">${m.achvPct}%</span>`
+                  ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono ${m.achvPct >= 100 ? 'bg-blue-100 text-blue-800' : m.achvPct >= 70 ? 'bg-blue-50 text-blue-800' : 'bg-slate-100 text-slate-800'}">${m.achvPct}%</span>`
                   : `<span class="text-slate-300">—</span>`;
 
                 return `
@@ -3600,7 +3759,7 @@ function renderTrendView() {
                     <td class="py-2 px-3 text-right">
                       ${achvBadge}
                     </td>
-                    <td class="py-2 px-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/30">
+                    <td class="py-2 px-3 text-right font-mono font-bold text-blue-700 bg-blue-50/30">
                       ${m.activeOutlets.toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-400">Toko</span>
                     </td>
                     <td class="py-2 px-3 text-right">
@@ -3637,7 +3796,7 @@ function renderTrendView() {
                   <td class="py-2.5 px-3 text-right">
                     ${data.dsoMovement?.totals?.achvPct !== null ? `<span class="px-2 py-0.5 bg-blue-100 text-blue-900 rounded font-mono text-[10px] font-bold">${data.dsoMovement.totals.achvPct}%</span>` : '—'}
                   </td>
-                  <td class="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-900 bg-emerald-100/50">
+                  <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-900 bg-blue-100/50">
                     ${(data.dsoMovement?.totals?.avgOa || 0).toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-600">Avg/bln</span>
                   </td>
                   <td class="py-2.5 px-3 text-right text-slate-400">—</td>
@@ -3686,13 +3845,13 @@ function renderTrendView() {
         <!-- Period Range Switcher -->
         <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-semibold">
           <span class="text-slate-400 px-2 text-[11px]">Periode:</span>
-          <button onclick="switchTrendPeriod('2026')" class="px-3 py-1.5 rounded-md transition ${periodRange === '2026' ? 'bg-white text-emerald-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+          <button onclick="switchTrendPeriod('2026')" class="px-3 py-1.5 rounded-md transition ${periodRange === '2026' ? 'bg-white text-blue-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
             2026 (Jan–Sep)
           </button>
-          <button onclick="switchTrendPeriod('all')" class="px-3 py-1.5 rounded-md transition ${periodRange === 'all' ? 'bg-white text-emerald-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+          <button onclick="switchTrendPeriod('all')" class="px-3 py-1.5 rounded-md transition ${periodRange === 'all' ? 'bg-white text-blue-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
             2025–2026 (Full)
           </button>
-          <button onclick="switchTrendPeriod('2025')" class="px-3 py-1.5 rounded-md transition ${periodRange === '2025' ? 'bg-white text-emerald-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
+          <button onclick="switchTrendPeriod('2025')" class="px-3 py-1.5 rounded-md transition ${periodRange === '2025' ? 'bg-white text-blue-700 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'}">
             2025 (Historis)
           </button>
         </div>
@@ -3731,7 +3890,7 @@ function renderTrendView() {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
         <div>
           <h2 class="text-sm md:text-base font-bold text-slate-800 flex items-center gap-2">
-            <i data-lucide="store" class="w-4 h-4 text-emerald-600"></i>
+            <i data-lucide="store" class="w-4 h-4 text-blue-700"></i>
             <span>Grafik Penetrasi Outlet Aktif (OA) Bulanan ${dimLabel}</span>
           </h2>
           <p class="text-xs text-slate-500 mt-0.5">Jumlah toko/outlet unik yang bertransaksi setiap bulannya</p>
@@ -3840,8 +3999,8 @@ function renderTrendMatrixBody() {
   };
 
   tbody.innerHTML = rows.map((r, idx) => {
-    const achvColor = r.achvPct >= 90 ? 'text-emerald-600 font-bold' : r.achvPct >= 70 ? 'text-amber-600 font-bold' : r.achvPct !== null ? 'text-rose-600 font-bold' : 'text-slate-400';
-    const momColor = r.momPct > 0 ? 'text-emerald-600 font-semibold' : r.momPct < 0 ? 'text-rose-600 font-semibold' : 'text-slate-400';
+    const achvColor = r.achvPct >= 90 ? 'text-blue-700 font-bold' : r.achvPct >= 70 ? 'text-blue-700 font-bold' : r.achvPct !== null ? 'text-slate-700 font-bold' : 'text-slate-400';
+    const momColor = r.momPct > 0 ? 'text-blue-700 font-semibold' : r.momPct < 0 ? 'text-slate-700 font-semibold' : 'text-slate-400';
 
     return `
       <tr class="hover:bg-slate-50/80 transition">
@@ -3920,14 +4079,14 @@ function initTrendCharts() {
           type: 'line',
           label: 'Nilai Omzet Toko (Rp Netto)',
           data: data.dsoMovement.valSeries,
-          borderColor: '#059669',
-          backgroundColor: 'rgba(5, 150, 105, 0.08)',
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37, 99, 235, 0.08)',
           borderWidth: 3,
           fill: false,
           tension: 0.3,
           pointRadius: 5,
           pointHoverRadius: 7,
-          pointBackgroundColor: '#059669',
+          pointBackgroundColor: '#2563eb',
           yAxisID: 'y1'
         }
       ];
@@ -3951,14 +4110,14 @@ function initTrendCharts() {
           type: 'line',
           label: 'Outlet Aktif (OA Toko)',
           data: data.dsoMovement.oaSeries,
-          borderColor: '#059669',
-          backgroundColor: 'rgba(5, 150, 105, 0.08)',
+          borderColor: '#2563eb',
+          backgroundColor: 'rgba(37, 99, 235, 0.08)',
           borderWidth: 3,
           fill: false,
           tension: 0.3,
           pointRadius: 4.5,
           pointHoverRadius: 7,
-          pointBackgroundColor: '#059669',
+          pointBackgroundColor: '#2563eb',
           yAxisID: 'y1'
         }
       ];
@@ -3968,14 +4127,14 @@ function initTrendCharts() {
           type: 'line',
           label: 'Target Volume (KTN)',
           data: data.dsoMovement.targetSeries,
-          borderColor: '#dc2626',
+          borderColor: '#475569',
           borderWidth: 2,
           borderDash: [5, 5],
           fill: false,
           tension: 0.1,
           pointRadius: 3,
           pointHoverRadius: 6,
-          pointBackgroundColor: '#dc2626',
+          pointBackgroundColor: '#475569',
           yAxisID: 'y'
         });
       }
@@ -4049,7 +4208,7 @@ function initTrendCharts() {
               display: true,
               text: isOutletScope ? 'Nilai Omzet (Rp Netto)' : 'Outlet Aktif (Toko Unik)',
               font: { size: 11, weight: 'bold', family: 'Plus Jakarta Sans' },
-              color: '#059669'
+              color: '#2563eb'
             },
             ticks: {
               font: { size: 11 },
@@ -4087,7 +4246,7 @@ function initTrendCharts() {
         type: 'line',
         label: 'Target Bulanan 2026',
         data: data.chart.monthlyTargets,
-        borderColor: '#dc2626',
+        borderColor: '#475569',
         borderWidth: 2,
         borderDash: [5, 5],
         fill: false,
@@ -4273,7 +4432,7 @@ async function handleTrendOutletInput(e) {
               <div class="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2 truncate">
                 ${s.salesman_name ? `<span>Sales: <strong class="text-slate-600 font-normal">${escapeHtml(s.salesman_name)}</strong></span>` : ''}
                 ${s.kecamatan ? `<span>• Kec: ${escapeHtml(s.kecamatan)}</span>` : ''}
-                ${s.cluster_tier ? `<span class="px-1 bg-amber-50 text-amber-700 rounded">${escapeHtml(s.cluster_tier)}</span>` : ''}
+                ${s.cluster_tier ? `<span class="px-1 bg-blue-50 text-blue-800 rounded">${escapeHtml(s.cluster_tier)}</span>` : ''}
               </div>
             </div>
             <div class="shrink-0 text-right">
@@ -4288,7 +4447,7 @@ async function handleTrendOutletInput(e) {
       dropdown.classList.remove('hidden');
       if (window.lucide) lucide.createIcons();
     } catch (err) {
-      dropdown.innerHTML = `<div class="p-3 text-rose-500 text-center">Gagal memuat saran: ${err.message}</div>`;
+      dropdown.innerHTML = `<div class="p-3 text-slate-500 text-center">Gagal memuat saran: ${err.message}</div>`;
     }
   }, 200);
 }
@@ -4356,7 +4515,7 @@ async function renderPerformance() {
 
     renderPerformanceView();
   } catch (err) {
-    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat Summary Performance: ${err.message}</div>`;
+    main.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat Summary Performance: ${err.message}</div>`;
   }
 }
 
@@ -4444,10 +4603,10 @@ function renderPerformanceView() {
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Realisasi KTN</span>
-            <i data-lucide="package-check" class="w-3.5 h-3.5 text-emerald-500"></i>
+            <i data-lucide="package-check" class="w-3.5 h-3.5 text-blue-600"></i>
           </div>
           <p class="text-base sm:text-lg font-bold text-blue-900 font-mono">${(kpis.actualCartons || 0).toLocaleString('id-ID')}</p>
-          <span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${kpis.achievementPct >= (cal.timegonePct || 80) ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'} mt-0.5">
+          <span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${kpis.achievementPct >= (cal.timegonePct || 80) ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-700'} mt-0.5">
             ${kpis.achievementPct !== null ? kpis.achievementPct + '% Capaian' : 'N/A'}
           </span>
         </div>
@@ -4456,9 +4615,9 @@ function renderPerformanceView() {
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Sisa GAP Target</span>
-            <i data-lucide="trending-down" class="w-3.5 h-3.5 text-rose-500"></i>
+            <i data-lucide="trending-down" class="w-3.5 h-3.5 text-slate-500"></i>
           </div>
-          <p class="text-base sm:text-lg font-bold text-rose-600 font-mono">${(kpis.remainingTarget || 0).toLocaleString('id-ID')}</p>
+          <p class="text-base sm:text-lg font-bold text-slate-700 font-mono">${(kpis.remainingTarget || 0).toLocaleString('id-ID')}</p>
           <p class="text-[10px] text-slate-500 font-medium mt-0.5">${(kpis.gapDaily || 0).toLocaleString('id-ID')} KTN/hr</p>
         </div>
 
@@ -4466,7 +4625,7 @@ function renderPerformanceView() {
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Nilai Omzet Netto</span>
-            <i data-lucide="banknote" class="w-3.5 h-3.5 text-indigo-500"></i>
+            <i data-lucide="banknote" class="w-3.5 h-3.5 text-blue-600"></i>
           </div>
           <p class="text-base sm:text-lg font-bold text-slate-800 font-mono">Rp ${((kpis.salesNetto || 0) / 1000000).toFixed(1)} Jt</p>
           <p class="text-[10px] text-slate-400 mt-0.5">DPP: Rp ${((kpis.salesDpp || 0) / 1000000).toFixed(1)} Jt</p>
@@ -4476,20 +4635,20 @@ function renderPerformanceView() {
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Outlet Aktif (OA)</span>
-            <i data-lucide="store" class="w-3.5 h-3.5 text-teal-500"></i>
+            <i data-lucide="store" class="w-3.5 h-3.5 text-blue-600"></i>
           </div>
-          <p class="text-base sm:text-lg font-bold text-emerald-800 font-mono">${(kpis.activeOutletsMtd || 0).toLocaleString('id-ID')} <span class="text-xs font-normal text-slate-400">Toko</span></p>
-          <p class="text-[10px] text-slate-500 font-medium mt-0.5">Coverage: <strong class="text-emerald-700">${kpis.coveragePct}%</strong> / ${(kpis.registeredOutlets || 0).toLocaleString('id-ID')} CL</p>
+          <p class="text-base sm:text-lg font-bold text-blue-800 font-mono">${(kpis.activeOutletsMtd || 0).toLocaleString('id-ID')} <span class="text-xs font-normal text-slate-400">Toko</span></p>
+          <p class="text-[10px] text-slate-500 font-medium mt-0.5">Coverage: <strong class="text-blue-700">${kpis.coveragePct}%</strong> / ${(kpis.registeredOutlets || 0).toLocaleString('id-ID')} CL</p>
         </div>
 
         <!-- 6. Pace Operasional -->
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <div class="flex items-center justify-between text-slate-500 mb-1">
             <span class="text-[11px] font-semibold uppercase">Pace Operasional</span>
-            <i data-lucide="clock" class="w-3.5 h-3.5 text-amber-500"></i>
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-blue-600"></i>
           </div>
           <p class="text-base sm:text-lg font-bold text-slate-800 font-mono">${cal.monFriAsOfHke || cal.asOfHke || 20} / ${cal.monFriTotalHk || cal.totalHk || 25} HK</p>
-          <p class="text-[10px] font-medium mt-0.5 text-amber-700">Timegone: ${(cal.timegonePct || 80)}% (Sisa ${cal.monFriRemainingHk || cal.remainingHk || 5} HK)</p>
+          <p class="text-[10px] font-medium mt-0.5 text-blue-800">Timegone: ${(cal.timegonePct || 80)}% (Sisa ${cal.monFriRemainingHk || cal.remainingHk || 5} HK)</p>
         </div>
       </div>
 
@@ -4499,7 +4658,7 @@ function renderPerformanceView() {
           <div>
             <div class="flex items-center gap-2">
               <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">TOTAL DSO GARUT</span>
-              <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">TREND 2026</span>
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">TREND 2026</span>
             </div>
             <h3 class="text-sm font-bold text-slate-800 mt-1 flex items-center gap-2">
               <i data-lucide="line-chart" class="w-4 h-4 text-blue-600"></i>
@@ -4520,7 +4679,7 @@ function renderPerformanceView() {
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2 mb-3">
           <h3 class="text-xs font-bold text-slate-800 flex items-center gap-2">
-            <i data-lucide="table" class="w-4 h-4 text-emerald-600"></i>
+            <i data-lucide="table" class="w-4 h-4 text-blue-700"></i>
             <span>Tabel Ringkasan Angka Bulanan Total DSO (Tahun 2026)</span>
           </h3>
           <span class="text-xs text-slate-400">Menampilkan target, realisasi, pencapaian %, pertumbuhan MoM, OA, dan omzet</span>
@@ -4536,7 +4695,7 @@ function renderPerformanceView() {
                 <th class="py-2.5 px-3 text-right">Realisasi (KTN)</th>
                 <th class="py-2.5 px-3 text-right">Capaian (%)</th>
                 <th class="py-2.5 px-3 text-right">MoM Vol (%)</th>
-                <th class="py-2.5 px-3 text-right text-emerald-800 bg-emerald-50/50">Outlet Aktif (OA)</th>
+                <th class="py-2.5 px-3 text-right text-blue-800 bg-blue-50/50">Outlet Aktif (OA)</th>
                 <th class="py-2.5 px-3 text-right">MoM OA (%)</th>
                 <th class="py-2.5 px-3 text-right">Nilai Omzet (Rp Netto)</th>
               </tr>
@@ -4544,15 +4703,15 @@ function renderPerformanceView() {
             <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
               ${dsoMonthly.map((m, idx) => {
                 const momVolBadge = m.momVolPct !== null
-                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momVolPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momVolPct >= 0 ? '▲ +' : '▼ '}${m.momVolPct}%</span>`
+                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momVolPct >= 0 ? 'text-blue-700' : 'text-slate-700'}">${m.momVolPct >= 0 ? '▲ +' : '▼ '}${m.momVolPct}%</span>`
                   : `<span class="text-slate-300">—</span>`;
 
                 const momOaBadge = m.momOaPct !== null
-                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momOaPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.momOaPct >= 0 ? '▲ +' : '▼ '}${m.momOaPct}%</span>`
+                  ? `<span class="inline-flex items-center font-mono text-[11px] font-semibold ${m.momOaPct >= 0 ? 'text-blue-700' : 'text-slate-700'}">${m.momOaPct >= 0 ? '▲ +' : '▼ '}${m.momOaPct}%</span>`
                   : `<span class="text-slate-300">—</span>`;
 
                 const achvBadge = m.achievementPct !== null
-                  ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono ${m.achievementPct >= 100 ? 'bg-emerald-100 text-emerald-800' : m.achievementPct >= 70 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}">${m.achievementPct}%</span>`
+                  ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono ${m.achievementPct >= 100 ? 'bg-blue-100 text-blue-800' : m.achievementPct >= 70 ? 'bg-blue-50 text-blue-800' : 'bg-slate-100 text-slate-800'}">${m.achievementPct}%</span>`
                   : `<span class="text-slate-300">—</span>`;
 
                 return `
@@ -4574,7 +4733,7 @@ function renderPerformanceView() {
                     <td class="py-2 px-3 text-right">
                       ${momVolBadge}
                     </td>
-                    <td class="py-2 px-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/30">
+                    <td class="py-2 px-3 text-right font-mono font-bold text-blue-700 bg-blue-50/30">
                       ${m.activeOutlets.toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-400">Toko</span>
                     </td>
                     <td class="py-2 px-3 text-right">
@@ -4594,7 +4753,7 @@ function renderPerformanceView() {
                 <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-950">${dsoMonthly.reduce((a, b) => a + (b.actualCartons || 0), 0).toLocaleString('id-ID')}</td>
                 <td class="py-2.5 px-3 text-right text-slate-400">—</td>
                 <td class="py-2.5 px-3 text-right text-slate-400">—</td>
-                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-900 bg-emerald-100/50">
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-900 bg-blue-100/50">
                   ${Math.round(dsoMonthly.reduce((a, b) => a + (b.activeOutlets || 0), 0) / (dsoMonthly.length || 1)).toLocaleString('id-ID')} <span class="text-[10px] font-normal text-slate-500">Avg/bln</span>
                 </td>
                 <td class="py-2.5 px-3 text-right text-slate-400">—</td>
@@ -4642,16 +4801,16 @@ function renderPerformanceView() {
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Realisasi Salesman</span>
           <span class="text-base sm:text-lg font-bold text-blue-900 font-mono">${totalAct.toLocaleString('id-ID')} KTN</span>
-          <span class="text-[10px] text-emerald-600 font-semibold block mt-0.5">${avgAchv}% Rata-rata Capaian</span>
+          <span class="text-[10px] text-blue-700 font-semibold block mt-0.5">${avgAchv}% Rata-rata Capaian</span>
         </div>
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Target Tim</span>
           <span class="text-base sm:text-lg font-bold text-slate-800 font-mono">${totalTgt.toLocaleString('id-ID')} KTN</span>
-          <span class="text-[10px] text-rose-500 font-medium block mt-0.5">Sisa GAP: ${Math.max(0, totalTgt - totalAct).toLocaleString('id-ID')} KTN</span>
+          <span class="text-[10px] text-slate-500 font-medium block mt-0.5">Sisa GAP: ${Math.max(0, totalTgt - totalAct).toLocaleString('id-ID')} KTN</span>
         </div>
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Outlet Dilayani</span>
-          <span class="text-base sm:text-lg font-bold text-emerald-800 font-mono">${totalOa.toLocaleString('id-ID')} OA</span>
+          <span class="text-base sm:text-lg font-bold text-blue-800 font-mono">${totalOa.toLocaleString('id-ID')} OA</span>
           <span class="text-[10px] text-slate-500 block mt-0.5">dari ${totalCl.toLocaleString('id-ID')} Registered CL</span>
         </div>
       </div>
@@ -4676,7 +4835,7 @@ function renderPerformanceView() {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
           <div>
             <h3 class="text-xs font-bold text-slate-800 flex items-center gap-2">
-              <i data-lucide="users" class="w-4 h-4 text-emerald-600"></i>
+              <i data-lucide="users" class="w-4 h-4 text-blue-700"></i>
               <span>Rincian Lengkap Produktivitas Tim Salesman</span>
             </h3>
             <p class="text-[11px] text-slate-400 mt-0.5">Klik pada header kolom untuk mengurutkan data (Sort)</p>
@@ -4703,19 +4862,19 @@ function renderPerformanceView() {
                 <th onclick="sortPerformanceSalesman('achievementPct')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition">Capaian (%) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
                 <th class="py-2.5 px-3 text-right">GAP (KTN)</th>
                 <th class="py-2.5 px-3 text-right">GAP/hr</th>
-                <th onclick="sortPerformanceSalesman('activeOutlets')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition text-emerald-800 bg-emerald-50/50">OA (Toko) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th onclick="sortPerformanceSalesman('activeOutlets')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition text-blue-800 bg-blue-50/50">OA (Toko) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
                 <th class="py-2.5 px-3 text-right">Coverage</th>
                 <th class="py-2.5 px-3 text-center">Status Pace</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
               ${salesmen.map((s, idx) => {
-                const achvClass = s.achievementPct >= 80 ? 'bg-emerald-100 text-emerald-800' : s.achievementPct >= 60 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800';
+                const achvClass = s.achievementPct >= 80 ? 'bg-blue-100 text-blue-800' : s.achievementPct >= 60 ? 'bg-blue-50 text-blue-800' : 'bg-slate-100 text-slate-800';
                 const paceBadge = s.paceStatus === 'ON_TRACK'
-                  ? `<span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-bold">ON TRACK</span>`
+                  ? `<span class="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-bold">ON TRACK</span>`
                   : s.paceStatus === 'NEEDS_ATTENTION'
-                  ? `<span class="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-bold">ATTENTION</span>`
-                  : `<span class="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded text-[10px] font-bold">BEHIND</span>`;
+                  ? `<span class="px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 rounded text-[10px] font-bold">ATTENTION</span>`
+                  : `<span class="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-300 rounded text-[10px] font-bold">BEHIND</span>`;
 
                 return `
                   <tr class="hover:bg-slate-50/80 transition">
@@ -4734,9 +4893,9 @@ function renderPerformanceView() {
                     <td class="py-2.5 px-3 text-right">
                       ${s.achievementPct !== null ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono ${achvClass}">${s.achievementPct}%</span>` : '—'}
                     </td>
-                    <td class="py-2.5 px-3 text-right font-mono text-rose-600">${s.gapCartons > 0 ? s.gapCartons.toLocaleString('id-ID') : '0'}</td>
+                    <td class="py-2.5 px-3 text-right font-mono text-slate-700">${s.gapCartons > 0 ? s.gapCartons.toLocaleString('id-ID') : '0'}</td>
                     <td class="py-2.5 px-3 text-right font-mono text-slate-500 text-[11px]">${s.gapDaily > 0 ? s.gapDaily.toLocaleString('id-ID') : '0'}</td>
-                    <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/30">${s.activeOutlets} <span class="text-[10px] font-normal text-slate-400">/ ${s.registeredOutlets}</span></td>
+                    <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-700 bg-blue-50/30">${s.activeOutlets} <span class="text-[10px] font-normal text-slate-400">/ ${s.registeredOutlets}</span></td>
                     <td class="py-2.5 px-3 text-right font-mono text-slate-700">${s.coveragePct}%</td>
                     <td class="py-2.5 px-3 text-center">${paceBadge}</td>
                   </tr>
@@ -4749,9 +4908,9 @@ function renderPerformanceView() {
                 <td class="py-2.5 px-3 text-right font-mono">${totalTgt.toLocaleString('id-ID')}</td>
                 <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-950">${totalAct.toLocaleString('id-ID')}</td>
                 <td class="py-2.5 px-3 text-right font-mono font-bold">${avgAchv}%</td>
-                <td class="py-2.5 px-3 text-right font-mono text-rose-600">${Math.max(0, totalTgt - totalAct).toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-right font-mono text-slate-700">${Math.max(0, totalTgt - totalAct).toLocaleString('id-ID')}</td>
                 <td class="py-2.5 px-3 text-right text-slate-400">—</td>
-                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-900 bg-emerald-100/50">${totalOa.toLocaleString('id-ID')}</td>
+                <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-900 bg-blue-100/50">${totalOa.toLocaleString('id-ID')}</td>
                 <td class="py-2.5 px-3 text-right font-mono">${totalCl > 0 ? Math.round((totalOa / totalCl) * 1000) / 10 : 0}%</td>
                 <td class="py-2.5 px-3 text-center text-slate-400">—</td>
               </tr>
@@ -4796,12 +4955,12 @@ function renderPerformanceView() {
         </div>
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Omzet Bersih</span>
-          <span class="text-base sm:text-lg font-bold text-indigo-900 font-mono">Rp ${(totalSubNet / 1000000).toFixed(1)} Jt</span>
+          <span class="text-base sm:text-lg font-bold text-blue-900 font-mono">Rp ${(totalSubNet / 1000000).toFixed(1)} Jt</span>
           <span class="text-[10px] text-slate-400 block mt-0.5">Netto Inc PPN</span>
         </div>
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <span class="text-[11px] text-slate-500 font-semibold uppercase block">Total Transaksi Faktur</span>
-          <span class="text-base sm:text-lg font-bold text-emerald-800 font-mono">${totalSubInv.toLocaleString('id-ID')} Faktur</span>
+          <span class="text-base sm:text-lg font-bold text-blue-800 font-mono">${totalSubInv.toLocaleString('id-ID')} Faktur</span>
           <span class="text-[10px] text-slate-400 block mt-0.5">Penetrasi pasar Garut</span>
         </div>
       </div>
@@ -4810,7 +4969,7 @@ function renderPerformanceView() {
       <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mt-5">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
           <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-600"></i>
+            <i data-lucide="bar-chart-2" class="w-4 h-4 text-blue-700"></i>
             <span>Grafik Ranking Sub-brand Terlaris di Wilayah Garut (KTN)</span>
           </h3>
           <span class="text-xs text-slate-400">Top varian produk paling diminati outlet</span>
@@ -4826,7 +4985,7 @@ function renderPerformanceView() {
         <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
           <div>
             <h3 class="text-xs font-bold text-slate-800 flex items-center gap-2">
-              <i data-lucide="boxes" class="w-4 h-4 text-indigo-600"></i>
+              <i data-lucide="boxes" class="w-4 h-4 text-blue-600"></i>
               <span>Rincian Penjualan & Kontribusi per Sub-brand</span>
             </h3>
             <p class="text-[11px] text-slate-400 mt-0.5">Klik pada header kolom untuk mengurutkan (Sort)</p>
@@ -4851,7 +5010,7 @@ function renderPerformanceView() {
                 <th onclick="sortPerformanceSubbrand('actualCartons')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition text-blue-900">Volume (KTN) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
                 <th onclick="sortPerformanceSubbrand('salesNetto')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition">Omzet Netto (Rp) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
                 <th onclick="sortPerformanceSubbrand('contributionPct')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition">Share (%) <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
-                <th onclick="sortPerformanceSubbrand('activeOutlets')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition text-emerald-800 bg-emerald-50/50">OA Pembeli <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
+                <th onclick="sortPerformanceSubbrand('activeOutlets')" class="py-2.5 px-3 text-right cursor-pointer hover:bg-slate-100 transition text-blue-800 bg-blue-50/50">OA Pembeli <i data-lucide="arrow-up-down" class="w-3 h-3 inline text-slate-400"></i></th>
                 <th class="py-2.5 px-3 text-right">Faktur</th>
                 <th class="py-2.5 px-3 text-right">Rata-rata/KTN</th>
               </tr>
@@ -4866,8 +5025,8 @@ function renderPerformanceView() {
                   <td class="py-2.5 px-3 whitespace-nowrap"><span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-semibold">${b.groupSku}</span></td>
                   <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-900">${b.actualCartons.toLocaleString('id-ID')}</td>
                   <td class="py-2.5 px-3 text-right font-mono text-slate-800 whitespace-nowrap">${b.salesNetto >= 1000000 ? 'Rp ' + (b.salesNetto / 1000000).toFixed(1) + ' Jt' : 'Rp ' + b.salesNetto.toLocaleString('id-ID')}</td>
-                  <td class="py-2.5 px-3 text-right font-mono font-bold text-indigo-700">${b.contributionPct}%</td>
-                  <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/30">${b.activeOutlets} <span class="text-[10px] font-normal text-slate-400">Toko</span></td>
+                  <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-700">${b.contributionPct}%</td>
+                  <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-700 bg-blue-50/30">${b.activeOutlets} <span class="text-[10px] font-normal text-slate-400">Toko</span></td>
                   <td class="py-2.5 px-3 text-right font-mono text-slate-500">${b.invoiceCount}</td>
                   <td class="py-2.5 px-3 text-right font-mono text-slate-600 text-[11px]">Rp ${b.avgPriceCarton.toLocaleString('id-ID')}</td>
                 </tr>
@@ -4896,7 +5055,7 @@ function renderPerformanceView() {
       <div>
         <div class="flex items-center gap-2">
           <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">INTELLIGENCE PLATFORM</span>
-          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">SUMMARY PERFORMANCE</span>
+          <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">SUMMARY PERFORMANCE</span>
         </div>
         <h2 class="text-xl font-bold text-slate-900 tracking-tight mt-1">Total Performance Analytics — DSO Garut</h2>
         <p class="text-xs text-slate-500 mt-0.5">Analisis angka performa komprehensif: Target vs Realisasi DSO, Produktivitas Salesman, dan Kontribusi Sub-brand</p>
@@ -4904,7 +5063,7 @@ function renderPerformanceView() {
 
       <!-- Action Button: Export CSV -->
       <div class="flex items-center gap-2">
-        <button onclick="exportPerformanceCsvAction()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5">
+        <button onclick="exportPerformanceCsvAction()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1.5">
           <i data-lucide="download" class="w-4 h-4"></i>
           <span>Export CSV (${activeView.toUpperCase()})</span>
         </button>
@@ -4993,26 +5152,26 @@ function initPerformanceCharts() {
             type: 'line',
             label: 'Target Volume (KTN)',
             data: targetData,
-            borderColor: '#dc2626',
+            borderColor: '#475569',
             borderWidth: 2,
             borderDash: [5, 5],
             fill: false,
             tension: 0.1,
             pointRadius: 3.5,
-            pointBackgroundColor: '#dc2626',
+            pointBackgroundColor: '#475569',
             yAxisID: 'y'
           },
           {
             type: 'line',
             label: 'Outlet Aktif (OA Toko)',
             data: oaData,
-            borderColor: '#059669',
-            backgroundColor: 'rgba(5, 150, 105, 0.08)',
+            borderColor: '#2563eb',
+            backgroundColor: 'rgba(37, 99, 235, 0.08)',
             borderWidth: 2.5,
             fill: false,
             tension: 0.3,
             pointRadius: 4.5,
-            pointBackgroundColor: '#059669',
+            pointBackgroundColor: '#2563eb',
             yAxisID: 'y1'
           }
         ]
@@ -5049,7 +5208,7 @@ function initPerformanceCharts() {
             type: 'linear',
             position: 'right',
             grid: { drawOnChartArea: false },
-            title: { display: true, text: 'Outlet Aktif (OA Toko)', font: { size: 11, weight: 'bold' }, color: '#059669' },
+            title: { display: true, text: 'Outlet Aktif (OA Toko)', font: { size: 11, weight: 'bold' }, color: '#2563eb' },
             ticks: { callback: v => v.toLocaleString('id-ID') }
           }
         }
@@ -5112,8 +5271,8 @@ function initPerformanceCharts() {
     const volumeData = subbrands.map(b => b.actualCartons);
 
     const colors = [
-      '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2',
-      '#4f46e5', '#16a34a', '#ea580c', '#9333ea', '#e11d48', '#0284c7'
+      '#1e3a8a', '#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd',
+      '#bfdbfe', '#0f172a', '#334155', '#475569', '#64748b', '#94a3b8'
     ];
 
     window.perfChartInstance = new Chart(ctx, {
@@ -5167,7 +5326,7 @@ async function renderSalesman() {
 
     renderSalesmanContent();
   } catch (err) {
-    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat tim sales: ${err.message}</div>`;
+    main.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat tim sales: ${err.message}</div>`;
   }
 }
 
@@ -5286,7 +5445,7 @@ function renderSalesmanContent() {
                   <div class="text-[10px] text-slate-400">${(s.salesmanName?.includes('DSM') || s.salesGroup === 'SAVORIA_OTHERS' || s.salesGroup === 'SCM' || s.salesGroup === 'SMC' || !s.spvName) ? '—' : s.spvName}</div>
                 </td>
                 <td class="py-2.5 px-3">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-bold ${s.salesmanType === 'Kanvas' ? 'bg-blue-50 text-blue-700 border border-blue-200' : (s.salesmanType === 'GT' ? 'bg-purple-50 text-purple-700 border border-purple-200' : (s.salesmanType === 'CB' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-600'))}">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold ${s.salesmanType === 'Kanvas' ? 'bg-blue-50 text-blue-700 border border-blue-200' : (s.salesmanType === 'GT' ? 'bg-blue-50 text-blue-700 border border-blue-200' : (s.salesmanType === 'CB' ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-slate-100 text-slate-600'))}">
                     ${s.salesmanType || 'Kanvas'}
                   </span>
                 </td>
@@ -5297,13 +5456,13 @@ function renderSalesmanContent() {
                   ${s.hasTarget && s.targetValue ? `<div class="text-[10px] text-slate-400 font-normal">Rp ${(s.targetValue / 1000000).toFixed(1)} Jt</div>` : ''}
                 </td>
                 <td class="py-2.5 px-3 text-right font-extrabold text-blue-700">${s.actualCartons.toLocaleString('id-ID')}</td>
-                <td class="py-2.5 px-3 text-right font-bold ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= 80 ? 'text-emerald-600' : (s.achievementPct >= 60 ? 'text-amber-600' : 'text-rose-600')) : 'text-slate-400'}">
+                <td class="py-2.5 px-3 text-right font-bold ${s.hasTarget && s.achievementPct !== null ? (s.achievementPct >= 80 ? 'text-blue-700' : (s.achievementPct >= 60 ? 'text-blue-700' : 'text-slate-700')) : 'text-slate-400'}">
                   ${s.hasTarget && s.achievementPct !== null ? s.achievementPct + '%' : 'N/A'}
                 </td>
-                <td class="py-2.5 px-3 text-right font-semibold ${s.hasTarget && s.gapMonthly !== null ? (s.gapMonthly > 0 ? 'text-rose-600' : 'text-emerald-600') : 'text-slate-400'}">
+                <td class="py-2.5 px-3 text-right font-semibold ${s.hasTarget && s.gapMonthly !== null ? (s.gapMonthly > 0 ? 'text-slate-700' : 'text-blue-700') : 'text-slate-400'}">
                   ${s.hasTarget && s.gapMonthly !== null ? (s.gapMonthly > 0 ? '-' + s.gapMonthly.toLocaleString('id-ID') : 'Tercapai') : 'N/A'}
                 </td>
-                <td class="py-2.5 px-3 text-right font-semibold ${s.hasTarget && s.gapDaily !== null ? 'text-emerald-600' : 'text-slate-400'}">
+                <td class="py-2.5 px-3 text-right font-semibold ${s.hasTarget && s.gapDaily !== null ? 'text-blue-700' : 'text-slate-400'}">
                   ${s.hasTarget && s.gapDaily !== null ? s.gapDaily.toLocaleString('id-ID') + '/hr' : 'N/A'}
                 </td>
                 <td class="py-2.5 px-3 text-center">
@@ -5351,7 +5510,7 @@ function renderSalesmanContent() {
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-500">GAP Harian (Sisa HK):</span>
-                <span class="font-bold text-emerald-600">${s.gapDaily !== null ? s.gapDaily + ' KTN/hr' : 'N/A'}</span>
+                <span class="font-bold text-blue-700">${s.gapDaily !== null ? s.gapDaily + ' KTN/hr' : 'N/A'}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-slate-500">Coverage Outlet:</span>
@@ -5394,13 +5553,13 @@ async function openIncentiveModal(salesmanId) {
       </div>
 
       <!-- Total Payout Banner -->
-      <div class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-5 rounded-2xl shadow-md mb-5 flex items-center justify-between">
+      <div class="bg-gradient-to-r #0c2340 text-white p-5 rounded-2xl shadow-md mb-5 flex items-center justify-between">
         <div>
           <span class="text-xs text-blue-200 font-medium">Estimasi Total Insentif MTD</span>
           <p class="text-3xl font-extrabold mt-0.5">Rp ${data.totalEstimatedPayout.toLocaleString('id-ID')}</p>
           <p class="text-xs text-blue-200 mt-1">${data.payoutPercentage}% dari total mangkok (Rp ${(data.totalBaseMangkok).toLocaleString('id-ID')})</p>
         </div>
-        <i data-lucide="award" class="w-12 h-12 text-amber-400"></i>
+        <i data-lucide="award" class="w-12 h-12 text-blue-300"></i>
       </div>
 
       <!-- Component Breakdown Table -->
@@ -5426,9 +5585,9 @@ async function openIncentiveModal(salesmanId) {
                 <td class="py-2.5 px-3 text-right">Rp ${c.mangkok.toLocaleString('id-ID')}</td>
                 <td class="py-2.5 px-3 text-right">${c.minPct}% - ${c.maxPct}%</td>
                 <td class="py-2.5 px-3 text-right font-semibold">${c.actual}</td>
-                <td class="py-2.5 px-3 text-right font-bold ${c.status === 'QUALIFIED' ? 'text-emerald-600' : (c.status === 'TBD' ? 'text-slate-400' : 'text-rose-600')}">${c.status === 'TBD' ? 'TBD' : c.achievementPct + '%'}</td>
+                <td class="py-2.5 px-3 text-right font-bold ${c.status === 'QUALIFIED' ? 'text-blue-700' : (c.status === 'TBD' ? 'text-slate-400' : 'text-slate-700')}">${c.status === 'TBD' ? 'TBD' : c.achievementPct + '%'}</td>
                 <td class="py-2.5 px-3 text-right font-bold text-slate-900">Rp ${c.payout.toLocaleString('id-ID')}</td>
-                <td class="py-2.5 px-3 text-[11px] ${c.status === 'QUALIFIED' ? 'text-emerald-700' : (c.status === 'TBD' ? 'text-slate-400 italic' : 'text-rose-700 font-semibold')}">${c.note}</td>
+                <td class="py-2.5 px-3 text-[11px] ${c.status === 'QUALIFIED' ? 'text-blue-700' : (c.status === 'TBD' ? 'text-slate-400 italic' : 'text-slate-700 font-semibold')}">${c.note}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -5437,7 +5596,7 @@ async function openIncentiveModal(salesmanId) {
     `;
     lucide.createIcons();
   } catch (err) {
-    modalContent.innerHTML = `<div class="p-6 text-rose-600">Gagal memuat insentif: ${err.message}</div>`;
+    modalContent.innerHTML = `<div class="p-6 text-slate-700">Gagal memuat insentif: ${err.message}</div>`;
   }
 }
 
@@ -5469,7 +5628,7 @@ async function renderProgram() {
         <!-- Sub-tab Navigation Pills -->
         <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
           <button onclick="switchProgramSubTab('loyalty')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${currentProgramSubTab === 'loyalty' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
-            <i data-lucide="award" class="w-3.5 h-3.5 text-amber-500"></i>
+            <i data-lucide="award" class="w-3.5 h-3.5 text-blue-600"></i>
             <span>Program Toko Berjalan</span>
           </button>
           <button onclick="switchProgramSubTab('tracker')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${currentProgramSubTab === 'tracker' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
@@ -5493,7 +5652,7 @@ async function renderProgram() {
       await renderTrackerSubTab();
     }
   } catch (err) {
-    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat program: ${err.message}</div>`;
+    main.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat program: ${err.message}</div>`;
   }
 }
 
@@ -5532,12 +5691,12 @@ async function renderLoyaltySubTab() {
       <!-- Program Header & Action Bar -->
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-3">
-          <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-400 text-white flex items-center justify-center font-bold shadow-md shadow-amber-900/20 shrink-0">
+          <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-blue-700 text-white flex items-center justify-center font-bold shadow-md shadow-amber-900/20 shrink-0">
             <i data-lucide="gift" class="w-6 h-6"></i>
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">Program Berjalan</span>
+              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">Program Berjalan</span>
               <span class="text-xs text-slate-400 font-medium">Fokus SKU: <strong class="text-slate-700">${prog.productFocus}</strong></span>
             </div>
             <h3 class="text-base font-black text-slate-800 tracking-tight mt-0.5">${prog.programName}</h3>
@@ -5591,13 +5750,13 @@ async function renderLoyaltySubTab() {
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <span class="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Realisasi MTD</span>
           <p class="text-xl font-extrabold text-slate-800 mt-1">${prog.totalActualCartons.toLocaleString('id-ID')} <span class="text-xs font-normal text-slate-500">KTN</span></p>
-          <span class="text-[10px] text-emerald-600 font-bold">${prog.overallAchvPct}% Pencapaian</span>
+          <span class="text-[10px] text-blue-700 font-bold">${prog.overallAchvPct}% Pencapaian</span>
         </div>
 
         <!-- Card 4: Toko Tercapai -->
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <span class="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Toko Capai Target</span>
-          <p class="text-xl font-extrabold text-emerald-600 mt-1">${prog.achievedStoresCount} <span class="text-xs font-normal text-slate-500">/ ${prog.totalStores}</span></p>
+          <p class="text-xl font-extrabold text-blue-700 mt-1">${prog.achievedStoresCount} <span class="text-xs font-normal text-slate-500">/ ${prog.totalStores}</span></p>
           <span class="text-[10px] text-slate-500 font-medium">${Math.round((prog.achievedStoresCount / (prog.totalStores || 1)) * 100)}% toko capai syarat</span>
         </div>
 
@@ -5611,8 +5770,8 @@ async function renderLoyaltySubTab() {
         <!-- Card 6: Reward Diraih MTD -->
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <span class="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Reward Diraih</span>
-          <p class="text-xl font-extrabold text-emerald-600 mt-1">Rp ${(prog.totalEarnedReward / 1000).toLocaleString('id-ID')}k</p>
-          <span class="text-[10px] text-emerald-600 font-bold">Siap Dicairkan MTD</span>
+          <p class="text-xl font-extrabold text-blue-700 mt-1">Rp ${(prog.totalEarnedReward / 1000).toLocaleString('id-ID')}k</p>
+          <span class="text-[10px] text-blue-700 font-bold">Siap Dicairkan MTD</span>
         </div>
       </div>
 
@@ -5701,7 +5860,7 @@ async function renderLoyaltySubTab() {
     lucide.createIcons();
     filterLoyaltyTable();
   } catch (err) {
-    container.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat data program: ${err.message}</div>`;
+    container.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat data program: ${err.message}</div>`;
   }
 }
 
@@ -5755,18 +5914,18 @@ function filterLoyaltyTable() {
       <td class="py-2.5 px-3 text-center font-semibold text-blue-600">${s.rewardPct}%</td>
       <td class="py-2.5 px-3 text-right font-mono text-slate-700">Rp ${s.estRewardAmount.toLocaleString('id-ID')}</td>
       <td class="py-2.5 px-3 text-right font-extrabold ${s.actualCartons > 0 ? 'text-blue-700' : 'text-slate-400'}">${s.actualCartons.toLocaleString('id-ID')}</td>
-      <td class="py-2.5 px-3 text-right font-black ${s.achievementPct >= 100 ? 'text-emerald-600' : (s.achievementPct >= 50 ? 'text-blue-600' : 'text-rose-600')}">
+      <td class="py-2.5 px-3 text-right font-black ${s.achievementPct >= 100 ? 'text-blue-700' : (s.achievementPct >= 50 ? 'text-blue-600' : 'text-slate-700')}">
         ${s.achievementPct}%
       </td>
       <td class="py-2.5 px-3 text-center">
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${s.statusCapai === 'Tercapai' ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-rose-700 bg-rose-50 border border-rose-200'}">
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${s.statusCapai === 'Tercapai' ? 'text-blue-700 bg-blue-50 border border-blue-200' : 'text-slate-700 bg-slate-100 border border-slate-300'}">
           ${s.statusCapai === 'Tercapai' ? '✓ Tercapai' : '✕ Belum Capai'}
         </span>
       </td>
-      <td class="py-2.5 px-3 text-right font-bold ${s.gapCartons === 0 ? 'text-emerald-600' : 'text-rose-600'}">
+      <td class="py-2.5 px-3 text-right font-bold ${s.gapCartons === 0 ? 'text-blue-700' : 'text-slate-700'}">
         ${s.gapCartons === 0 ? '0 (Tercapai)' : '-' + s.gapCartons.toLocaleString('id-ID')}
       </td>
-      <td class="py-2.5 px-3 text-right font-mono font-bold ${s.earnedRewardAmount > 0 ? 'text-emerald-700' : 'text-slate-400'}">
+      <td class="py-2.5 px-3 text-right font-mono font-bold ${s.earnedRewardAmount > 0 ? 'text-blue-700' : 'text-slate-400'}">
         Rp ${s.earnedRewardAmount.toLocaleString('id-ID')}
       </td>
     </tr>
@@ -5817,10 +5976,10 @@ async function renderTrackerSubTab() {
               <div>
                 <div class="flex justify-between text-[11px] font-semibold mt-2 mb-1">
                   <span class="text-slate-500">Progres Target:</span>
-                  <span class="${m.progressToTargetPct >= 100 ? 'text-emerald-600' : 'text-blue-600'} font-bold">${m.progressToTargetPct}%</span>
+                  <span class="${m.progressToTargetPct >= 100 ? 'text-blue-700' : 'text-blue-600'} font-bold">${m.progressToTargetPct}%</span>
                 </div>
                 <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                  <div class="h-2 rounded-full ${m.progressToTargetPct >= 100 ? 'bg-emerald-500' : 'bg-blue-600'}" style="width: ${Math.min(m.progressToTargetPct, 100)}%"></div>
+                  <div class="h-2 rounded-full ${m.progressToTargetPct >= 100 ? 'bg-blue-600' : 'bg-blue-600'}" style="width: ${Math.min(m.progressToTargetPct, 100)}%"></div>
                 </div>
                 <div class="text-[10px] text-slate-400 mt-1 flex justify-between">
                   <span>Gap: ${m.gapOc} Toko</span>
@@ -5868,7 +6027,7 @@ async function renderTrackerSubTab() {
     `;
     lucide.createIcons();
   } catch (err) {
-    container.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat tracker: ${err.message}</div>`;
+    container.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat tracker: ${err.message}</div>`;
   }
 }
 
@@ -5913,7 +6072,7 @@ async function openUploadProgramModal() {
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div class="md:col-span-2">
           <label class="block text-xs font-semibold text-slate-700 mb-1">
-            Judul / Nama Program: <span class="text-rose-500">*</span>
+            Judul / Nama Program: <span class="text-slate-500">*</span>
           </label>
           <input type="text" id="modal-prog-name" placeholder="Contoh: Loyalty Kopi Tubruk Gadjah Q2 (bisa dikosongkan/diisi nanti)" class="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg font-bold text-slate-800 focus:ring-1 focus:ring-blue-500 focus:outline-none" required value="${cachedLoyaltyData?.program?.programName || 'Loyalty Kopi Tubruk Gadjah'}">
         </div>
@@ -6189,20 +6348,20 @@ async function renderStock() {
 
       <!-- KPI Overview Ribbon -->
       <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <div class="bg-white p-3.5 rounded-xl border border-rose-200 bg-rose-50/30 shadow-sm">
-          <span class="text-[11px] font-semibold text-rose-700 uppercase block">Habis Stok (OOS)</span>
-          <p class="text-xl font-extrabold text-rose-700 mt-1">${ss.outOfStockCount} SKU</p>
-          <span class="text-[10px] text-rose-600 font-medium">Cover 0 hari</span>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-300 bg-slate-50 shadow-sm">
+          <span class="text-[11px] font-semibold text-slate-700 uppercase block">Habis Stok (OOS)</span>
+          <p class="text-xl font-extrabold text-slate-700 mt-1">${ss.outOfStockCount} SKU</p>
+          <span class="text-[10px] text-slate-700 font-medium">Cover 0 hari</span>
         </div>
-        <div class="bg-white p-3.5 rounded-xl border border-amber-200 bg-amber-50/30 shadow-sm">
-          <span class="text-[11px] font-semibold text-amber-700 uppercase block">Stok Rendah</span>
-          <p class="text-xl font-extrabold text-amber-700 mt-1">${ss.lowStockCount} SKU</p>
-          <span class="text-[10px] text-amber-600 font-medium">< ${ss.thresholds.lowDays} hari cover</span>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-300 bg-slate-50 shadow-sm">
+          <span class="text-[11px] font-semibold text-blue-800 uppercase block">Stok Rendah</span>
+          <p class="text-xl font-extrabold text-blue-800 mt-1">${ss.lowStockCount} SKU</p>
+          <span class="text-[10px] text-blue-700 font-medium">< ${ss.thresholds.lowDays} hari cover</span>
         </div>
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <span class="text-[11px] font-semibold text-emerald-700 uppercase block">Stok Sehat</span>
+          <span class="text-[11px] font-semibold text-blue-700 uppercase block">Stok Sehat</span>
           <p class="text-xl font-extrabold text-slate-800 mt-1">${ss.healthyCount} SKU</p>
-          <span class="text-[10px] text-emerald-600 font-medium">${ss.thresholds.lowDays} - ${ss.thresholds.highDays} hari</span>
+          <span class="text-[10px] text-blue-700 font-medium">${ss.thresholds.lowDays} - ${ss.thresholds.highDays} hari</span>
         </div>
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
           <span class="text-[11px] font-semibold text-blue-700 uppercase block">Overstock</span>
@@ -6210,7 +6369,7 @@ async function renderStock() {
           <span class="text-[10px] text-blue-600 font-medium">> ${ss.thresholds.highDays} hari cover</span>
         </div>
         <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <span class="text-[11px] font-semibold text-purple-700 uppercase block">Total Faktur AR</span>
+          <span class="text-[11px] font-semibold text-blue-700 uppercase block">Total Faktur AR</span>
           <p class="text-xl font-extrabold text-slate-800 mt-1">${as.totalInvoices} Faktur</p>
           <span class="text-[10px] text-slate-500 font-medium">Raw overdue_days utuh</span>
         </div>
@@ -6225,7 +6384,7 @@ async function renderStock() {
             <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-center">
               <span class="text-slate-500 text-[10px] block font-medium">${b.label}</span>
               <p class="text-sm font-bold text-slate-800 mt-0.5">Rp ${(b.nilai / 1000000).toFixed(1)} Jt</p>
-              <span class="text-[10px] font-bold ${b.pct > 0 ? (b.name === 'Current' ? 'text-emerald-600' : 'text-amber-600') : 'text-slate-400'}">${b.pct}%</span>
+              <span class="text-[10px] font-bold ${b.pct > 0 ? (b.name === 'Current' ? 'text-blue-700' : 'text-blue-700') : 'text-slate-400'}">${b.pct}%</span>
             </div>
           `).join('')}
         </div>
@@ -6259,7 +6418,7 @@ async function renderStock() {
                     </td>
                     <td class="py-2 px-3 text-right font-bold text-slate-800">${it.available_stock_ctn}</td>
                     <td class="py-2 px-3 text-right text-slate-600">${it.adsCartons}</td>
-                    <td class="py-2 px-3 text-right font-bold ${it.coverDays < 3 ? 'text-rose-600' : (it.coverDays > 30 ? 'text-blue-600' : 'text-emerald-600')}">${it.coverDays} hr</td>
+                    <td class="py-2 px-3 text-right font-bold ${it.coverDays < 3 ? 'text-slate-700' : (it.coverDays > 30 ? 'text-blue-600' : 'text-blue-700')}">${it.coverDays} hr</td>
                     <td class="py-2 px-3 text-center">
                       <span class="px-2 py-0.5 rounded text-[10px] font-bold ${it.status === 'OOS' ? 'badge-danger' : (it.status === 'LOW' ? 'badge-warning' : (it.status === 'OVERSTOCK' ? 'badge-info' : 'badge-success'))}">
                         ${it.statusLabel}
@@ -6298,7 +6457,7 @@ async function renderStock() {
                     <td class="py-2 px-3 text-right font-bold text-slate-900">
                       Rp ${(inv.saldo_piutang / 1000).toLocaleString('id-ID')} rb
                     </td>
-                    <td class="py-2 px-3 text-center font-bold ${inv.overdue_days > 0 ? 'text-rose-600' : 'text-emerald-600'}">
+                    <td class="py-2 px-3 text-center font-bold ${inv.overdue_days > 0 ? 'text-slate-700' : 'text-blue-700'}">
                       ${inv.overdue_days} hr
                     </td>
                     <td class="py-2 px-3 text-right">
@@ -6316,7 +6475,7 @@ async function renderStock() {
     `;
     lucide.createIcons();
   } catch (err) {
-    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat stock & piutang: ${err.message}</div>`;
+    main.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat stock & piutang: ${err.message}</div>`;
   }
 }
 
@@ -6398,7 +6557,7 @@ async function renderSettings() {
         <!-- Form 2: Input Target Nilai Insentif Manual -->
         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-xs">
           <div class="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
-            <i data-lucide="award" class="w-4 h-4 text-emerald-600"></i>
+            <i data-lucide="award" class="w-4 h-4 text-blue-700"></i>
             <h3 class="font-bold text-slate-800 text-sm">Form Target Nilai Insentif</h3>
           </div>
           <form onsubmit="submitIncentiveTarget(event)" class="space-y-3">
@@ -6421,14 +6580,14 @@ async function renderSettings() {
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="font-semibold text-slate-600 block mb-1">Target Value Rupiah:</label>
-                <input type="number" id="form-inc-val" placeholder="Rp 20.000.000" class="w-full p-2 bg-white border border-emerald-400 rounded-lg font-bold">
+                <input type="number" id="form-inc-val" placeholder="Rp 20.000.000" class="w-full p-2 bg-white border border-blue-400 rounded-lg font-bold">
               </div>
               <div>
                 <label class="font-semibold text-slate-600 block mb-1">Target Kopi (KTN):</label>
                 <input type="number" id="form-inc-kopi" placeholder="100" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg">
               </div>
             </div>
-            <button type="submit" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition shadow-sm">
+            <button type="submit" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition shadow-sm">
               Simpan Target Nilai Insentif
             </button>
           </form>
@@ -6437,7 +6596,7 @@ async function renderSettings() {
         <!-- Form 3: Kalender Hari Kerja -->
         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-xs">
           <div class="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
-            <i data-lucide="calendar" class="w-4 h-4 text-purple-600"></i>
+            <i data-lucide="calendar" class="w-4 h-4 text-blue-600"></i>
             <h3 class="font-bold text-slate-800 text-sm">Form Kalender Hari Kerja (HK / HKE)</h3>
           </div>
           <form onsubmit="submitCalendar(event)" class="space-y-3">
@@ -6452,14 +6611,14 @@ async function renderSettings() {
               </div>
               <div>
                 <label class="font-semibold text-slate-600 block mb-1">Total HK:</label>
-                <input type="number" id="form-cal-hk" value="25" class="w-full p-2 bg-white border border-purple-400 rounded-lg font-bold">
+                <input type="number" id="form-cal-hk" value="25" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold">
               </div>
               <div>
                 <label class="font-semibold text-slate-600 block mb-1">As of HKE:</label>
-                <input type="number" id="form-cal-hke" value="8" class="w-full p-2 bg-white border border-purple-400 rounded-lg font-bold">
+                <input type="number" id="form-cal-hke" value="8" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold">
               </div>
             </div>
-            <button type="submit" class="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition shadow-sm">
+            <button type="submit" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition shadow-sm">
               Perbarui Hari Kerja
             </button>
           </form>
@@ -6468,13 +6627,13 @@ async function renderSettings() {
         <!-- Form 4: Penugasan Outlet ke Salesman / Rayon -->
         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm text-xs">
           <div class="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
-            <i data-lucide="shuffle" class="w-4 h-4 text-amber-600"></i>
+            <i data-lucide="shuffle" class="w-4 h-4 text-blue-700"></i>
             <h3 class="font-bold text-slate-800 text-sm">Form Penugasan Outlet (Reassignment)</h3>
           </div>
           <form onsubmit="submitReassign(event)" class="space-y-3">
             <div>
               <label class="font-semibold text-slate-600 block mb-1">ID Outlet atau Kode Alias:</label>
-              <input type="text" id="form-asg-outlet" placeholder="contoh: OUT_8f5afe7f-a706-401c-be89-2f675495d8b3" required class="w-full p-2 bg-white border border-amber-400 rounded-lg font-mono">
+              <input type="text" id="form-asg-outlet" placeholder="contoh: OUT_8f5afe7f-a706-401c-be89-2f675495d8b3" required class="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono">
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -6494,7 +6653,7 @@ async function renderSettings() {
               <label class="font-semibold text-slate-600 block mb-1">Alasan Reassignment:</label>
               <input type="text" id="form-asg-note" placeholder="Catatan perubahan / rotasi" class="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg">
             </div>
-            <button type="submit" class="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition shadow-sm">
+            <button type="submit" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition shadow-sm">
               Tugaskan Ulang Outlet
             </button>
           </form>
@@ -6537,7 +6696,7 @@ async function renderSettings() {
                 <div class="flex flex-wrap gap-2 pt-1">
                   ${buckets.map(b => `
                     <span class="px-3 py-1 bg-white text-slate-800 border border-slate-300 rounded-lg font-semibold text-xs shadow-2xs flex items-center gap-1.5">
-                      <span class="w-2 h-2 rounded-full ${String(b).includes('>90') || String(b).includes('NPL') ? 'bg-rose-500' : 'bg-blue-500'}"></span>
+                      <span class="w-2 h-2 rounded-full ${String(b).includes('>90') || String(b).includes('NPL') ? 'bg-slate-700' : 'bg-blue-600'}"></span>
                       ${b}
                     </span>
                   `).join('')}
@@ -6586,7 +6745,7 @@ async function renderSettings() {
     `;
     lucide.createIcons();
   } catch (err) {
-    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat pengaturan: ${err.message}</div>`;
+    main.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat pengaturan: ${err.message}</div>`;
   }
 }
 
@@ -7171,8 +7330,8 @@ async function renderPricelist() {
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-200">
         <div>
           <div class="flex flex-wrap items-center gap-2">
-            <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded">OFFICIAL PRICELIST</span>
-            <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">STRATA DISKON VOLUME</span>
+            <span class="px-2 py-0.5 bg-blue-100 text-blue-900 text-[10px] font-bold rounded">OFFICIAL PRICELIST</span>
+            <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">STRATA DISKON VOLUME</span>
             <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">RETAIL PROFIT SIMULATOR</span>
           </div>
           <h1 class="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight mt-1">Pricelist & Simulation</h1>
@@ -7186,16 +7345,16 @@ async function renderPricelist() {
             <span>Katalog Resmi</span>
           </button>
 
-          <button onclick="switchPricelistSubTab('strata')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${subTab === 'strata' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
-            <i data-lucide="layers" class="w-3.5 h-3.5 text-emerald-600"></i>
+          <button onclick="switchPricelistSubTab('strata')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${subTab === 'strata' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
+            <i data-lucide="layers" class="w-3.5 h-3.5 text-blue-700"></i>
             <span>Matriks Strata Diskon</span>
-            <span class="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-full">5 Kategori</span>
+            <span class="px-1.5 py-0.2 bg-blue-100 text-blue-800 text-[9px] font-black rounded-full">5 Kategori</span>
           </button>
 
           <button onclick="switchPricelistSubTab('simulasi')" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${subTab === 'simulasi' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}">
-            <i data-lucide="calculator" class="w-3.5 h-3.5 text-amber-500"></i>
+            <i data-lucide="calculator" class="w-3.5 h-3.5 text-blue-600"></i>
             <span>Simulator Order & Margin</span>
-            <span class="px-1.5 py-0.2 bg-amber-100 text-amber-800 text-[9px] font-black rounded-full">${window.pricelistState.simulationItems.length}</span>
+            <span class="px-1.5 py-0.2 bg-blue-100 text-blue-900 text-[9px] font-black rounded-full">${window.pricelistState.simulationItems.length}</span>
           </button>
         </div>
       </div>
@@ -7214,7 +7373,7 @@ async function renderPricelist() {
       renderPricelistSimulatorView();
     }
   } catch (err) {
-    main.innerHTML = `<div class="p-6 bg-rose-50 text-rose-700 rounded-xl">Gagal memuat Pricelist: ${err.message}</div>`;
+    main.innerHTML = `<div class="p-6 bg-slate-100 text-slate-700 rounded-xl">Gagal memuat Pricelist: ${err.message}</div>`;
   }
 }
 
@@ -7269,7 +7428,7 @@ function renderPricelistCatalogView() {
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div class="text-xs font-semibold text-slate-500 mb-1 flex items-center justify-between">
           <span>Principal Terpilih</span>
-          <i data-lucide="building-2" class="w-4 h-4 text-emerald-500"></i>
+          <i data-lucide="building-2" class="w-4 h-4 text-blue-600"></i>
         </div>
         <div class="text-base md:text-lg font-extrabold text-slate-900 truncate">
           ${selectedPrincipal === 'ALL' ? 'Semua Principal' : selectedPrincipal}
@@ -7282,22 +7441,22 @@ function renderPricelistCatalogView() {
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div class="text-xs font-semibold text-slate-500 mb-1 flex items-center justify-between">
           <span>Panduan Strata Diskon</span>
-          <i data-lucide="layers" class="w-4 h-4 text-emerald-600"></i>
+          <i data-lucide="layers" class="w-4 h-4 text-blue-700"></i>
         </div>
-        <div class="text-xl md:text-2xl font-extrabold text-emerald-700 font-mono">
+        <div class="text-xl md:text-2xl font-extrabold text-blue-700 font-mono">
           5 <span class="text-xs font-normal text-slate-500">Kategori</span>
         </div>
         <div class="mt-2 text-[11px] text-slate-500">
-          <button onclick="switchPricelistSubTab('strata')" class="text-emerald-700 hover:underline font-semibold">Buka Matriks Diskon →</button>
+          <button onclick="switchPricelistSubTab('strata')" class="text-blue-700 hover:underline font-semibold">Buka Matriks Diskon →</button>
         </div>
       </div>
 
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
         <div class="text-xs font-semibold text-slate-500 mb-1 flex items-center justify-between">
           <span>Unduh Pricelist</span>
-          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+          <i data-lucide="file-spreadsheet" class="w-4 h-4 text-blue-700"></i>
         </div>
-        <button onclick="exportPricelistCsv()" class="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+        <button onclick="exportPricelistCsv()" class="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
           <i data-lucide="download" class="w-4 h-4"></i>
           <span>Unduh CSV Pricelist</span>
         </button>
@@ -7342,7 +7501,7 @@ function renderPricelistCatalogView() {
               <th class="py-2.5 px-3 text-right">PL Ktn (Exc PPN)</th>
               <th class="py-2.5 px-3 text-right">HET Rtg/Box</th>
               <th class="py-2.5 px-3 text-right">HET Pcs</th>
-              <th class="py-2.5 px-3 text-right text-emerald-800 bg-emerald-50/40">Margin Toko (%)</th>
+              <th class="py-2.5 px-3 text-right text-blue-800 bg-blue-50/40">Margin Toko (%)</th>
               <th class="py-2.5 px-3 text-center">Aksi</th>
             </tr>
           </thead>
@@ -7393,7 +7552,7 @@ function renderPricelistTableBody() {
     }
 
     const marginBadge = marginPct !== null && marginPct !== undefined
-      ? `<span class="inline-flex items-center font-mono font-bold text-xs ${marginPct >= 15 ? 'text-emerald-700' : marginPct >= 10 ? 'text-blue-700' : 'text-amber-700'}">${marginPct}%</span>`
+      ? `<span class="inline-flex items-center font-mono font-bold text-xs ${marginPct >= 15 ? 'text-blue-700' : marginPct >= 10 ? 'text-blue-700' : 'text-blue-800'}">${marginPct}%</span>`
       : `<span class="text-slate-300">—</span>`;
 
     const strataCat = getItemStrataCategory(it);
@@ -7432,11 +7591,11 @@ function renderPricelistTableBody() {
         <td class="py-2.5 px-3 text-right font-mono text-slate-700 whitespace-nowrap">
           ${it.het_pcs_inc_ppn ? 'Rp ' + Math.round(it.het_pcs_inc_ppn).toLocaleString('id-ID') : '—'}
         </td>
-        <td class="py-2.5 px-3 text-right font-mono bg-emerald-50/20 whitespace-nowrap">
+        <td class="py-2.5 px-3 text-right font-mono bg-blue-50/20 whitespace-nowrap">
           ${marginBadge}
         </td>
         <td class="py-2.5 px-3 text-center whitespace-nowrap">
-          <button onclick="addToSimulation('${it.item_code}')" class="px-2 py-1 rounded text-[11px] font-bold transition flex items-center gap-1 mx-auto ${isAlreadyInSim ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 hover:bg-blue-100 text-blue-700'}">
+          <button onclick="addToSimulation('${it.item_code}')" class="px-2 py-1 rounded text-[11px] font-bold transition flex items-center gap-1 mx-auto ${isAlreadyInSim ? 'bg-blue-100 text-blue-900' : 'bg-blue-50 hover:bg-blue-100 text-blue-700'}">
             <i data-lucide="${isAlreadyInSim ? 'check' : 'plus'}" class="w-3.5 h-3.5"></i>
             <span>${isAlreadyInSim ? 'Terpilih' : '+ Simulasi'}</span>
           </button>
@@ -7461,20 +7620,20 @@ function renderPricelistStrataView() {
 
   container.innerHTML = `
     <!-- Header Banner -->
-    <div class="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 p-6 rounded-2xl text-white shadow-md border border-emerald-800/40">
+    <div class="bg-[#0c2340] p-6 rounded-2xl text-white shadow-md border border-blue-900/50">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold uppercase tracking-wider mb-2">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-600/20 border border-blue-400/30 text-blue-300 text-xs font-bold uppercase tracking-wider mb-2">
             <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
             <span>Ketentuan Resmi Cabang Garut</span>
           </div>
           <h2 class="text-xl md:text-2xl font-black text-white">Matriks Strata Diskon Volume Penjualan</h2>
-          <p class="text-xs text-emerald-100 mt-1 max-w-2xl leading-relaxed">
+          <p class="text-xs text-blue-200 mt-1 max-w-2xl leading-relaxed">
             Strata diskon resmi berbasis akumulasi kuantiti karton (Ktn) per kategori produk. Skema diskon ini diterapkan secara otomatis pada kalkulator order toko untuk mendorong basket size dan volume grosir.
           </p>
         </div>
 
-        <button onclick="switchPricelistSubTab('simulasi')" class="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black transition shadow-lg">
+        <button onclick="switchPricelistSubTab('simulasi')" class="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-400 text-slate-950 rounded-xl text-xs font-black transition shadow-lg">
           <i data-lucide="calculator" class="w-4 h-4"></i>
           <span>Buka Kalkulator Simulasi Order</span>
         </button>
@@ -7482,36 +7641,36 @@ function renderPricelistStrataView() {
     </div>
 
     <!-- Dual Strata Stacking Callout Banner for SariWangi -->
-    <div class="mt-4 p-4 rounded-2xl bg-gradient-to-r from-purple-900/90 via-indigo-900/90 to-slate-900 text-white border border-purple-500/30 shadow-md">
+    <div class="mt-4 p-4 rounded-2xl bg-[#0c2340] text-white border border-blue-900/50 shadow-md">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-start gap-3">
-          <div class="p-2.5 rounded-xl bg-purple-500/20 border border-purple-400/30 text-purple-300 shrink-0">
+          <div class="p-2.5 rounded-xl bg-slate-500/20 border border-slate-300/30 text-slate-300 shrink-0">
             <i data-lucide="plus-circle" class="w-6 h-6"></i>
           </div>
           <div>
-            <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-purple-500/30 text-purple-200 text-[10px] font-bold uppercase tracking-wider mb-1">
+            <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-500/30 text-blue-200 text-[10px] font-bold uppercase tracking-wider mb-1">
               <span>Aturan Khusus Stacking / Akumulasi Strata SariWangi</span>
             </div>
             <h4 class="text-sm md:text-base font-extrabold text-white">
               Diskon Reguler (Semua SKU) + Strata Selected SKU Promo DITAMBAHKAN!
             </h4>
-            <p class="text-xs text-purple-100 mt-1 leading-relaxed">
+            <p class="text-xs text-blue-100 mt-1 leading-relaxed">
               Bila outlet membeli salah satu dari <strong>6 Selected SKU GT</strong>, diskon reguler dan diskon promo <strong>ditambahkan</strong> secara kumulatif bila memenuhi kriteria volume karton masing-masing.
             </p>
-            <div class="mt-2 p-2.5 rounded-lg bg-black/30 border border-purple-400/20 text-xs font-mono">
-              <span class="text-amber-300 font-bold">Contoh Riil:</span> SariWangi Asli RL TB 288 order <strong>50 karton</strong>:
+            <div class="mt-2 p-2.5 rounded-lg bg-black/30 border border-slate-300/20 text-xs font-mono">
+              <span class="text-blue-300 font-bold">Contoh Riil:</span> SariWangi Asli RL TB 288 order <strong>50 karton</strong>:
               <br class="hidden sm:inline">
-              <span class="text-emerald-400 font-bold">Strata Reguler 1,25%</span> + <span class="text-indigo-300 font-bold">Strata Selected SKU 5,00%</span> = <span class="text-amber-300 font-extrabold bg-purple-950 px-2 py-0.5 rounded border border-amber-400/40 text-xs">TOTAL DISKON 6,25%</span>!
+              <span class="text-blue-300 font-bold">Strata Reguler 1,25%</span> + <span class="text-blue-300 font-bold">Strata Selected SKU 5,00%</span> = <span class="text-blue-300 font-extrabold bg-blue-950 px-2 py-0.5 rounded border border-blue-400/40 text-xs">TOTAL DISKON 6,25%</span>!
             </div>
           </div>
         </div>
 
         <div class="shrink-0 flex sm:flex-col gap-2">
-          <button onclick="testStrataPreset('SARIWANGI_SELECTED_SKU', 50)" class="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-purple-950 rounded-xl text-xs font-black transition shadow-sm flex items-center justify-center gap-1.5">
+          <button onclick="testStrataPreset('SARIWANGI_SELECTED_SKU', 50)" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center gap-1.5">
             <i data-lucide="calculator" class="w-4 h-4"></i>
             <span>Uji Coba 50 Ktn (6.25%)</span>
           </button>
-          <button onclick="testStrataPreset('SARIWANGI_SELECTED_SKU', 100)" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition shadow-sm flex items-center justify-center gap-1.5">
+          <button onclick="testStrataPreset('SARIWANGI_SELECTED_SKU', 100)" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-600 text-white rounded-xl text-xs font-black transition shadow-sm flex items-center justify-center gap-1.5">
             <i data-lucide="zap" class="w-4 h-4"></i>
             <span>Uji Coba 100 Ktn (8.25%)</span>
           </button>
@@ -7524,7 +7683,7 @@ function renderPricelistStrataView() {
       <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
         <div>
           <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
+            <i data-lucide="sparkles" class="w-4 h-4 text-blue-700"></i>
             <span>Kalkulator Uji Cepat Strata Diskon</span>
           </h3>
           <p class="text-xs text-slate-500 mt-0.5">Pilih kategori produk dan masukkan jumlah karton untuk melihat hasil diskon serta jarak ke tier selanjutnya</p>
@@ -7533,7 +7692,7 @@ function renderPricelistStrataView() {
         <div class="flex flex-wrap items-center gap-3">
           <div>
             <label class="block text-[11px] font-bold text-slate-600 mb-1">Pilih Kategori:</label>
-            <select id="strata-test-cat" onchange="handleStrataQuickTestChange()" class="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+            <select id="strata-test-cat" onchange="handleStrataQuickTestChange()" class="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
               ${Object.values(CLIENT_STRATA_RULES).map(r => `
                 <option value="${r.id}" ${r.id === currentCatKey ? 'selected' : ''}>${r.name}</option>
               `).join('')}
@@ -7542,7 +7701,7 @@ function renderPricelistStrataView() {
 
           <div>
             <label class="block text-[11px] font-bold text-slate-600 mb-1">Qty Order (Karton):</label>
-            <input type="number" id="strata-test-qty" min="0" max="999" value="${currentQty}" oninput="handleStrataQuickTestChange()" class="w-24 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 text-center focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+            <input type="number" id="strata-test-qty" min="0" max="999" value="${currentQty}" oninput="handleStrataQuickTestChange()" class="w-24 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-slate-900 text-center focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
           </div>
         </div>
       </div>
@@ -7550,16 +7709,16 @@ function renderPricelistStrataView() {
       <!-- Quick Tester Result Bar -->
       <div id="strata-test-result" class="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
-          <div class="p-3 rounded-xl bg-emerald-100 text-emerald-800 font-mono font-black text-2xl">
+          <div class="p-3 rounded-xl bg-blue-100 text-blue-800 font-mono font-black text-2xl">
             ${currentCalc.discPct}%
           </div>
           <div>
             <div class="text-xs font-bold text-slate-900">
-              Tier Terpenuhi: <span class="text-emerald-700 font-mono font-extrabold">${currentCalc.currentTier.label} (${currentCalc.currentTier.badge})</span>
+              Tier Terpenuhi: <span class="text-blue-700 font-mono font-extrabold">${currentCalc.currentTier.label} (${currentCalc.currentTier.badge})</span>
             </div>
             ${currentCalc.breakdown ? `
-              <div class="text-[11px] font-bold text-indigo-700 mt-0.5">
-                <span class="px-2 py-0.5 bg-indigo-50 border border-indigo-200 rounded font-mono">${currentCalc.breakdown}</span>
+              <div class="text-[11px] font-bold text-blue-700 mt-0.5">
+                <span class="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded font-mono">${currentCalc.breakdown}</span>
               </div>
             ` : ''}
             <div class="text-[11px] text-slate-600 mt-0.5">
@@ -7570,9 +7729,9 @@ function renderPricelistStrataView() {
 
         <div class="md:text-right">
           <div class="text-xs font-bold text-slate-700">
-            ${currentCalc.nextTier ? `Tier Berikutnya: <span class="text-blue-700 font-mono font-bold">${currentCalc.nextTier.label} (${currentCalc.nextTier.badge})</span>` : '<span class="text-emerald-700 font-bold">Tier Diskon Tertinggi!</span>'}
+            ${currentCalc.nextTier ? `Tier Berikutnya: <span class="text-blue-700 font-mono font-bold">${currentCalc.nextTier.label} (${currentCalc.nextTier.badge})</span>` : '<span class="text-blue-700 font-bold">Tier Diskon Tertinggi!</span>'}
           </div>
-          <div class="text-[11px] text-amber-700 font-semibold mt-0.5">
+          <div class="text-[11px] text-blue-800 font-semibold mt-0.5">
             ${currentCalc.hint}
           </div>
         </div>
@@ -7617,13 +7776,13 @@ function renderPricelistStrataView() {
               </div>
 
               ${cat.selectedSkus ? `
-                <div class="mt-3 p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-lg">
-                  <div class="text-[11px] font-bold text-indigo-950 mb-1.5 flex items-center justify-between">
+                <div class="mt-3 p-2.5 bg-blue-50/70 border border-blue-100 rounded-lg">
+                  <div class="text-[11px] font-bold text-blue-950 mb-1.5 flex items-center justify-between">
                     <span class="flex items-center gap-1">
-                      <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i>
+                      <i data-lucide="sparkles" class="w-3.5 h-3.5 text-blue-600"></i>
                       <span>6 Selected SKU Penerima Promo:</span>
                     </span>
-                    <span class="text-[9px] text-indigo-600 font-mono font-bold">Region GT</span>
+                    <span class="text-[9px] text-blue-600 font-mono font-bold">Region GT</span>
                   </div>
                   <div class="space-y-1 max-h-32 overflow-y-auto pr-1 scrollbar-thin">
                     ${cat.selectedSkus.map(s => `
@@ -7633,7 +7792,7 @@ function renderPricelistStrataView() {
                       </div>
                     `).join('')}
                   </div>
-                  <div class="mt-2 pt-1.5 border-t border-indigo-200/50 text-[10px] text-indigo-900 font-medium">
+                  <div class="mt-2 pt-1.5 border-t border-blue-200/50 text-[10px] text-blue-900 font-medium">
                     💡 <em>Diskon promo di atas otomatis ditambahkan ke diskon reguler (0.75% s/d 1.25%).</em>
                   </div>
                 </div>
@@ -7688,16 +7847,16 @@ function handleStrataQuickTestChange() {
   if (resultContainer) {
     resultContainer.innerHTML = `
       <div class="flex items-center gap-4">
-        <div class="p-3 rounded-xl bg-emerald-100 text-emerald-800 font-mono font-black text-2xl">
+        <div class="p-3 rounded-xl bg-blue-100 text-blue-800 font-mono font-black text-2xl">
           ${calc.discPct}%
         </div>
         <div>
           <div class="text-xs font-bold text-slate-900">
-            Tier Terpenuhi: <span class="text-emerald-700 font-mono font-extrabold">${calc.currentTier.label} (${calc.currentTier.badge})</span>
+            Tier Terpenuhi: <span class="text-blue-700 font-mono font-extrabold">${calc.currentTier.label} (${calc.currentTier.badge})</span>
           </div>
           ${calc.breakdown ? `
-            <div class="text-[11px] font-bold text-indigo-700 mt-0.5">
-              <span class="px-2 py-0.5 bg-indigo-50 border border-indigo-200 rounded font-mono">${calc.breakdown}</span>
+            <div class="text-[11px] font-bold text-blue-700 mt-0.5">
+              <span class="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded font-mono">${calc.breakdown}</span>
             </div>
           ` : ''}
           <div class="text-[11px] text-slate-600 mt-0.5">
@@ -7708,9 +7867,9 @@ function handleStrataQuickTestChange() {
 
       <div class="md:text-right">
         <div class="text-xs font-bold text-slate-700">
-          ${calc.nextTier ? `Tier Berikutnya: <span class="text-blue-700 font-mono font-bold">${calc.nextTier.label} (${calc.nextTier.badge})</span>` : '<span class="text-emerald-700 font-bold">Tier Diskon Tertinggi!</span>'}
+          ${calc.nextTier ? `Tier Berikutnya: <span class="text-blue-700 font-mono font-bold">${calc.nextTier.label} (${calc.nextTier.badge})</span>` : '<span class="text-blue-700 font-bold">Tier Diskon Tertinggi!</span>'}
         </div>
-        <div class="text-[11px] text-amber-700 font-semibold mt-0.5">
+        <div class="text-[11px] text-blue-800 font-semibold mt-0.5">
           ${calc.hint}
         </div>
       </div>
@@ -7836,15 +7995,15 @@ function renderPricelistSimulatorView() {
           <i data-lucide="plus-circle" class="w-4 h-4"></i>
           <span>Tambah SKU</span>
         </button>
-        <button onclick="switchPricelistSubTab('strata')" class="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition">
-          <i data-lucide="layers" class="w-4 h-4 text-emerald-600"></i>
+        <button onclick="switchPricelistSubTab('strata')" class="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-lg text-xs font-bold transition">
+          <i data-lucide="layers" class="w-4 h-4 text-blue-700"></i>
           <span>Lihat Matriks Strata</span>
         </button>
         <button onclick="clearSimulation()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
           <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
           <span>Reset</span>
         </button>
-        <button onclick="window.print()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+        <button onclick="window.print()" class="inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
           <i data-lucide="printer" class="w-4 h-4"></i>
           <span>Cetak Nota Simulasi</span>
         </button>
@@ -7852,20 +8011,20 @@ function renderPricelistSimulatorView() {
     </div>
 
     <!-- Strata Automation Switch Banner -->
-    <div class="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+    <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
       <div class="flex items-center gap-2.5">
-        <div class="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg">
+        <div class="p-1.5 bg-blue-100 text-blue-800 rounded-lg">
           <i data-lucide="sparkles" class="w-4 h-4"></i>
         </div>
         <div>
-          <span class="font-bold text-emerald-950">Otomatisasi Strata Diskon Resmi Garut:</span>
-          <span class="text-emerald-800 ml-1">Diskon dihitung otomatis sesuai kuantiti karton dan kategori produk (Kopi, RTD/MilkLife, Prima Top Boga, Fox's, Unilever).</span>
+          <span class="font-bold text-blue-950">Otomatisasi Strata Diskon Resmi Garut:</span>
+          <span class="text-blue-800 ml-1">Diskon dihitung otomatis sesuai kuantiti karton dan kategori produk (Kopi, RTD/MilkLife, Prima Top Boga, Fox's, Unilever).</span>
         </div>
       </div>
 
       <label class="inline-flex items-center gap-2 cursor-pointer select-none">
-        <input type="checkbox" onchange="toggleAutoApplyStrata(this.checked)" ${autoApplyStrata ? 'checked' : ''} class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
-        <span class="font-bold text-emerald-900 text-xs">Terapkan Strata Otomatis</span>
+        <input type="checkbox" onchange="toggleAutoApplyStrata(this.checked)" ${autoApplyStrata ? 'checked' : ''} class="w-4 h-4 text-blue-700 rounded border-slate-300 focus:ring-blue-500">
+        <span class="font-bold text-blue-900 text-xs">Terapkan Strata Otomatis</span>
       </label>
     </div>
 
@@ -7895,9 +8054,9 @@ function renderPricelistSimulatorView() {
               <th class="py-2.5 px-3 text-center w-32">Diskon Strata</th>
               <th class="py-2.5 px-3 text-right font-extrabold text-blue-900 bg-blue-50/40">Total Modal Toko</th>
               <th class="py-2.5 px-3 text-right">HET / Pcs</th>
-              <th class="py-2.5 px-3 text-right font-bold text-emerald-900 bg-emerald-50/30">Potensi Omzet (HET)</th>
-              <th class="py-2.5 px-3 text-right font-bold text-emerald-700">Laba Toko (Rp)</th>
-              <th class="py-2.5 px-3 text-right font-bold text-emerald-600">Margin (%)</th>
+              <th class="py-2.5 px-3 text-right font-bold text-blue-900 bg-blue-50/30">Potensi Omzet (HET)</th>
+              <th class="py-2.5 px-3 text-right font-bold text-blue-700">Laba Toko (Rp)</th>
+              <th class="py-2.5 px-3 text-right font-bold text-blue-700">Margin (%)</th>
               <th class="py-2.5 px-3 text-center w-12">Hapus</th>
             </tr>
           </thead>
@@ -7912,7 +8071,7 @@ function renderPricelistSimulatorView() {
     </div>
 
     <!-- Sales Pitch & Retailer Value Proposition Memo -->
-    <div id="sim-pitch-card" class="mt-4 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-xl p-5 text-white shadow-md border border-blue-800/40">
+    <div id="sim-pitch-card" class="mt-4 bg-gradient-to-r #0c2340 rounded-xl p-5 text-white shadow-md border border-blue-800/40">
       <!-- Injected by renderSimulationSummaryAndTotals -->
     </div>
   `;
@@ -7982,7 +8141,7 @@ function renderSimulationSummaryAndTotals() {
             <span class="inline-flex px-1.5 py-0.2 rounded text-[9px] font-bold bg-${cat.color}-100 text-${cat.color}-800">
               ${cat.name.split(' (')[0]}
             </span>
-            ${strataInfo.isSelectedSku ? `<span class="inline-flex px-1.5 py-0.2 rounded text-[9px] font-black bg-indigo-100 text-indigo-900 border border-indigo-200">⭐ Selected SKU GT</span>` : ''}
+            ${strataInfo.isSelectedSku ? `<span class="inline-flex px-1.5 py-0.2 rounded text-[9px] font-black bg-blue-100 text-blue-900 border border-blue-200">⭐ Selected SKU GT</span>` : ''}
             <span class="text-[10px] text-slate-400 font-mono">${it.item_code}</span>
           </div>
         </td>
@@ -7995,20 +8154,20 @@ function renderSimulationSummaryAndTotals() {
         </td>
         <td class="py-2.5 px-3 text-center">
           <div class="flex items-center justify-center gap-1">
-            <input type="number" min="0" max="50" step="0.05" value="${disc}" onchange="updateSimulationDisc(${idx}, this.value)" class="w-16 text-center border border-slate-300 rounded px-1 py-1 text-xs font-mono font-bold text-emerald-700 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+            <input type="number" min="0" max="50" step="0.05" value="${disc}" onchange="updateSimulationDisc(${idx}, this.value)" class="w-16 text-center border border-slate-300 rounded px-1 py-1 text-xs font-mono font-bold text-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
             <span class="text-xs font-bold text-slate-500">%</span>
           </div>
           ${strataInfo.breakdown ? `
-            <div class="text-[9px] font-bold text-indigo-700 mt-0.5" title="Rincian akumulasi diskon">
+            <div class="text-[9px] font-bold text-blue-700 mt-0.5" title="Rincian akumulasi diskon">
               ${strataInfo.breakdown}
             </div>
           ` : ''}
           ${strataInfo.nextTier ? `
-            <div onclick="upgradeItemToNextTier(${idx})" class="text-[9px] text-amber-700 font-bold mt-0.5 cursor-pointer hover:underline" title="Klik untuk upgrade otomatis ke ${strataInfo.nextTier.discPct}%">
+            <div onclick="upgradeItemToNextTier(${idx})" class="text-[9px] text-blue-800 font-bold mt-0.5 cursor-pointer hover:underline" title="Klik untuk upgrade otomatis ke ${strataInfo.nextTier.discPct}%">
               ${strataInfo.hint}
             </div>
           ` : `
-            <div class="text-[9px] text-emerald-600 font-bold mt-0.5">Maks Tier (${strataInfo.currentTier.badge})</div>
+            <div class="text-[9px] text-blue-700 font-bold mt-0.5">Maks Tier (${strataInfo.currentTier.badge})</div>
           `}
         </td>
         <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-950 bg-blue-50/40 whitespace-nowrap">
@@ -8017,17 +8176,17 @@ function renderSimulationSummaryAndTotals() {
         <td class="py-2.5 px-3 text-right font-mono text-slate-600 whitespace-nowrap">
           ${it.het_pcs_inc_ppn ? 'Rp ' + Math.round(it.het_pcs_inc_ppn).toLocaleString('id-ID') : '—'}
         </td>
-        <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-900 bg-emerald-50/30 whitespace-nowrap">
+        <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-900 bg-blue-50/30 whitespace-nowrap">
           Rp ${Math.round(retailTotal).toLocaleString('id-ID')}
         </td>
-        <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
+        <td class="py-2.5 px-3 text-right font-mono font-bold text-blue-700 whitespace-nowrap">
           Rp ${Math.round(labaToko).toLocaleString('id-ID')}
         </td>
-        <td class="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-600 whitespace-nowrap">
+        <td class="py-2.5 px-3 text-right font-mono font-extrabold text-blue-700 whitespace-nowrap">
           ${marginPct}%
         </td>
         <td class="py-2.5 px-3 text-center">
-          <button onclick="removeSimulationItem(${idx})" class="p-1 text-slate-400 hover:text-rose-600 transition" title="Hapus SKU">
+          <button onclick="removeSimulationItem(${idx})" class="p-1 text-slate-400 hover:text-slate-700 transition" title="Hapus SKU">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
         </td>
@@ -8046,20 +8205,20 @@ function renderSimulationSummaryAndTotals() {
         <td class="py-2.5 px-3 text-center font-mono font-extrabold text-blue-900">
           ${totalKtn.toLocaleString('id-ID')} Ktn
         </td>
-        <td class="py-2.5 px-3 text-center font-mono font-bold text-emerald-800 text-[11px]">
+        <td class="py-2.5 px-3 text-center font-mono font-bold text-blue-800 text-[11px]">
           Hemat Rp ${Math.round(totalHematDiskon).toLocaleString('id-ID')}
         </td>
         <td class="py-2.5 px-3 text-right font-mono font-black text-blue-950 bg-blue-100/50 whitespace-nowrap">
           Rp ${Math.round(totalModal).toLocaleString('id-ID')}
         </td>
         <td class="py-2.5 px-3 text-right text-slate-400">—</td>
-        <td class="py-2.5 px-3 text-right font-mono font-black text-emerald-950 bg-emerald-100/50 whitespace-nowrap">
+        <td class="py-2.5 px-3 text-right font-mono font-black text-blue-950 bg-blue-100/50 whitespace-nowrap">
           Rp ${Math.round(totalPotensi).toLocaleString('id-ID')}
         </td>
-        <td class="py-2.5 px-3 text-right font-mono font-black text-emerald-800 whitespace-nowrap">
+        <td class="py-2.5 px-3 text-right font-mono font-black text-blue-800 whitespace-nowrap">
           Rp ${Math.round(totalLaba).toLocaleString('id-ID')}
         </td>
-        <td class="py-2.5 px-3 text-right font-mono font-black text-emerald-700 whitespace-nowrap">
+        <td class="py-2.5 px-3 text-right font-mono font-black text-blue-700 whitespace-nowrap">
           ${overallMarginPct}%
         </td>
         <td class="py-2.5 px-3"></td>
@@ -8090,7 +8249,7 @@ function renderSimulationSummaryAndTotals() {
         <div class="text-2xl font-black text-blue-900 font-mono">
           Rp ${(totalModal / 1000000).toFixed(2)} <span class="text-xs font-normal text-slate-500">Jt</span>
         </div>
-        <div class="mt-2 text-[11px] text-emerald-700 font-semibold font-mono">
+        <div class="mt-2 text-[11px] text-blue-700 font-semibold font-mono">
           Hemat Diskon: Rp ${Math.round(totalHematDiskon).toLocaleString('id-ID')}
         </div>
       </div>
@@ -8098,9 +8257,9 @@ function renderSimulationSummaryAndTotals() {
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div class="text-xs font-semibold text-slate-500 mb-1 flex items-center justify-between">
           <span>Potensi Omzet Toko (HET)</span>
-          <i data-lucide="store" class="w-4 h-4 text-emerald-600"></i>
+          <i data-lucide="store" class="w-4 h-4 text-blue-700"></i>
         </div>
-        <div class="text-2xl font-black text-emerald-900 font-mono">
+        <div class="text-2xl font-black text-blue-900 font-mono">
           Rp ${(totalPotensi / 1000000).toFixed(2)} <span class="text-xs font-normal text-slate-500">Jt</span>
         </div>
         <div class="mt-2 text-[11px] text-slate-500 font-mono">
@@ -8111,14 +8270,14 @@ function renderSimulationSummaryAndTotals() {
       <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div class="text-xs font-semibold text-slate-500 mb-1 flex items-center justify-between">
           <span>Keuntungan / Laba Toko</span>
-          <i data-lucide="trending-up" class="w-4 h-4 text-emerald-500"></i>
+          <i data-lucide="trending-up" class="w-4 h-4 text-blue-600"></i>
         </div>
-        <div class="text-2xl font-black text-emerald-600 font-mono">
-          +Rp ${(totalLaba / 1000000).toFixed(2)} <span class="text-xs font-bold text-emerald-700">Jt</span>
+        <div class="text-2xl font-black text-blue-700 font-mono">
+          +Rp ${(totalLaba / 1000000).toFixed(2)} <span class="text-xs font-bold text-blue-700">Jt</span>
         </div>
         <div class="mt-2 flex items-center justify-between text-[11px]">
           <span class="text-slate-500">Margin Bersih Toko</span>
-          <span class="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 font-mono">${overallMarginPct}%</span>
+          <span class="px-2 py-0.5 rounded text-[10px] font-black bg-blue-100 text-blue-800 font-mono">${overallMarginPct}%</span>
         </div>
       </div>
     `;
@@ -8129,7 +8288,7 @@ function renderSimulationSummaryAndTotals() {
     pitchContainer.innerHTML = `
       <div class="flex items-start gap-3">
         <div class="p-2 bg-white/10 rounded-lg shrink-0 mt-0.5">
-          <i data-lucide="sparkles" class="w-5 h-5 text-amber-400"></i>
+          <i data-lucide="sparkles" class="w-5 h-5 text-blue-300"></i>
         </div>
         <div>
           <h4 class="text-sm font-bold text-white flex items-center gap-2">
@@ -8222,22 +8381,22 @@ function renderAddSkuModalBase() {
         <button onclick="setSimModalCategory('ALL')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'ALL' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
           Semua SKU (${totalItems})
         </button>
-        <button onclick="setSimModalCategory('KOPI_NON_RTD')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'KOPI_NON_RTD' ? 'bg-amber-600 text-white shadow-sm' : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'}">
+        <button onclick="setSimModalCategory('KOPI_NON_RTD')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'KOPI_NON_RTD' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-900 border border-slate-200'}">
           ☕ Kopi (Gadjah & Caffino)
         </button>
         <button onclick="setSimModalCategory('BEVERAGE_RTD_MILKLIFE')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'BEVERAGE_RTD_MILKLIFE' ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'}">
           🥛 RTD & MilkLife
         </button>
-        <button onclick="setSimModalCategory('PRIMA_TOP_BOGA')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'PRIMA_TOP_BOGA' ? 'bg-purple-600 text-white shadow-sm' : 'bg-purple-50 text-purple-900 hover:bg-purple-100 border border-purple-200'}">
+        <button onclick="setSimModalCategory('PRIMA_TOP_BOGA')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'PRIMA_TOP_BOGA' ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'}">
           🍞 Prima Top (5Days, Deli)
         </button>
-        <button onclick="setSimModalCategory('CANDY_FOXS')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'CANDY_FOXS' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'}">
+        <button onclick="setSimModalCategory('CANDY_FOXS')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'CANDY_FOXS' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-900 border border-slate-200'}">
           🍬 Permen FOX'S
         </button>
-        <button onclick="setSimModalCategory('UNILEVER')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'UNILEVER' ? 'bg-purple-600 text-white shadow-sm' : 'bg-purple-50 text-purple-900 hover:bg-purple-100 border border-purple-200'}">
+        <button onclick="setSimModalCategory('UNILEVER')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'UNILEVER' ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'}">
           🍵 SariWangi (Semua SKU)
         </button>
-        <button onclick="setSimModalCategory('SARIWANGI_SELECTED_SKU')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'SARIWANGI_SELECTED_SKU' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100 border border-indigo-200'}">
+        <button onclick="setSimModalCategory('SARIWANGI_SELECTED_SKU')" class="px-2.5 py-1 rounded-lg font-bold transition whitespace-nowrap ${currentCat === 'SARIWANGI_SELECTED_SKU' ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200'}">
           ⭐ SariWangi Selected SKU (GT)
         </button>
       </div>
@@ -8336,7 +8495,7 @@ function renderAddSkuModalItems() {
         <div class="shrink-0 flex items-center gap-2">
           ${existing ? `
             <div class="flex items-center gap-1.5 bg-blue-100/80 border border-blue-200 rounded-lg p-1">
-              <button onclick="decrementSkuFromModal('${it.item_code}')" class="w-6 h-6 rounded bg-white hover:bg-rose-50 hover:text-rose-600 text-blue-900 font-bold flex items-center justify-center text-xs transition shadow-sm" title="Kurangi 1 ktn">-</button>
+              <button onclick="decrementSkuFromModal('${it.item_code}')" class="w-6 h-6 rounded bg-white hover:bg-slate-100 hover:text-slate-700 text-blue-900 font-bold flex items-center justify-center text-xs transition shadow-sm" title="Kurangi 1 ktn">-</button>
               <span class="w-12 text-center font-bold text-xs text-blue-950 font-mono">${currentQty} ktn</span>
               <button onclick="incrementSkuFromModal('${it.item_code}')" class="w-6 h-6 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center justify-center text-xs transition shadow-sm" title="Tambah 1 ktn">+</button>
             </div>
@@ -8371,8 +8530,8 @@ function renderAddSkuModalFooter() {
 
   footer.innerHTML = `
     <div class="text-xs text-slate-600 flex items-center gap-2">
-      <div class="w-2 h-2 rounded-full ${simulationItems.length > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}"></div>
-      <span>Total di Keranjang: <strong class="text-blue-900 font-mono text-sm">${totalKtn} Ktn</strong> (${simulationItems.length} SKU) • Estimasi Modal: <strong class="text-emerald-700 font-mono">Rp ${Math.round(totalModal).toLocaleString('id-ID')}</strong></span>
+      <div class="w-2 h-2 rounded-full ${simulationItems.length > 0 ? 'bg-blue-600 animate-pulse' : 'bg-slate-300'}"></div>
+      <span>Total di Keranjang: <strong class="text-blue-900 font-mono text-sm">${totalKtn} Ktn</strong> (${simulationItems.length} SKU) • Estimasi Modal: <strong class="text-blue-700 font-mono">Rp ${Math.round(totalModal).toLocaleString('id-ID')}</strong></span>
     </div>
     <div class="flex items-center gap-2">
       <button onclick="closeModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5">
@@ -8473,7 +8632,7 @@ async function renderSariwangiAnalytics() {
   main.innerHTML = `
     <div class="flex items-center justify-center py-24 text-slate-400 text-sm">
       <div class="text-center">
-        <i data-lucide="loader-2" class="w-8 h-8 animate-spin mx-auto text-emerald-600 mb-3"></i>
+        <i data-lucide="loader-2" class="w-8 h-8 animate-spin mx-auto text-blue-700 mb-3"></i>
         <p class="font-medium text-slate-700">Memuat Data Analitik SariWangi...</p>
         <p class="text-xs text-slate-400 mt-1">Mengagregasi 1,500+ outlet dan transaksi Unilever Kabupaten Garut</p>
       </div>
@@ -8500,12 +8659,12 @@ async function renderSariwangiAnalytics() {
   } catch (err) {
     console.error('Error rendering SariWangi Analytics:', err);
     main.innerHTML = `
-      <div class="p-6 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-sm flex items-start gap-3">
-        <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600 shrink-0 mt-0.5"></i>
+      <div class="p-6 bg-slate-100 border border-slate-300 rounded-xl text-slate-800 text-sm flex items-start gap-3">
+        <i data-lucide="alert-triangle" class="w-5 h-5 text-slate-700 shrink-0 mt-0.5"></i>
         <div>
-          <h4 class="font-bold text-rose-900">Terjadi Kesalahan Memuat Data SariWangi</h4>
-          <p class="mt-1 text-xs text-rose-700">${escapeHtml(err.message)}</p>
-          <button onclick="renderSariwangiAnalytics()" class="mt-3 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm transition">
+          <h4 class="font-bold text-slate-900">Terjadi Kesalahan Memuat Data SariWangi</h4>
+          <p class="mt-1 text-xs text-slate-700">${escapeHtml(err.message)}</p>
+          <button onclick="renderSariwangiAnalytics()" class="mt-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-sm transition">
             Coba Lagi
           </button>
         </div>
@@ -8531,28 +8690,28 @@ function renderSariwangiLayout(data) {
 
   main.innerHTML = `
     <!-- Top Header & Banner -->
-    <div class="bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden border border-emerald-800/40">
+    <div class="bg-[#0c2340] rounded-2xl p-6 text-white shadow-md relative overflow-hidden border border-blue-900/50">
       <div class="absolute -right-8 -bottom-8 opacity-10 pointer-events-none">
-        <i data-lucide="coffee" class="w-64 h-64 text-emerald-400"></i>
+        <i data-lucide="coffee" class="w-64 h-64 text-blue-300"></i>
       </div>
 
       <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div class="flex items-center gap-2.5">
-            <span class="p-2 bg-emerald-500/20 text-emerald-300 rounded-xl border border-emerald-400/30">
+            <span class="p-2 bg-blue-600/20 text-blue-300 rounded-xl border border-blue-400/30">
               <i data-lucide="coffee" class="w-5 h-5"></i>
             </span>
             <div>
               <div class="flex items-center gap-2">
                 <h1 class="text-xl sm:text-2xl font-black tracking-tight text-white">Analytics SariWangi</h1>
-                <span class="text-[11px] bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 font-bold px-2 py-0.5 rounded-full">
+                <span class="text-[11px] bg-blue-600/30 text-blue-200 border border-blue-400/40 font-bold px-2 py-0.5 rounded-full">
                   Unilever Dedicated
                 </span>
                 <span class="text-[11px] bg-blue-500/30 text-blue-200 border border-blue-400/40 font-bold px-2 py-0.5 rounded-full">
                   ${periodLabel}
                 </span>
               </div>
-              <p class="text-xs text-emerald-200/80 mt-0.5">
+              <p class="text-xs text-blue-200/80 mt-0.5">
                 Specialized Dashboard: Penjualan, Rata-rata Dropsize per Order, Peta Sebaran Garut, & Strata Diskon GT
               </p>
             </div>
@@ -8560,14 +8719,14 @@ function renderSariwangiLayout(data) {
         </div>
 
         <div class="flex flex-wrap items-center gap-2.5">
-          <div class="bg-emerald-900/60 border border-emerald-700/50 rounded-xl px-3 py-1.5 text-right">
-            <p class="text-[10px] text-emerald-300 uppercase tracking-wider font-semibold">Data Transaksi Terkini</p>
+          <div class="bg-blue-900/60 border border-blue-700/50 rounded-xl px-3 py-1.5 text-right">
+            <p class="text-[10px] text-blue-300 uppercase tracking-wider font-semibold">Data Transaksi Terkini</p>
             <p class="text-xs font-bold text-white flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
               s/d ${filterOptions.latestDate ? new Date(filterOptions.latestDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '02 Okt 2026'}
             </p>
           </div>
-          <button onclick="exportSariwangiCsv()" class="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all hover:scale-102">
+          <button onclick="exportSariwangiCsv()" class="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-400 text-slate-950 rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all hover:scale-102">
             <i data-lucide="download" class="w-4 h-4"></i>
             <span>Export CSV</span>
           </button>
@@ -8579,7 +8738,7 @@ function renderSariwangiLayout(data) {
     <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
         <div class="flex items-center gap-2">
-          <i data-lucide="sliders-horizontal" class="w-4 h-4 text-emerald-600"></i>
+          <i data-lucide="sliders-horizontal" class="w-4 h-4 text-blue-700"></i>
           <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Filter Analitik Khusus SariWangi</span>
           <span class="text-[11px] text-slate-400">(Terkunci Eksklusif: Principal Unilever & Brand SariWangi)</span>
         </div>
@@ -8595,7 +8754,7 @@ function renderSariwangiLayout(data) {
         <!-- Periode Filter -->
         <div>
           <label class="block text-[11px] font-semibold text-slate-600 mb-1">Periode Transaksi</label>
-          <select id="filter-sw-period" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+          <select id="filter-sw-period" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
             <option value="" ${!currentFilters.period ? 'selected' : ''}>Semua Periode (Kumulatif)</option>
             <option value="2026-09" ${currentFilters.period === '2026-09' ? 'selected' : ''}>September 2026</option>
             <option value="2026-10" ${currentFilters.period === '2026-10' ? 'selected' : ''}>Oktober 2026</option>
@@ -8606,7 +8765,7 @@ function renderSariwangiLayout(data) {
         <!-- Salesman Filter -->
         <div>
           <label class="block text-[11px] font-semibold text-slate-600 mb-1">Salesman</label>
-          <select id="filter-sw-salesman" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+          <select id="filter-sw-salesman" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
             <option value="">Semua Salesman (${filterOptions.salesmen.length})</option>
             ${filterOptions.salesmen.map(s => `
               <option value="${escapeHtml(s.name)}" ${currentFilters.salesman === s.name ? 'selected' : ''}>
@@ -8619,7 +8778,7 @@ function renderSariwangiLayout(data) {
         <!-- Rayon Filter -->
         <div>
           <label class="block text-[11px] font-semibold text-slate-600 mb-1">Rayon</label>
-          <select id="filter-sw-rayon" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+          <select id="filter-sw-rayon" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
             <option value="">Semua Rayon (${filterOptions.rayons.length})</option>
             ${filterOptions.rayons.map(r => `
               <option value="${escapeHtml(r.name)}" ${currentFilters.rayon === r.name ? 'selected' : ''}>
@@ -8632,7 +8791,7 @@ function renderSariwangiLayout(data) {
         <!-- Kecamatan Filter -->
         <div>
           <label class="block text-[11px] font-semibold text-slate-600 mb-1">Kecamatan</label>
-          <select id="filter-sw-kecamatan" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+          <select id="filter-sw-kecamatan" onchange="applySariwangiFilters()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
             <option value="">Semua Kecamatan (${filterOptions.kecamatans.length})</option>
             ${filterOptions.kecamatans.map(k => `
               <option value="${escapeHtml(k.name)}" ${currentFilters.kecamatan === k.name ? 'selected' : ''}>
@@ -8646,7 +8805,7 @@ function renderSariwangiLayout(data) {
         <div>
           <label class="block text-[11px] font-semibold text-slate-600 mb-1">Cari Toko / Outlet</label>
           <div class="relative">
-            <input type="text" id="filter-sw-search" value="${escapeHtml(currentFilters.search || '')}" onkeydown="if(event.key==='Enter') applySariwangiFilters()" placeholder="Ketik nama toko..." class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none transition">
+            <input type="text" id="filter-sw-search" value="${escapeHtml(currentFilters.search || '')}" onkeydown="if(event.key==='Enter') applySariwangiFilters()" placeholder="Ketik nama toko..." class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
             <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
           </div>
         </div>
@@ -8656,17 +8815,17 @@ function renderSariwangiLayout(data) {
       <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
         <div class="flex flex-wrap items-center gap-1.5 text-xs">
           <span class="text-slate-500 font-semibold mr-1">Fokus SKU:</span>
-          <button onclick="setSariwangiSkuType('ALL')" class="px-3 py-1 rounded-lg font-semibold transition ${currentFilters.skuType === 'ALL' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+          <button onclick="setSariwangiSkuType('ALL')" class="px-3 py-1 rounded-lg font-semibold transition ${currentFilters.skuType === 'ALL' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
             Semua SKU SariWangi
           </button>
-          <button onclick="setSariwangiSkuType('TB288')" class="px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${currentFilters.skuType === 'TB288' ? 'bg-amber-600 text-white shadow-sm' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'}">
+          <button onclick="setSariwangiSkuType('TB288')" class="px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${currentFilters.skuType === 'TB288' ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-blue-900 border border-slate-200'}">
             <i data-lucide="star" class="w-3.5 h-3.5"></i>
             <span>⭐ SariWangi TB 288 (Hero SKU)</span>
           </button>
           <button onclick="setSariwangiSkuType('TB48')" class="px-3 py-1 rounded-lg font-semibold transition ${currentFilters.skuType === 'TB48' ? 'bg-sky-600 text-white shadow-sm' : 'bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200'}">
             SariWangi TB 48X25
           </button>
-          <button onclick="setSariwangiSkuType('SELECTED')" class="px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${currentFilters.skuType === 'SELECTED' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}">
+          <button onclick="setSariwangiSkuType('SELECTED')" class="px-3 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${currentFilters.skuType === 'SELECTED' ? 'bg-blue-600 text-white shadow-sm' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}">
             <i data-lucide="sparkles" class="w-3 h-3"></i>
             <span>6 Selected SKU GT (Promo Strata)</span>
           </button>
@@ -8676,7 +8835,7 @@ function renderSariwangiLayout(data) {
         </div>
 
         <div class="flex items-center gap-2">
-          <button onclick="applySariwangiFilters()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow-sm transition flex items-center gap-1.5">
+          <button onclick="applySariwangiFilters()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs shadow-sm transition flex items-center gap-1.5">
             <i data-lucide="filter" class="w-3.5 h-3.5"></i>
             <span>Terapkan Filter</span>
           </button>
@@ -8690,7 +8849,7 @@ function renderSariwangiLayout(data) {
       <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative overflow-hidden">
         <div class="flex items-center justify-between text-slate-500 text-xs font-semibold">
           <span>Total Penjualan Volume</span>
-          <span class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+          <span class="p-1.5 bg-blue-50 text-blue-700 rounded-lg">
             <i data-lucide="package" class="w-4 h-4"></i>
           </span>
         </div>
@@ -8700,7 +8859,7 @@ function renderSariwangiLayout(data) {
         </p>
         <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
           <span class="text-slate-500">Selected SKU:</span>
-          <span class="font-bold text-indigo-600">${summary.selectedSkuCartons.toLocaleString('id-ID')} Ktn (${summary.selectedSkuCartonPct}%)</span>
+          <span class="font-bold text-blue-600">${summary.selectedSkuCartons.toLocaleString('id-ID')} Ktn (${summary.selectedSkuCartonPct}%)</span>
         </div>
       </div>
 
@@ -8725,7 +8884,7 @@ function renderSariwangiLayout(data) {
       <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative overflow-hidden">
         <div class="flex items-center justify-between text-slate-500 text-xs font-semibold">
           <span>Outlet Transaksi (OA)</span>
-          <span class="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+          <span class="p-1.5 bg-blue-50 text-blue-700 rounded-lg">
             <i data-lucide="store" class="w-4 h-4"></i>
           </span>
         </div>
@@ -8735,7 +8894,7 @@ function renderSariwangiLayout(data) {
         </p>
         <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
           <span class="text-slate-500">Penetrasi Selected:</span>
-          <span class="font-bold text-emerald-600">${summary.selectedSkuOA.toLocaleString('id-ID')} Toko (${summary.selectedSkuOAPct}%)</span>
+          <span class="font-bold text-blue-700">${summary.selectedSkuOA.toLocaleString('id-ID')} Toko (${summary.selectedSkuOAPct}%)</span>
         </div>
       </div>
 
@@ -8743,7 +8902,7 @@ function renderSariwangiLayout(data) {
       <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm relative overflow-hidden">
         <div class="flex items-center justify-between text-slate-500 text-xs font-semibold">
           <span>Total Order Call (OC)</span>
-          <span class="p-1.5 bg-purple-50 text-purple-600 rounded-lg">
+          <span class="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
             <i data-lucide="shopping-cart" class="w-4 h-4"></i>
           </span>
         </div>
@@ -8758,20 +8917,20 @@ function renderSariwangiLayout(data) {
       </div>
 
       <!-- Card 5: Rata-rata Dropsize & Omzet/OC -->
-      <div class="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-200 shadow-sm relative overflow-hidden">
-        <div class="flex items-center justify-between text-emerald-800 text-xs font-bold">
+      <div class="bg-blue-50/70 rounded-xl p-4 border border-blue-200 shadow-sm relative overflow-hidden">
+        <div class="flex items-center justify-between text-blue-800 text-xs font-bold">
           <span>Rata-rata Dropsize (OC)</span>
-          <span class="p-1.5 bg-emerald-600 text-white rounded-lg shadow-sm">
+          <span class="p-1.5 bg-blue-600 text-white rounded-lg shadow-sm">
             <i data-lucide="scale" class="w-4 h-4"></i>
           </span>
         </div>
-        <p class="text-2xl font-black text-emerald-950 mt-2 tracking-tight">
+        <p class="text-2xl font-black text-blue-950 mt-2 tracking-tight">
           ${summary.avgDropsizeCtn}
-          <span class="text-xs font-bold text-emerald-700 font-normal">Ktn/OC</span>
+          <span class="text-xs font-bold text-blue-700 font-normal">Ktn/OC</span>
         </p>
-        <div class="mt-2.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[11px]">
-          <span class="text-emerald-800 font-medium">Rata-rata Omzet:</span>
-          <span class="font-extrabold text-emerald-900">Rp ${summary.avgOmzetPerOC.toLocaleString('id-ID')} / OC</span>
+        <div class="mt-2.5 pt-2 border-t border-blue-200/60 flex items-center justify-between text-[11px]">
+          <span class="text-blue-800 font-medium">Rata-rata Omzet:</span>
+          <span class="font-extrabold text-blue-900">Rp ${summary.avgOmzetPerOC.toLocaleString('id-ID')} / OC</span>
         </div>
       </div>
     </div>
@@ -8781,7 +8940,7 @@ function renderSariwangiLayout(data) {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
         <div>
           <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-            <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-600"></i>
+            <i data-lucide="pie-chart" class="w-4 h-4 text-blue-700"></i>
             <span>Analisis Dropsize & Omset Rata-rata per Order Call (OC)</span>
           </h2>
           <p class="text-xs text-slate-500 mt-0.5">
@@ -8796,12 +8955,12 @@ function renderSariwangiLayout(data) {
       <!-- 4 Tier Comparison Cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- Tier 1: < 1/2 Karton -->
-        <div class="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3 relative hover:shadow-md transition">
+        <div class="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3 relative hover:shadow-md transition">
           <div class="flex items-center justify-between">
-            <span class="px-2.5 py-1 bg-amber-100 text-amber-800 font-bold text-xs rounded-lg">
+            <span class="px-2.5 py-1 bg-blue-100 text-blue-900 font-bold text-xs rounded-lg">
               ${dropsizeBrackets.under_half.label}
             </span>
-            <span class="text-[11px] font-semibold text-amber-700">Eceran Mikro</span>
+            <span class="text-[11px] font-semibold text-blue-800">Eceran Mikro</span>
           </div>
 
           <div>
@@ -8814,14 +8973,14 @@ function renderSariwangiLayout(data) {
             </p>
           </div>
 
-          <div class="pt-2 border-t border-amber-200/60 space-y-1.5 text-xs">
+          <div class="pt-2 border-t border-blue-200/60 space-y-1.5 text-xs">
             <div class="flex justify-between items-center text-slate-600">
               <span>Total Omzet:</span>
               <strong class="text-slate-800">Rp ${dropsizeBrackets.under_half.netto.toLocaleString('id-ID')}</strong>
             </div>
-            <div class="flex justify-between items-center bg-white/80 p-2 rounded-lg border border-amber-100 font-semibold">
-              <span class="text-amber-900">Rata-rata Omzet/OC:</span>
-              <span class="text-amber-800 font-bold">Rp ${dropsizeBrackets.under_half.avgNettoPerOC.toLocaleString('id-ID')}</span>
+            <div class="flex justify-between items-center bg-white/80 p-2 rounded-lg border border-blue-100 font-semibold">
+              <span class="text-blue-900">Rata-rata Omzet/OC:</span>
+              <span class="text-blue-800 font-bold">Rp ${dropsizeBrackets.under_half.avgNettoPerOC.toLocaleString('id-ID')}</span>
             </div>
             <div class="flex justify-between items-center text-[11px] text-slate-500">
               <span>Rata-rata Dropsize:</span>
@@ -8866,12 +9025,12 @@ function renderSariwangiLayout(data) {
         </div>
 
         <!-- Tier 3: > 1 Karton -->
-        <div class="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-3 relative hover:shadow-md transition">
+        <div class="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3 relative hover:shadow-md transition">
           <div class="flex items-center justify-between">
-            <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-lg">
+            <span class="px-2.5 py-1 bg-blue-100 text-blue-800 font-bold text-xs rounded-lg">
               ${dropsizeBrackets.over_one.label}
             </span>
-            <span class="text-[11px] font-semibold text-emerald-700">Semi Grosir</span>
+            <span class="text-[11px] font-semibold text-blue-700">Semi Grosir</span>
           </div>
 
           <div>
@@ -8884,14 +9043,14 @@ function renderSariwangiLayout(data) {
             </p>
           </div>
 
-          <div class="pt-2 border-t border-emerald-200/60 space-y-1.5 text-xs">
+          <div class="pt-2 border-t border-blue-200/60 space-y-1.5 text-xs">
             <div class="flex justify-between items-center text-slate-600">
               <span>Total Omzet:</span>
               <strong class="text-slate-800">Rp ${dropsizeBrackets.over_one.netto.toLocaleString('id-ID')}</strong>
             </div>
-            <div class="flex justify-between items-center bg-white/80 p-2 rounded-lg border border-emerald-100 font-semibold">
-              <span class="text-emerald-900">Rata-rata Omzet/OC:</span>
-              <span class="text-emerald-800 font-bold">Rp ${dropsizeBrackets.over_one.avgNettoPerOC.toLocaleString('id-ID')}</span>
+            <div class="flex justify-between items-center bg-white/80 p-2 rounded-lg border border-blue-100 font-semibold">
+              <span class="text-blue-900">Rata-rata Omzet/OC:</span>
+              <span class="text-blue-800 font-bold">Rp ${dropsizeBrackets.over_one.avgNettoPerOC.toLocaleString('id-ID')}</span>
             </div>
             <div class="flex justify-between items-center text-[11px] text-slate-500">
               <span>Rata-rata Dropsize:</span>
@@ -8901,39 +9060,39 @@ function renderSariwangiLayout(data) {
         </div>
 
         <!-- Tier 4: >= 6 Karton (Promo GT Threshold) -->
-        <div class="rounded-xl border-2 border-purple-300 bg-gradient-to-br from-purple-50 to-indigo-50 p-4 space-y-3 relative hover:shadow-md transition">
+        <div class="rounded-xl border-2 border-blue-300 bg-blue-50/50 p-4 space-y-3 relative hover:shadow-md transition">
           <div class="flex items-center justify-between">
-            <span class="px-2.5 py-1 bg-purple-600 text-white font-extrabold text-xs rounded-lg shadow-sm">
+            <span class="px-2.5 py-1 bg-blue-600 text-white font-extrabold text-xs rounded-lg shadow-sm">
               ${dropsizeBrackets.strata_promo_tier.label}
             </span>
-            <span class="text-[11px] font-bold text-purple-700 flex items-center gap-1">
+            <span class="text-[11px] font-bold text-blue-700 flex items-center gap-1">
               <i data-lucide="award" class="w-3.5 h-3.5"></i>
               <span>Key Wholesaler</span>
             </span>
           </div>
 
           <div>
-            <p class="text-2xl font-black text-purple-950 tracking-tight">
+            <p class="text-2xl font-black text-blue-950 tracking-tight">
               ${dropsizeBrackets.strata_promo_tier.count.toLocaleString('id-ID')}
-              <span class="text-xs font-semibold text-purple-700">Order (${dropsizeBrackets.strata_promo_tier.pctOrders}%)</span>
+              <span class="text-xs font-semibold text-blue-700">Order (${dropsizeBrackets.strata_promo_tier.pctOrders}%)</span>
             </p>
-            <p class="text-xs font-medium text-purple-800 mt-0.5">
-              Volume: <strong class="text-purple-950">${dropsizeBrackets.strata_promo_tier.cartons.toLocaleString('id-ID')} Ktn</strong> (${dropsizeBrackets.strata_promo_tier.pctCartons}%)
+            <p class="text-xs font-medium text-blue-800 mt-0.5">
+              Volume: <strong class="text-blue-950">${dropsizeBrackets.strata_promo_tier.cartons.toLocaleString('id-ID')} Ktn</strong> (${dropsizeBrackets.strata_promo_tier.pctCartons}%)
             </p>
           </div>
 
-          <div class="pt-2 border-t border-purple-200 space-y-1.5 text-xs">
-            <div class="flex justify-between items-center text-purple-900">
+          <div class="pt-2 border-t border-blue-200 space-y-1.5 text-xs">
+            <div class="flex justify-between items-center text-blue-900">
               <span>Total Omzet:</span>
-              <strong class="text-purple-950">Rp ${dropsizeBrackets.strata_promo_tier.netto.toLocaleString('id-ID')}</strong>
+              <strong class="text-blue-950">Rp ${dropsizeBrackets.strata_promo_tier.netto.toLocaleString('id-ID')}</strong>
             </div>
-            <div class="flex justify-between items-center bg-white p-2 rounded-lg border border-purple-200 font-semibold shadow-xs">
-              <span class="text-purple-900">Rata-rata Omzet/OC:</span>
-              <span class="text-purple-700 font-extrabold">Rp ${dropsizeBrackets.strata_promo_tier.avgNettoPerOC.toLocaleString('id-ID')}</span>
+            <div class="flex justify-between items-center bg-white p-2 rounded-lg border border-blue-200 font-semibold shadow-xs">
+              <span class="text-blue-900">Rata-rata Omzet/OC:</span>
+              <span class="text-blue-700 font-extrabold">Rp ${dropsizeBrackets.strata_promo_tier.avgNettoPerOC.toLocaleString('id-ID')}</span>
             </div>
-            <div class="flex justify-between items-center text-[11px] text-purple-800">
+            <div class="flex justify-between items-center text-[11px] text-blue-800">
               <span>Rata-rata Dropsize:</span>
-              <span class="font-bold text-purple-900">${dropsizeBrackets.strata_promo_tier.avgCartonsPerOC} Ktn/OC</span>
+              <span class="font-bold text-blue-900">${dropsizeBrackets.strata_promo_tier.avgCartonsPerOC} Ktn/OC</span>
             </div>
           </div>
         </div>
@@ -8945,7 +9104,7 @@ function renderSariwangiLayout(data) {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
         <div>
           <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-            <i data-lucide="map" class="w-4 h-4 text-emerald-600"></i>
+            <i data-lucide="map" class="w-4 h-4 text-blue-700"></i>
             <span>Peta Distribusi & Penetrasi SariWangi di Kabupaten Garut</span>
           </h2>
           <p class="text-xs text-slate-500 mt-0.5">
@@ -8953,8 +9112,8 @@ function renderSariwangiLayout(data) {
           </p>
         </div>
         <div class="flex items-center gap-2 text-xs">
-          <span class="inline-flex items-center gap-1.5 font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="inline-flex items-center gap-1.5 font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+            <span class="w-2 h-2 rounded-full bg-blue-600"></span>
             ${kecamatanDistribution.length} Kecamatan Transaksi
           </span>
         </div>
@@ -8966,7 +9125,7 @@ function renderSariwangiLayout(data) {
         <div class="lg:col-span-7 bg-slate-50/70 border border-slate-200/80 rounded-xl p-3 relative flex flex-col items-center justify-center min-h-[360px]">
           <div id="sariwangi-map-canvas" class="w-full flex items-center justify-center">
             <div class="py-16 text-center text-xs text-slate-400">
-              <i data-lucide="loader-2" class="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-600"></i>
+              <i data-lucide="loader-2" class="w-5 h-5 animate-spin mx-auto mb-2 text-blue-700"></i>
               Memuat Peta Garut...
             </div>
           </div>
@@ -8979,12 +9138,12 @@ function renderSariwangiLayout(data) {
           <div class="w-full mt-3 pt-3 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-600">
             <span class="font-bold text-slate-700">Intensitas Volume (Ktn):</span>
             <div class="flex items-center gap-1">
-              <span class="w-3.5 h-3 rounded bg-emerald-50 border border-slate-200"></span> <span>0</span>
-              <span class="w-3.5 h-3 rounded bg-emerald-100 ml-1"></span> <span>1-5</span>
-              <span class="w-3.5 h-3 rounded bg-emerald-300 ml-1"></span> <span>5-15</span>
-              <span class="w-3.5 h-3 rounded bg-emerald-500 ml-1 text-white"></span> <span>15-30</span>
-              <span class="w-3.5 h-3 rounded bg-emerald-700 ml-1 text-white"></span> <span>30-50</span>
-              <span class="w-3.5 h-3 rounded bg-emerald-950 ml-1 text-white"></span> <span>>50</span>
+              <span class="w-3.5 h-3 rounded bg-blue-50 border border-slate-200"></span> <span>0</span>
+              <span class="w-3.5 h-3 rounded bg-blue-100 ml-1"></span> <span>1-5</span>
+              <span class="w-3.5 h-3 rounded bg-blue-300 ml-1"></span> <span>5-15</span>
+              <span class="w-3.5 h-3 rounded bg-blue-600 ml-1 text-white"></span> <span>15-30</span>
+              <span class="w-3.5 h-3 rounded bg-blue-700 ml-1 text-white"></span> <span>30-50</span>
+              <span class="w-3.5 h-3 rounded bg-blue-950 ml-1 text-white"></span> <span>>50</span>
             </div>
           </div>
         </div>
@@ -8998,20 +9157,20 @@ function renderSariwangiLayout(data) {
 
           <div class="overflow-y-auto scrollbar-thin space-y-1.5 flex-1 pr-1">
             ${kecamatanDistribution.map((k, idx) => `
-              <div onclick="filterSariwangiByKecamatan('${escapeHtml(k.kecamatan_name)}')" class="p-2 rounded-lg border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/50 cursor-pointer transition flex items-center justify-between text-xs group">
+              <div onclick="filterSariwangiByKecamatan('${escapeHtml(k.kecamatan_name)}')" class="p-2 rounded-lg border border-slate-100 hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition flex items-center justify-between text-xs group">
                 <div class="flex items-center gap-2">
-                  <span class="w-5 h-5 rounded font-mono text-[10px] flex items-center justify-center font-bold ${idx < 3 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'}">
+                  <span class="w-5 h-5 rounded font-mono text-[10px] flex items-center justify-center font-bold ${idx < 3 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}">
                     ${idx + 1}
                   </span>
                   <div>
-                    <p class="font-bold text-slate-900 group-hover:text-emerald-700 transition">${escapeHtml(k.kecamatan_name)}</p>
+                    <p class="font-bold text-slate-900 group-hover:text-blue-700 transition">${escapeHtml(k.kecamatan_name)}</p>
                     <p class="text-[10px] text-slate-400">${k.active_outlets} Toko • Top: ${escapeHtml(k.top_salesman)}</p>
                   </div>
                 </div>
 
                 <div class="text-right">
                   <p class="font-extrabold text-slate-800">${k.total_cartons} <span class="text-[10px] text-slate-400 font-normal">Ktn</span></p>
-                  <p class="text-[10px] text-emerald-600 font-semibold">Rp ${(k.total_netto / 1000000).toFixed(1)} Jt</p>
+                  <p class="text-[10px] text-blue-700 font-semibold">Rp ${(k.total_netto / 1000000).toFixed(1)} Jt</p>
                 </div>
               </div>
             `).join('')}
@@ -9026,7 +9185,7 @@ function renderSariwangiLayout(data) {
       <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
           <div class="flex items-center gap-2">
-            <span class="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+            <span class="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
               <i data-lucide="sparkles" class="w-4 h-4"></i>
             </span>
             <div>
@@ -9039,7 +9198,7 @@ function renderSariwangiLayout(data) {
         <!-- Rules Info Box -->
         <div class="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-2">
           <div class="flex items-start gap-2">
-            <i data-lucide="info" class="w-4 h-4 text-indigo-600 shrink-0 mt-0.5"></i>
+            <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
             <p class="text-slate-700 leading-relaxed text-[11px]">
               <strong>Mekanisme Tambahan Diskon:</strong> Untuk 6 SKU Terpilih (Selected SKU), diskon promo GT otomatis 
               <strong>DITAMBAHKAN</strong> ke diskon reguler bila memenuhi kriteria minimum volume karton.
@@ -9048,13 +9207,13 @@ function renderSariwangiLayout(data) {
 
           <div class="grid grid-cols-2 gap-2 pt-1 text-[11px]">
             <div class="bg-white p-2 rounded border border-slate-200">
-              <p class="font-bold text-slate-800 text-[10px] uppercase text-purple-700">1. Strata Reguler (Semua SKU)</p>
+              <p class="font-bold text-slate-800 text-[10px] uppercase text-blue-700">1. Strata Reguler (Semua SKU)</p>
               <p class="text-slate-600 mt-0.5">• 1 – 5 ktn: <strong>0.75%</strong></p>
               <p class="text-slate-600">• 6 – 10 ktn: <strong>1.00%</strong></p>
               <p class="text-slate-600">• ≥ 11 ktn: <strong>1.25%</strong></p>
             </div>
             <div class="bg-white p-2 rounded border border-slate-200">
-              <p class="font-bold text-slate-800 text-[10px] uppercase text-indigo-700">2. Promo GT (6 Selected SKU)</p>
+              <p class="font-bold text-slate-800 text-[10px] uppercase text-blue-700">2. Promo GT (6 Selected SKU)</p>
               <p class="text-slate-600 mt-0.5">• 6 – 19 ktn: <strong>+2.00%</strong></p>
               <p class="text-slate-600">• 20 – 49 ktn: <strong>+3.00%</strong></p>
               <p class="text-slate-600">• 50 – 99 ktn: <strong>+5.00%</strong></p>
@@ -9062,9 +9221,9 @@ function renderSariwangiLayout(data) {
             </div>
           </div>
 
-          <div class="bg-emerald-50 border border-emerald-200 rounded p-2 text-[11px] text-emerald-900 flex items-center justify-between">
+          <div class="bg-blue-50 border border-blue-200 rounded p-2 text-[11px] text-blue-900 flex items-center justify-between">
             <span>Contoh: Pembelian <strong>50 Karton</strong> Selected SKU:</span>
-            <span class="font-black text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-300">1.25% + 5.00% = 6.25% Diskon!</span>
+            <span class="font-black text-blue-700 bg-white px-2 py-0.5 rounded border border-blue-300">1.25% + 5.00% = 6.25% Diskon!</span>
           </div>
         </div>
 
@@ -9085,25 +9244,25 @@ function renderSariwangiLayout(data) {
         <div class="space-y-1.5 pt-2 border-t border-slate-100">
           <p class="text-xs font-bold text-slate-800">Pencapaian Tier Promo Selected SKU (Order Level):</p>
           <div class="grid grid-cols-4 gap-2 text-center text-xs">
-            <div class="bg-purple-50 p-2 rounded-lg border border-purple-200">
-              <p class="text-[10px] text-purple-700 font-bold">Tier 1 (6-19 ktn)</p>
-              <p class="text-base font-black text-purple-900 mt-0.5">${promoTiers.tier1.count} <span class="text-[10px] font-normal">OC</span></p>
-              <p class="text-[10px] text-purple-600 font-semibold">+2% Promo</p>
+            <div class="bg-blue-50 p-2 rounded-lg border border-blue-200">
+              <p class="text-[10px] text-blue-700 font-bold">Tier 1 (6-19 ktn)</p>
+              <p class="text-base font-black text-blue-900 mt-0.5">${promoTiers.tier1.count} <span class="text-[10px] font-normal">OC</span></p>
+              <p class="text-[10px] text-blue-600 font-semibold">+2% Promo</p>
             </div>
-            <div class="bg-indigo-50 p-2 rounded-lg border border-indigo-200">
-              <p class="text-[10px] text-indigo-700 font-bold">Tier 2 (20-49 ktn)</p>
-              <p class="text-base font-black text-indigo-900 mt-0.5">${promoTiers.tier2.count} <span class="text-[10px] font-normal">OC</span></p>
-              <p class="text-[10px] text-indigo-600 font-semibold">+3% Promo</p>
+            <div class="bg-blue-50 p-2 rounded-lg border border-blue-200">
+              <p class="text-[10px] text-blue-700 font-bold">Tier 2 (20-49 ktn)</p>
+              <p class="text-base font-black text-blue-900 mt-0.5">${promoTiers.tier2.count} <span class="text-[10px] font-normal">OC</span></p>
+              <p class="text-[10px] text-blue-600 font-semibold">+3% Promo</p>
             </div>
-            <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-              <p class="text-[10px] text-emerald-700 font-bold">Tier 3 (50-99 ktn)</p>
-              <p class="text-base font-black text-emerald-900 mt-0.5">${promoTiers.tier3.count} <span class="text-[10px] font-normal">OC</span></p>
-              <p class="text-[10px] text-emerald-600 font-semibold">+5% Promo</p>
+            <div class="bg-blue-50 p-2 rounded-lg border border-blue-200">
+              <p class="text-[10px] text-blue-700 font-bold">Tier 3 (50-99 ktn)</p>
+              <p class="text-base font-black text-blue-900 mt-0.5">${promoTiers.tier3.count} <span class="text-[10px] font-normal">OC</span></p>
+              <p class="text-[10px] text-blue-700 font-semibold">+5% Promo</p>
             </div>
-            <div class="bg-amber-50 p-2 rounded-lg border border-amber-200">
-              <p class="text-[10px] text-amber-700 font-bold">Tier 4 (≥100 ktn)</p>
-              <p class="text-base font-black text-amber-900 mt-0.5">${promoTiers.tier4.count} <span class="text-[10px] font-normal">OC</span></p>
-              <p class="text-[10px] text-amber-600 font-semibold">+7% Promo</p>
+            <div class="bg-blue-50/70 p-2 rounded-lg border border-blue-200">
+              <p class="text-[10px] text-blue-800 font-bold">Tier 4 (≥100 ktn)</p>
+              <p class="text-base font-black text-blue-900 mt-0.5">${promoTiers.tier4.count} <span class="text-[10px] font-normal">OC</span></p>
+              <p class="text-[10px] text-blue-700 font-semibold">+7% Promo</p>
             </div>
           </div>
         </div>
@@ -9115,7 +9274,7 @@ function renderSariwangiLayout(data) {
         <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
           <div class="flex items-center justify-between border-b border-slate-100 pb-2">
             <div class="flex items-center gap-2">
-              <span class="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+              <span class="p-1.5 bg-blue-50 text-blue-700 rounded-lg">
                 <i data-lucide="trending-up" class="w-4 h-4"></i>
               </span>
               <div>
@@ -9123,7 +9282,7 @@ function renderSariwangiLayout(data) {
                 <p class="text-[11px] text-slate-400">Toko yang mendekati ambang batas diskon tambahan 2% / 3%</p>
               </div>
             </div>
-            <span class="text-[11px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+            <span class="text-[11px] bg-blue-100 text-blue-900 font-bold px-2 py-0.5 rounded-full">
               ${upsellOpportunities.length} Toko Potensial
             </span>
           </div>
@@ -9132,16 +9291,16 @@ function renderSariwangiLayout(data) {
             ${upsellOpportunities.length === 0 ? `
               <p class="text-xs text-slate-400 py-4 text-center italic">Tidak ada toko di rentang gap saat ini</p>
             ` : upsellOpportunities.slice(0, 5).map(u => `
-              <div class="p-2.5 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-amber-300 transition flex items-center justify-between">
+              <div class="p-2.5 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-blue-300 transition flex items-center justify-between">
                 <div>
                   <p class="font-bold text-slate-900">${escapeHtml(u.outlet_name)}</p>
                   <p class="text-[10px] text-slate-500">${escapeHtml(u.kecamatan)} • Sales: ${escapeHtml(u.salesman_name)}</p>
                 </div>
                 <div class="text-right">
-                  <span class="px-2 py-0.5 bg-amber-100 text-amber-900 font-extrabold text-[10px] rounded-md">
+                  <span class="px-2 py-0.5 bg-blue-100 text-blue-900 font-extrabold text-[10px] rounded-md">
                     Butuh +${u.gap_to_promo} Ktn
                   </span>
-                  <p class="text-[10px] text-emerald-600 font-semibold mt-0.5">Ke ${u.target_tier}</p>
+                  <p class="text-[10px] text-blue-700 font-semibold mt-0.5">Ke ${u.target_tier}</p>
                 </div>
               </div>
             `).join('')}
@@ -9152,7 +9311,7 @@ function renderSariwangiLayout(data) {
         <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
           <div class="flex items-center justify-between border-b border-slate-100 pb-2">
             <div class="flex items-center gap-2">
-              <span class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+              <span class="p-1.5 bg-blue-50 text-blue-700 rounded-lg">
                 <i data-lucide="users" class="w-4 h-4"></i>
               </span>
               <div>
@@ -9177,15 +9336,15 @@ function renderSariwangiLayout(data) {
                 ${salesmanLeaderboard.map((sm, idx) => `
                   <tr class="hover:bg-slate-50/70 transition">
                     <td class="py-2 flex items-center gap-1.5 font-semibold text-slate-800">
-                      <span class="w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center ${idx === 0 ? 'bg-amber-400 text-slate-900' : 'bg-slate-100 text-slate-600'}">
+                      <span class="w-4 h-4 rounded text-[9px] font-bold flex items-center justify-center ${idx === 0 ? 'bg-blue-400 text-slate-900' : 'bg-slate-100 text-slate-600'}">
                         ${idx + 1}
                       </span>
                       <span>${escapeHtml(sm.salesman_name)}</span>
                     </td>
                     <td class="py-2 text-right font-bold text-slate-900">${sm.total_cartons} <span class="text-[10px] text-slate-400 font-normal">Ktn</span></td>
-                    <td class="py-2 text-right text-emerald-700 font-semibold">Rp ${(sm.total_netto / 1000000).toFixed(1)}M</td>
+                    <td class="py-2 text-right text-blue-700 font-semibold">Rp ${(sm.total_netto / 1000000).toFixed(1)}M</td>
                     <td class="py-2 text-right text-slate-600">${sm.outlet_count} / ${sm.order_count}</td>
-                    <td class="py-2 text-right font-bold ${sm.avg_dropsize >= 1 ? 'text-emerald-700' : (sm.avg_dropsize >= 0.5 ? 'text-sky-700' : 'text-amber-700')}">
+                    <td class="py-2 text-right font-bold ${sm.avg_dropsize >= 1 ? 'text-blue-700' : (sm.avg_dropsize >= 0.5 ? 'text-sky-700' : 'text-blue-800')}">
                       ${sm.avg_dropsize}
                     </td>
                   </tr>
@@ -9202,7 +9361,7 @@ function renderSariwangiLayout(data) {
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
         <div>
           <div class="flex items-center gap-2">
-            <i data-lucide="store" class="w-5 h-5 text-emerald-600"></i>
+            <i data-lucide="store" class="w-5 h-5 text-blue-700"></i>
             <h2 class="text-base font-bold text-slate-900">Data Outlet yang Sudah Transaksi SariWangi</h2>
           </div>
           <p class="text-xs text-slate-500 mt-0.5">
@@ -9225,24 +9384,24 @@ function renderSariwangiLayout(data) {
       <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
         <!-- Search Input -->
         <div class="relative flex-1 max-w-sm">
-          <input type="text" id="sw-table-search" oninput="handleSariwangiOutletSearch(this.value)" placeholder="Cari nama toko / ID outlet..." class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+          <input type="text" id="sw-table-search" oninput="handleSariwangiOutletSearch(this.value)" placeholder="Cari nama toko / ID outlet..." class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
           <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
         </div>
 
         <!-- Filter Dropsize Pills -->
         <div class="flex flex-wrap items-center gap-1.5">
           <span class="text-slate-400 font-semibold mr-1">Dropsize:</span>
-          <button onclick="filterSariwangiOutletsByDropsize('all')" id="btn-sw-ds-all" class="px-2.5 py-1 rounded-md font-semibold transition bg-emerald-600 text-white shadow-xs">Semua</button>
+          <button onclick="filterSariwangiOutletsByDropsize('all')" id="btn-sw-ds-all" class="px-2.5 py-1 rounded-md font-semibold transition bg-blue-600 text-white shadow-xs">Semua</button>
           <button onclick="filterSariwangiOutletsByDropsize('under_half')" id="btn-sw-ds-under_half" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">&lt; 1/2 ktn</button>
           <button onclick="filterSariwangiOutletsByDropsize('half_to_one')" id="btn-sw-ds-half_to_one" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">1/2 - 1 ktn</button>
           <button onclick="filterSariwangiOutletsByDropsize('over_one')" id="btn-sw-ds-over_one" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">&gt; 1 ktn</button>
-          <button onclick="filterSariwangiOutletsByDropsize('ge_six')" id="btn-sw-ds-ge_six" class="px-2.5 py-1 rounded-md font-semibold transition bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold">≥ 6 ktn (Promo)</button>
+          <button onclick="filterSariwangiOutletsByDropsize('ge_six')" id="btn-sw-ds-ge_six" class="px-2.5 py-1 rounded-md font-semibold transition bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold">≥ 6 ktn (Promo)</button>
         </div>
 
         <!-- Filter Recency Pills -->
         <div class="flex flex-wrap items-center gap-1.5">
           <span class="text-slate-400 font-semibold mr-1">Recency:</span>
-          <button onclick="filterSariwangiOutletsByRecency('all')" id="btn-sw-rc-all" class="px-2.5 py-1 rounded-md font-semibold transition bg-emerald-600 text-white shadow-xs">Semua</button>
+          <button onclick="filterSariwangiOutletsByRecency('all')" id="btn-sw-rc-all" class="px-2.5 py-1 rounded-md font-semibold transition bg-blue-600 text-white shadow-xs">Semua</button>
           <button onclick="filterSariwangiOutletsByRecency('days')" id="btn-sw-rc-days" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">days lalu</button>
           <button onclick="filterSariwangiOutletsByRecency('1week')" id="btn-sw-rc-1week" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">1 week lalu</button>
           <button onclick="filterSariwangiOutletsByRecency('gt1week')" id="btn-sw-rc-gt1week" class="px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200">&gt; 1 week</button>
@@ -9328,11 +9487,11 @@ async function renderSariwangiGarutMap(distribution) {
   const getHeatColor = (cartons) => {
     const c = parseFloat(cartons) || 0;
     if (c <= 0) return { fill: '#f8fafc', stroke: '#e2e8f0', label: '0 ktn' };
-    if (c < 5) return { fill: '#dcfce7', stroke: '#bbf7d0', label: '< 5 ktn' };
-    if (c < 15) return { fill: '#86efac', stroke: '#4ade80', label: '5-15 ktn' };
-    if (c < 30) return { fill: '#22c55e', stroke: '#16a34a', label: '15-30 ktn' };
-    if (c < 50) return { fill: '#15803d', stroke: '#166534', label: '30-50 ktn' };
-    return { fill: '#052e16', stroke: '#14532d', label: '≥ 50 ktn' };
+    if (c < 5) return { fill: '#dbeafe', stroke: '#bfdbfe', label: '< 5 ktn' };
+    if (c < 15) return { fill: '#93c5fd', stroke: '#60a5fa', label: '5-15 ktn' };
+    if (c < 30) return { fill: '#60a5fa', stroke: '#3b82f6', label: '15-30 ktn' };
+    if (c < 50) return { fill: '#2563eb', stroke: '#1d4ed8', label: '30-50 ktn' };
+    return { fill: '#1e3a8a', stroke: '#0f172a', label: '≥ 50 ktn' };
   };
 
   const pathsHtml = mapData.features.map(f => {
@@ -9398,16 +9557,16 @@ async function renderSariwangiGarutMap(distribution) {
         tooltip.innerHTML = `
           <div class="space-y-1">
             <div class="flex items-center justify-between gap-3 border-b border-slate-700/80 pb-1">
-              <strong class="text-xs font-bold text-emerald-400">${name}</strong>
-              <span class="text-[10px] bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 rounded font-semibold">${act} Toko</span>
+              <strong class="text-xs font-bold text-blue-300">${name}</strong>
+              <span class="text-[10px] bg-blue-600/30 text-blue-200 px-1.5 py-0.2 rounded font-semibold">${act} Toko</span>
             </div>
             <div class="space-y-0.5 text-[10px] text-slate-200 pt-0.5">
               <p class="flex justify-between gap-4"><span>Total Volume:</span> <strong class="text-white">${ctn.toLocaleString('id-ID')} Ktn</strong></p>
-              <p class="flex justify-between gap-4"><span>Total Omzet:</span> <strong class="text-emerald-300">Rp ${netto.toLocaleString('id-ID')}</strong></p>
+              <p class="flex justify-between gap-4"><span>Total Omzet:</span> <strong class="text-blue-300">Rp ${netto.toLocaleString('id-ID')}</strong></p>
               <p class="flex justify-between gap-4"><span>Rata Dropsize:</span> <strong class="text-white">${dropsize} Ktn/OC</strong></p>
               <p class="flex justify-between gap-4 pt-1 border-t border-slate-800 text-slate-400"><span>Top Sales:</span> <span class="text-slate-300 truncate max-w-[120px]">${sm}</span></p>
             </div>
-            <p class="text-[9px] text-emerald-400/80 text-center pt-1 border-t border-slate-800/80">Klik untuk memfilter rincian outlet</p>
+            <p class="text-[9px] text-blue-300/80 text-center pt-1 border-t border-slate-800/80">Klik untuk memfilter rincian outlet</p>
           </div>
         `;
         updateTooltipPos(e);
@@ -9539,15 +9698,15 @@ function renderSariwangiOutletTable() {
 
   tbody.innerHTML = pagedOutlets.map((o, idx) => {
     const rowNum = startIdx + idx + 1;
-    const recencyBadgeClass = o.recency_badge === 'emerald' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+    const recencyBadgeClass = o.recency_badge === 'emerald' ? 'bg-blue-100 text-blue-800 border-blue-200' :
                              o.recency_badge === 'blue' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                             o.recency_badge === 'amber' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                             'bg-rose-100 text-rose-800 border-rose-200';
+                             o.recency_badge === 'amber' ? 'bg-blue-50 text-blue-900 border-blue-200' :
+                             'bg-slate-100 text-slate-800 border-slate-300';
 
-    const dsBadgeClass = o.total_cartons >= 6 ? 'bg-purple-100 text-purple-800 border-purple-200 font-extrabold' :
-                         o.total_cartons > 1 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+    const dsBadgeClass = o.total_cartons >= 6 ? 'bg-blue-100 text-blue-800 border-blue-200 font-extrabold' :
+                         o.total_cartons > 1 ? 'bg-blue-100 text-blue-800 border-blue-200' :
                          o.total_cartons >= 0.5 ? 'bg-sky-100 text-sky-800 border-sky-200' :
-                         'bg-amber-100 text-amber-800 border-amber-200';
+                         'bg-blue-50 text-blue-900 border-blue-200';
 
     return `
       <tr class="hover:bg-slate-50/80 transition">
@@ -9557,7 +9716,7 @@ function renderSariwangiOutletTable() {
         <td class="p-3">
           <p class="font-bold text-slate-900 flex items-center gap-1.5">
             <span>${escapeHtml(o.outlet_name)}</span>
-            ${o.has_selected_sku ? `<span class="w-2 h-2 rounded-full bg-indigo-500 shrink-0" title="Beli Selected SKU"></span>` : ''}
+            ${o.has_selected_sku ? `<span class="w-2 h-2 rounded-full bg-blue-600 shrink-0" title="Beli Selected SKU"></span>` : ''}
           </p>
           <p class="text-[10px] text-slate-400 font-mono mt-0.5">${escapeHtml(o.outlet_id)}</p>
         </td>
@@ -9577,7 +9736,7 @@ function renderSariwangiOutletTable() {
         <td class="p-3">
           <div class="flex flex-wrap gap-1 max-w-xs">
             ${o.skus.slice(0, 3).map(s => `
-              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${s.is_selected ? 'bg-indigo-50 text-indigo-800 border border-indigo-200/60' : 'bg-slate-100 text-slate-700 border border-slate-200'}">
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${s.is_selected ? 'bg-blue-50 text-blue-800 border border-blue-200/60' : 'bg-slate-100 text-slate-700 border border-slate-200'}">
                 <span class="truncate max-w-[120px]">${escapeHtml(s.item_name.replace('SARIWANGI ', '').replace('SARIMURNI ', ''))}</span>
                 <strong class="font-bold">${s.cartons} ktn</strong>
               </span>
@@ -9596,7 +9755,7 @@ function renderSariwangiOutletTable() {
 
         <!-- Total Omzet -->
         <td class="p-3 text-right">
-          <span class="font-bold text-emerald-700">Rp ${o.total_netto.toLocaleString('id-ID')}</span>
+          <span class="font-bold text-blue-700">Rp ${o.total_netto.toLocaleString('id-ID')}</span>
           <p class="text-[10px] text-slate-400">${o.order_count}x order</p>
         </td>
 
@@ -9611,7 +9770,7 @@ function renderSariwangiOutletTable() {
         <td class="p-3 text-center">
           <div class="inline-block text-[10px] text-slate-700">
             ${o.strata?.totalDisc > 0 ? `
-              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-extrabold">
+              <span class="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded font-extrabold">
                 ${o.strata.totalDisc}%
               </span>
               <p class="text-[9px] text-slate-400 mt-0.5">Reg ${o.strata.regDisc}% + Promo ${o.strata.selDisc}%</p>
@@ -9652,7 +9811,7 @@ function renderSariwangiOutletTable() {
 
     for (let p = startPage; p <= endPage; p++) {
       pagesHtml += `
-        <button onclick="changeSariwangiPage(${p})" class="px-2.5 py-1 rounded text-xs font-semibold ${p === currentPage ? 'bg-emerald-600 text-white shadow-xs' : 'border border-slate-200 text-slate-700 hover:bg-slate-100'}">
+        <button onclick="changeSariwangiPage(${p})" class="px-2.5 py-1 rounded text-xs font-semibold ${p === currentPage ? 'bg-blue-600 text-white shadow-xs' : 'border border-slate-200 text-slate-700 hover:bg-slate-100'}">
           ${p}
         </button>
       `;
@@ -9784,7 +9943,7 @@ function filterSariwangiOutletsByDropsize(bracket) {
     const btn = document.getElementById(`btn-sw-ds-${b}`);
     if (btn) {
       if (b === bracket) {
-        btn.className = 'px-2.5 py-1 rounded-md font-bold transition bg-emerald-600 text-white shadow-xs';
+        btn.className = 'px-2.5 py-1 rounded-md font-bold transition bg-blue-600 text-white shadow-xs';
       } else {
         btn.className = 'px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200';
       }
@@ -9802,7 +9961,7 @@ function filterSariwangiOutletsByRecency(recency) {
     const btn = document.getElementById(`btn-sw-rc-${r}`);
     if (btn) {
       if (r === recency) {
-        btn.className = 'px-2.5 py-1 rounded-md font-bold transition bg-emerald-600 text-white shadow-xs';
+        btn.className = 'px-2.5 py-1 rounded-md font-bold transition bg-blue-600 text-white shadow-xs';
       } else {
         btn.className = 'px-2.5 py-1 rounded-md font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200';
       }

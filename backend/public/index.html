@@ -26,13 +26,13 @@
       border-radius: 4px;
     }
     .nav-item.active {
-      background: #1e3a8a;
+      background: #2563eb;
       color: #ffffff;
     }
-    .badge-success { background: #dcfce7; color: #15803d; }
-    .badge-warning { background: #fef9c3; color: #a16207; }
-    .badge-danger { background: #fee2e2; color: #b91c1c; }
-    .badge-info { background: #e0f2fe; color: #0369a1; }
+    .badge-success { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+    .badge-warning { background: #fefce8; color: #854d0e; border: 1px solid #fef08a; }
+    .badge-danger { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
+    .badge-info { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 flex h-screen overflow-hidden">
@@ -50,12 +50,12 @@
       <!-- Brand Logo Header -->
       <div class="px-5 py-5 border-b border-slate-800/80 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-900/40">
+          <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-950/50">
             <i data-lucide="trending-up" class="w-6 h-6"></i>
           </div>
           <div>
             <h1 class="font-bold text-white text-base tracking-tight leading-tight">Sales Garut</h1>
-            <p class="text-[11px] text-emerald-400 font-medium tracking-wide uppercase">Intelligence Platform</p>
+            <p class="text-[11px] text-blue-300 font-semibold tracking-wide uppercase">Intelligence Platform</p>
           </div>
         </div>
         <!-- Mobile close button -->
@@ -75,24 +75,24 @@
           <span>Penjualan</span>
         </a>
         <a href="#sariwangi" onclick="navigate('sariwangi'); toggleSidebar(false);" id="nav-sariwangi" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
-          <i data-lucide="coffee" class="w-4 h-4 text-emerald-400"></i>
+          <i data-lucide="coffee" class="w-4 h-4 text-blue-300"></i>
           <span class="flex items-center gap-2">
             <span>Analytics SariWangi</span>
-            <span class="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">Unilever</span>
+            <span class="text-[9px] bg-blue-950/80 text-blue-200 border border-blue-800/60 font-semibold px-1.5 py-0.5 rounded">Unilever</span>
           </span>
         </a>
         <a href="#trend" onclick="navigate('trend'); toggleSidebar(false);" id="nav-trend" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
-          <i data-lucide="trending-up" class="w-4 h-4 text-cyan-400"></i>
+          <i data-lucide="trending-up" class="w-4 h-4 text-blue-300"></i>
           <span class="flex items-center gap-2">
             <span>Trend & Movement</span>
-            <span class="text-[9px] bg-cyan-500/20 text-cyan-300 font-bold px-1.5 py-0.5 rounded">Baru</span>
+            <span class="text-[9px] bg-blue-950/80 text-blue-200 border border-blue-800/60 font-semibold px-1.5 py-0.5 rounded">Baru</span>
           </span>
         </a>
         <a href="#performance" onclick="navigate('performance'); toggleSidebar(false);" id="nav-performance" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
-          <i data-lucide="award" class="w-4 h-4 text-emerald-400"></i>
+          <i data-lucide="award" class="w-4 h-4 text-blue-300"></i>
           <span class="flex items-center gap-2">
             <span>Summary Performance</span>
-            <span class="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">Total DSO</span>
+            <span class="text-[9px] bg-blue-950/80 text-blue-200 border border-blue-800/60 font-semibold px-1.5 py-0.5 rounded">Total DSO</span>
           </span>
         </a>
         <a href="#outlet" onclick="navigate('outlet'); toggleSidebar(false);" id="nav-outlet" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
@@ -100,10 +100,10 @@
           <span>Outlet & Area</span>
         </a>
         <a href="#peta" onclick="openGarutMapModal(); toggleSidebar(false);" id="nav-peta" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
-          <i data-lucide="map" class="w-4 h-4 text-emerald-400"></i>
+          <i data-lucide="map" class="w-4 h-4 text-blue-300"></i>
           <span class="flex items-center gap-2">
             <span>Peta Wilayah</span>
-            <span class="text-[9px] bg-emerald-500/20 text-emerald-300 font-bold px-1.5 py-0.5 rounded">42 Kec</span>
+            <span class="text-[9px] bg-blue-950/80 text-blue-200 border border-blue-800/60 font-semibold px-1.5 py-0.5 rounded">42 Kec</span>
           </span>
         </a>
         <a href="#salesman" onclick="navigate('salesman'); toggleSidebar(false);" id="nav-salesman" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
@@ -119,10 +119,10 @@
           <span>Stock & Piutang</span>
         </a>
         <a href="#pricelist" onclick="navigate('pricelist'); toggleSidebar(false);" id="nav-pricelist" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
-          <i data-lucide="calculator" class="w-4 h-4 text-amber-400"></i>
+          <i data-lucide="calculator" class="w-4 h-4 text-blue-300"></i>
           <span class="flex items-center gap-2">
             <span>Pricelist & Simulasi</span>
-            <span class="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded">Katalog</span>
+            <span class="text-[9px] bg-blue-950/80 text-blue-200 border border-blue-800/60 font-semibold px-1.5 py-0.5 rounded">Katalog</span>
           </span>
         </a>
         <a href="#datacenter" onclick="navigate('datacenter'); toggleSidebar(false);" id="nav-datacenter" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-slate-800/80 hover:text-white">
@@ -142,8 +142,8 @@
         <p class="text-xs font-semibold text-white">Garut Lebih Kuat Bersama</p>
         <p class="text-[11px] text-slate-400 mt-0.5">Good People Great Execution</p>
         <div class="mt-2.5 flex items-center justify-between text-[11px]">
-          <span class="flex items-center gap-1.5 text-amber-400 font-semibold"><span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> DEVELOPMENT / PRE-UAT</span>
-          <span class="text-slate-400 font-mono text-[10px]">v0.9.5</span>
+          <span class="flex items-center gap-1.5 text-blue-300 font-semibold"><span class="w-2 h-2 rounded-full bg-blue-400"></span> STABLE ENTERPRISE</span>
+          <span class="text-slate-400 font-mono text-[10px]">v1.0</span>
         </div>
       </div>
     </div>
@@ -190,12 +190,12 @@
         <div class="relative">
           <button onclick="toggleAlertsMenu()" class="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition relative">
             <i data-lucide="bell" class="w-4 h-4"></i>
-            <span class="w-2 h-2 rounded-full bg-rose-500 absolute top-2 right-2 ring-2 ring-white"></span>
+            <span class="w-2 h-2 rounded-full bg-blue-600 absolute top-2 right-2 ring-2 ring-white"></span>
           </button>
           <div id="alerts-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 text-xs">
             <div class="font-semibold text-slate-800 pb-2 border-b border-slate-100 flex justify-between items-center">
               <span>Pemberitahuan Sistem</span>
-              <span class="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold">3 Peringatan</span>
+              <span class="text-[10px] bg-blue-50 text-blue-800 border border-blue-200 px-1.5 py-0.5 rounded font-bold">3 Peringatan</span>
             </div>
             <div id="alerts-list" class="mt-2 space-y-2 max-h-60 overflow-y-auto scrollbar-thin">
               <!-- Dynamically populated -->
@@ -210,12 +210,12 @@
           </div>
           <div class="text-left leading-tight hidden sm:block">
             <p id="user-fullname" class="text-xs font-bold text-slate-800">Aghia Anggala</p>
-            <p id="user-role-label" class="text-[10px] text-emerald-600 font-semibold">Super Admin (DSM)</p>
+            <p id="user-role-label" class="text-[10px] text-blue-700 font-semibold">Super Admin (DSM)</p>
           </div>
-          <button onclick="openChangePasswordQuick()" class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg border border-slate-200 transition ml-1" title="Ganti Kata Sandi">
+          <button onclick="openChangePasswordQuick()" class="p-1.5 text-slate-400 hover:text-blue-700 hover:bg-blue-50 rounded-lg border border-slate-200 transition ml-1" title="Ganti Kata Sandi">
             <i data-lucide="key-round" class="w-4 h-4"></i>
           </button>
-          <button onclick="logout()" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 transition ml-1" title="Keluar / Ganti Akun">
+          <button onclick="logout()" class="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg border border-slate-200 transition ml-1" title="Keluar / Ganti Akun">
             <i data-lucide="log-out" class="w-4 h-4"></i>
           </button>
         </div>
@@ -237,7 +237,7 @@
         </div>
       </button>
       <div class="flex items-center gap-1.5">
-        <button type="button" onclick="applyFilters()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-semibold text-[11px] shadow-sm transition">
+        <button type="button" onclick="applyFilters()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold text-[11px] shadow-sm transition">
           Terapkan
         </button>
       </div>
@@ -249,7 +249,7 @@
         <!-- Periode -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Periode:</span>
-          <select id="filter-period" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
+          <select id="filter-period" onchange="handleFilterChange('period')" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
             <option value="2026-10" selected>Oktober 2026</option>
             <option value="2026-09">September 2026</option>
             <option value="2026-08">Agustus 2026</option>
@@ -266,7 +266,7 @@
         <!-- SPV -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">SPV:</span>
-          <select id="filter-spv" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
+          <select id="filter-spv" onchange="handleFilterChange('spv')" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
             <option value="">Semua SPV</option>
             <option value="SPV_NOPAN">Nopan (Team 1)</option>
             <option value="SPV_TRI_H">Tri H. (Team 2)</option>
@@ -276,7 +276,7 @@
         <!-- Salesman Group -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Group:</span>
-          <select id="filter-sales-group" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
+          <select id="filter-sales-group" onchange="handleFilterChange('group')" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
             <option value="">Semua Group</option>
             <option value="SAVORIA">SAVORIA (7 Salesman Rayon)</option>
             <option value="SCM">SCM</option>
@@ -287,7 +287,7 @@
         <!-- Salesman -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Salesman:</span>
-          <select id="filter-salesman" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
+          <select id="filter-salesman" onchange="handleFilterChange('salesman')" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none">
             <option value="">Semua Salesman</option>
             <option value="107075">Muhamad Fikri Hambali</option>
             <option value="305028">Mulyana</option>
@@ -302,7 +302,7 @@
         <!-- Rayon -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Rayon:</span>
-          <select id="filter-rayon" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[130px]">
+          <select id="filter-rayon" onchange="handleFilterChange('rayon')" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[130px]">
             <option value="">Semua Rayon</option>
           </select>
         </div>
@@ -310,7 +310,7 @@
         <!-- Principal -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Principal:</span>
-          <select id="filter-principal" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[150px]">
+          <select id="filter-principal" onchange="handleFilterChange('principal')" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[150px]">
             <option value="">Semua Principal</option>
           </select>
         </div>
@@ -318,7 +318,7 @@
         <!-- Brand -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Brand:</span>
-          <select id="filter-brand" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[150px]">
+          <select id="filter-brand" onchange="handleFilterChange('brand')" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[150px]">
             <option value="">Semua Brand</option>
             <option value="KOPI TUBRUK GADJAH">Kopi Tubruk Gadjah</option>
             <option value="5DAYS">5Days Croissant</option>
@@ -331,7 +331,7 @@
         <!-- Subbrand -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Subbrand:</span>
-          <select id="filter-subbrand" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[160px]">
+          <select id="filter-subbrand" onchange="handleFilterChange('subbrand')" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[160px]">
             <option value="">Semua Subbrand</option>
           </select>
         </div>
@@ -339,7 +339,7 @@
         <!-- Group SKU -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Group SKU:</span>
-          <select id="filter-group-sku" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[130px]">
+          <select id="filter-group-sku" onchange="handleFilterChange('groupSku')" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[130px]">
             <option value="">Semua Group SKU</option>
           </select>
         </div>
@@ -347,7 +347,7 @@
         <!-- Kecamatan -->
         <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
           <span class="text-slate-500 font-medium">Kecamatan:</span>
-          <select id="filter-kecamatan" onchange="applyFilters()" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[150px]">
+          <select id="filter-kecamatan" onchange="handleFilterChange('kecamatan')" class="bg-slate-50 border border-slate-300 text-slate-800 rounded-md px-2.5 py-1.5 font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none max-w-[150px]">
             <option value="">Semua Kecamatan</option>
             <option value="KEC_GARUT_KOTA">GARUT KOTA</option>
             <option value="KEC_TAROGONG_KIDUL">TAROGONG KIDUL</option>
@@ -360,7 +360,7 @@
       </div>
 
       <div class="flex items-center gap-2 w-full lg:w-auto justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
-        <button onclick="applyFilters()" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-semibold transition flex items-center gap-1.5 shadow-sm shadow-emerald-700/20">
+        <button onclick="applyFilters()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold transition flex items-center gap-1.5 shadow-sm shadow-blue-900/20">
           <i data-lucide="filter" class="w-3.5 h-3.5"></i>
           <span>Terapkan</span>
         </button>
@@ -389,27 +389,27 @@
   <div id="login-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 relative border border-slate-100 overflow-hidden">
       <!-- Decorative top ribbon -->
-      <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600"></div>
+      <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-700 via-blue-600 to-sky-500"></div>
 
       <!-- Header & Branding -->
       <div class="text-center mb-6">
-        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white mx-auto shadow-lg shadow-emerald-600/30 mb-3">
+        <div class="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center text-white mx-auto shadow-lg shadow-blue-950/30 mb-3">
           <i data-lucide="trending-up" class="w-9 h-9"></i>
         </div>
         <h2 class="text-xl font-extrabold text-slate-900 tracking-tight">Sales Garut</h2>
-        <p class="text-xs text-emerald-600 font-semibold uppercase tracking-wider">Intelligence Platform</p>
+        <p class="text-xs text-blue-700 font-semibold uppercase tracking-wider">Intelligence Platform</p>
         <p class="text-xs text-slate-500 mt-1">Silakan masuk menggunakan kredensial Anda</p>
       </div>
 
       <!-- Login Form -->
       <form id="login-form" onsubmit="handleLoginSubmit(event)" class="space-y-4">
-        <div id="login-error-container" class="hidden p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-medium"></div>
+        <div id="login-error-container" class="hidden p-3 bg-slate-100 border border-slate-300 rounded-xl text-xs text-slate-800 font-medium"></div>
 
         <div>
           <label class="block text-xs font-bold text-slate-700 mb-1.5" for="login-username">Nama Pengguna / Username</label>
           <div class="relative">
             <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
-            <input type="text" id="login-username" required placeholder="Contoh: Aghia Anggala" class="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition">
+            <input type="text" id="login-username" required placeholder="Contoh: Aghia Anggala" class="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition">
           </div>
         </div>
 
@@ -417,14 +417,14 @@
           <label class="block text-xs font-bold text-slate-700 mb-1.5" for="login-password">Kata Sandi (Password)</label>
           <div class="relative">
             <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
-            <input type="password" id="login-password" required placeholder="•••••" class="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition">
+            <input type="password" id="login-password" required placeholder="•••••" class="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white transition">
             <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
               <i id="eye-icon" data-lucide="eye" class="w-4 h-4"></i>
             </button>
           </div>
         </div>
 
-        <button type="submit" id="btn-login-submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-700/25 transition duration-200 flex items-center justify-center gap-2">
+        <button type="submit" id="btn-login-submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-900/20 transition duration-200 flex items-center justify-center gap-2">
           <span>Masuk ke Sistem</span>
           <i data-lucide="arrow-right" class="w-4 h-4"></i>
         </button>

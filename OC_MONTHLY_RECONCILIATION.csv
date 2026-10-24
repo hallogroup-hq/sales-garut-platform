@@ -1,0 +1,43 @@
+Period,Group_Scope,Excel_Pivot_Reference,Raw_Distinct_Outlets_Total,Authoritative_Sales_OC,Excluded_Return_Only_Outlets,Promotor_Motorist_Outlets,DSM_Management_Outlets,Previous_Buggy_Dashboard_OC,Variance_Dashboard_vs_Pivot,Status,Audit_Notes
+2025-01,SAVORIA (7 Salesman Rayon),2306,2306,2306,0,0,0,2306,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-01,DSO Grand Total,3283,3283,3283,0,0,0,3283,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-02,SAVORIA (7 Salesman Rayon),2264,2264,2264,0,0,0,2264,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-02,DSO Grand Total,3048,3048,3048,0,0,0,3048,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-03,SAVORIA (7 Salesman Rayon),2235,2235,2235,0,0,0,2235,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-03,DSO Grand Total,2620,2620,2620,0,0,0,2620,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-04,SAVORIA (7 Salesman Rayon),1880,1880,1880,0,0,0,1880,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-04,DSO Grand Total,2440,2440,2440,0,0,0,2440,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-05,SAVORIA (7 Salesman Rayon),1872,1872,1872,0,0,0,1872,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-05,DSO Grand Total,3404,3404,3404,0,0,0,3404,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-06,SAVORIA (7 Salesman Rayon),1591,1591,1591,0,0,0,1591,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-06,DSO Grand Total,2589,2589,2589,0,0,0,2589,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-07,SAVORIA (7 Salesman Rayon),1737,1737,1737,0,0,0,1737,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-07,DSO Grand Total,3420,3420,3420,0,0,0,3420,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-08,SAVORIA (7 Salesman Rayon),1727,1727,1727,0,0,0,1727,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-08,DSO Grand Total,2276,2276,2276,0,0,0,2276,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-09,SAVORIA (7 Salesman Rayon),1870,1870,1870,0,0,0,1870,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-09,DSO Grand Total,2494,2494,2494,0,0,0,2494,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-10,SAVORIA (7 Salesman Rayon),1385,1385,1385,0,0,0,1385,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-10,DSO Grand Total,3317,3317,3317,0,0,0,3317,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-11,SAVORIA (7 Salesman Rayon),1591,1591,1591,0,0,0,1591,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-11,DSO Grand Total,3438,3438,3438,0,0,0,3438,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2025-12,SAVORIA (7 Salesman Rayon),1754,1754,1754,0,0,0,1754,0,PASS,Historical 2025 baseline matches reference pivot table.
+2025-12,DSO Grand Total,2735,2735,2735,0,0,0,2735,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2026-01,SAVORIA (7 Salesman Rayon),1826,1826,1810,16,61,10,1881,0,PASS,16 return-only excluded. 1-outlet variance solved: invoice G305260121111856961BDZ (PROMOTOR_FPM) reattributed from 107075 to SAVORIA_OTH.
+2026-01,DSO Grand Total,2473,2473,2457,16,61,10,2473,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2026-02,SAVORIA (7 Salesman Rayon),1727,1727,1703,24,82,8,1793,0,PASS,24 return-only outlets excluded. Exact match with pivot reference.
+2026-02,DSO Grand Total,2245,2245,2221,24,82,8,2245,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2026-03,SAVORIA (7 Salesman Rayon),1284,1284,1279,5,76,6,1361,0,PASS,5 return-only outlets excluded. Exact match with pivot reference.
+2026-03,DSO Grand Total,1658,1658,1653,5,76,6,1658,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2026-04,SAVORIA (7 Salesman Rayon),1651,1651,1603,48,82,8,1693,0,PASS,48 return-only outlets excluded. Exact match with pivot reference.
+2026-04,DSO Grand Total,2154,2154,2106,48,82,8,2154,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2026-05,SAVORIA (7 Salesman Rayon),1844,1844,1787,57,207,8,2002,0,PASS,57 return-only outlets excluded. Exact match with pivot reference.
+2026-05,DSO Grand Total,2523,2523,2466,57,207,8,2523,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2026-06,SAVORIA (7 Salesman Rayon),1895,1895,1873,22,213,7,2093,0,PASS,22 return-only outlets excluded. Exact match with pivot reference.
+2026-06,DSO Grand Total,2583,2583,2561,22,213,7,2583,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2026-07,SAVORIA (7 Salesman Rayon),1881,1881,1865,16,220,5,2090,0,PASS,16 return-only excluded. 1-outlet variance solved: invoice G305260724165658543ANS (PROMOTOR_FPM) reattributed from 107075 to SAVORIA_OTH.
+2026-07,DSO Grand Total,4352,4352,4336,16,220,5,4352,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2026-08,SAVORIA (7 Salesman Rayon),1532,1532,1511,21,215,1,1727,0,PASS,21 return-only excluded. 1-outlet variance solved: invoice G305260824151207213KGB (PROMOTOR_FPM) reattributed from 107075 to SAVORIA_OTH.
+2026-08,DSO Grand Total,2535,2535,2514,21,215,1,2535,0,PASS,DSO total distinct outlets across all groups and salesmen.
+2026-09,SAVORIA (7 Salesman Rayon),1892,1892,1874,18,239,3,2116,0,PASS,18 return-only excluded. Motorist (239) and DSM (3) segregated to SAVORIA_OTHERS. Exact match with pivot reference.
+2026-09,DSO Grand Total,3220,3220,3202,18,239,3,3220,0,PASS,DSO total distinct outlets across all groups and salesmen.

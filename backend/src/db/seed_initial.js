@@ -42,7 +42,7 @@ async function seedInitialDataAsync(db) {
     { id: '305033', spv: 'SPV_TRI_H', name: 'Muhammad Zulfa Akbar', code: '305033', type: 'Kanvas', group: 'SAVORIA', target_cl: 375, cycle: '3 Minggu', has_rayon: 1, max_r: 15, role: 'SALESMAN' },
     { id: 'SMC_GARUT', spv: null, name: 'SMC Garut Team', code: 'SMC01', type: 'OTHER', group: 'SMC', target_cl: 0, cycle: 'N/A', has_rayon: 0, max_r: 0, role: 'SALESMAN' },
     { id: 'SAVORIA_OTH', spv: null, name: 'Savoria (Others)', code: 'OTH01', type: 'OTHER', group: 'SAVORIA_OTHERS', target_cl: 0, cycle: 'N/A', has_rayon: 0, max_r: 0, role: 'SALESMAN' },
-    { id: 'DSM_GARUT', spv: null, name: 'DSM GARUT', code: 'DSM', type: 'MANAGEMENT', group: 'SAVORIA', target_cl: 0, cycle: 'N/A', has_rayon: 0, max_r: 0, role: 'DSM' }
+    { id: 'DSM_GARUT', spv: null, name: 'DSM GARUT', code: 'DSM', type: 'MANAGEMENT', group: 'SAVORIA_OTHERS', target_cl: 0, cycle: 'N/A', has_rayon: 0, max_r: 0, role: 'DSM' }
   ];
 
   for (const s of salesmen) {
@@ -216,7 +216,7 @@ function seedInitialData() {
     { id: '305033', spv: 'SPV_TRI_H', name: 'Muhammad Zulfa Akbar', code: '305033', type: 'Kanvas', group: 'SAVORIA', target_cl: 375, cycle: '3 Minggu', has_rayon: 1, max_r: 15 },
     { id: 'SMC_GARUT', spv: null, name: 'SMC Garut Team', code: 'SMC01', type: 'OTHER', group: 'SMC', target_cl: 0, cycle: 'N/A', has_rayon: 0, max_r: 0, role: 'SALESMAN' },
     { id: 'SAVORIA_OTH', spv: null, name: 'Savoria (Others)', code: 'OTH01', type: 'OTHER', group: 'SAVORIA_OTHERS', target_cl: 0, cycle: 'N/A', has_rayon: 0, max_r: 0, role: 'SALESMAN' },
-    { id: 'DSM_GARUT', spv: null, name: 'DSM GARUT', code: 'DSM', type: 'MANAGEMENT', group: 'SAVORIA', target_cl: 0, cycle: 'N/A', has_rayon: 0, max_r: 0, role: 'DSM' }
+    { id: 'DSM_GARUT', spv: null, name: 'DSM GARUT', code: 'DSM', type: 'MANAGEMENT', group: 'SAVORIA_OTHERS', target_cl: 0, cycle: 'N/A', has_rayon: 0, max_r: 0, role: 'DSM' }
   ];
   for (const s of salesmen) {
     db.run(

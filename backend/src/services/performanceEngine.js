@@ -56,7 +56,7 @@ function getTotalPerformanceSummary(filters = {}) {
     targetCartons: m.targetCartons,
     actualCartons: m.volumeCartons,
     salesNetto: m.volumeValue,
-    activeOutlets: m.activeOutlets,
+    activeOutlets: (m.year === year && m.month === month) ? kpis.activeOutletsMtd : m.activeOutlets,
     achievementPct: m.achvPct,
     momVolPct: m.momVolPct,
     momOaPct: m.momOaPct,
