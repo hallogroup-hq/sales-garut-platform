@@ -69,10 +69,12 @@ function getBrandUnitPrice(brand) {
 
 function resolveFilePath(rawDir, rootDir, candidates) {
   for (const c of candidates) {
-    const p1 = path.join(rawDir, c);
-    if (fs.existsSync(p1)) return p1;
     const p2 = path.join(rootDir, c);
     if (fs.existsSync(p2)) return p2;
+    const p1 = path.join(rawDir, c);
+    if (fs.existsSync(p1)) return p1;
+    const p0 = path.join('D:/monthly tracking/FILE UPLOAD BI GHIA', c);
+    if (fs.existsSync(p0)) return p0;
   }
   return null;
 }
@@ -83,7 +85,7 @@ async function runSmallIngestion() {
   const rootDir = path.resolve(__dirname, '../../..');
 
   console.log('>>> [1/4] Ingesting TARGET SALES.xlsx (Year 2026)...');
-  const targetPath = resolveFilePath(rawDir, rootDir, ['TARGET KUANTITI SALES.xlsx', 'TARGET SALES.xlsx']);
+  const targetPath = resolveFilePath(rawDir, rootDir, ['TARGET SALES.xlsx', 'TARGET KUANTITI SALES.xlsx']);
   if (targetPath && fs.existsSync(targetPath)) {
     const wb = xlsx.readFile(targetPath);
     const matrix = xlsx.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
@@ -126,7 +128,12 @@ async function runSmallIngestion() {
       { name: 'JUL', m: 7 },
       { name: 'AUG', m: 8 },
       { name: 'AGU', m: 8 },
-      { name: 'SEP', m: 9 }
+      { name: 'SEP', m: 9 },
+      { name: 'OCT', m: 10 },
+      { name: 'OKT', m: 10 },
+      { name: 'NOV', m: 11 },
+      { name: 'DEC', m: 12 },
+      { name: 'DES', m: 12 }
     ];
 
     let targetCount = 0;
@@ -158,7 +165,7 @@ async function runSmallIngestion() {
         targetCount++;
       }
     }
-    console.log(`  Inserted/updated ${targetCount} target entries for Jan-Sep 2026.`);
+    console.log(`  Inserted/updated ${targetCount} target entries for Jan-Dec 2026.`);
 
     // Sync fact_incentive_value_target
     db.run(`
