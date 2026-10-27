@@ -372,9 +372,12 @@ async function ingestMasterData(db, scratchDir) {
     } else if (salesGroup.toUpperCase() === 'SCM' || salesGroup.toUpperCase() === 'SMC') {
       smId = 'SMC_GARUT';
       smCanonicalName = smName || 'SMC Garut Team';
-    } else if (smName.toUpperCase().includes('DSM')) {
+    } else if (smName.toUpperCase().includes('DSM') || smName.toUpperCase().includes('KANTOR')) {
       smId = 'DSM_GARUT';
       smCanonicalName = 'DSM GARUT';
+    } else if (salesGroup.toUpperCase().includes('OTHERS') || smName.toUpperCase().includes('PROMOTOR') || (docNum && docNum.startsWith('GZWF'))) {
+      smId = 'SAVORIA_OTH';
+      smCanonicalName = smName || 'Savoria (Others)';
     } else if (smCode) {
       smId = smCode;
     }
@@ -654,7 +657,10 @@ async function ingestMasterData(db, scratchDir) {
 async function runBiGhiaIngestion() {
   const tStart = Date.now();
   const db = getDb();
-  const scratchDir = 'C:\\Users\\DsmGarut\\.gemini\\antigravity\\brain\\864e5b2a-0cad-4e8f-a8ac-23c423e34498\\scratch';
+  const localScratch = path.resolve(__dirname, '../../../scratch');
+  const scratchDir = fs.existsSync(path.join(localScratch, 'sheet1.xml'))
+    ? localScratch
+    : 'C:\\Users\\DsmGarut\\.gemini\\antigravity\\brain\\864e5b2a-0cad-4e8f-a8ac-23c423e34498\\scratch';
   const uploadDir = 'D:\\monthly tracking\\FILE UPLOAD BI GHIA';
 
   const stockPath = path.join(uploadDir, 'stock gudang.xlsx');
@@ -739,7 +745,7 @@ async function runBiGhiaIngestion() {
     FROM agg_monthly_sales_movement
     WHERE year = 2026 AND month = 9
   `)[0];
-  console.log(`September 2026 Aggregation in DB: ${sepTotal ? sepTotal.cartons.toFixed(2) : 0} KTN | Rp ${sepTotal ? Math.round(sepTotal.netto).toLocaleString('id-ID') : 0}`);
+  console.log(`September 2026 Aggregation in DB: ${sepTotal && sepTotal.cartons != null ? Number(sepTotal.cartons).toFixed(2) : 0} KTN | Rp ${sepTotal && sepTotal.netto != null ? Math.round(sepTotal.netto).toLocaleString('id-ID') : 0}`);
 
   const octTotal = db.query(`
     SELECT 
@@ -749,7 +755,7 @@ async function runBiGhiaIngestion() {
     FROM agg_monthly_sales_movement
     WHERE year = 2026 AND month = 10
   `)[0];
-  console.log(`Oktober 2026 Aggregation in DB: ${octTotal ? octTotal.cartons.toFixed(2) : 0} KTN | Rp ${octTotal ? Math.round(octTotal.netto).toLocaleString('id-ID') : 0}`);
+  console.log(`Oktober 2026 Aggregation in DB: ${octTotal && octTotal.cartons != null ? Number(octTotal.cartons).toFixed(2) : 0} KTN | Rp ${octTotal && octTotal.netto != null ? Math.round(octTotal.netto).toLocaleString('id-ID') : 0}`);
 }
 
 if (require.main === module) {
