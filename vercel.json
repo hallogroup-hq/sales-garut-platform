@@ -11,6 +11,7 @@
           "backend/sales_garut.db.gz",
           "backend/public/**",
           "backend/src/db/schema.sql",
+          "TARGET SALES.xlsx",
           "TARGET KUANTITI SALES.xlsx",
           "PRICELIST.xlsx"
         ]
